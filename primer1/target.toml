@@ -1,0 +1,10 @@
+schema_version = 1
+target = "primer1"
+kind = "fpga-rtl"
+role = "ML-KEM-512 NTT/INTT/MultiplyNTTs accelerator, Ascon-AEAD128 encrypt and UART TX"
+device = "GW2A-LV18PG256C8/I7"
+clock_hz = 27000000
+toolchain = "Gowin EDA"
+top = "primer1_top"
+implementation_status = "NOT_IMPLEMENTED"
+self_contained = true

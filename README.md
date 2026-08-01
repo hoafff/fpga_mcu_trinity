@@ -1,235 +1,87 @@
-# FPGA PQC Secure Telemetry
+# FPGA MCU Trinity
 
-Hệ thống telemetry an toàn nhiều thiết bị dùng ML-KEM-512, FPGA PQC/NTT, Ascon-AEAD128, STP secure telemetry, Tiny 1P5 supervisor và SONiX SN32F407F control/session node.
+`fpga_mcu_trinity` là dự án mới cho hệ thống gồm PC host, SONiX
+SN32F407F, hai bo Gowin Primer 20K và một bo Gowin Tiny 1P5.
 
-> `main` là **integration baseline hiện hành**. Khi một thay đổi đã merge vào `main`, branch/PR cũ chỉ còn giá trị lịch sử. Trạng thái `main` có thể là code-complete nhưng vẫn chưa hardware-qualified; exact vendor build và đo mạch được theo dõi riêng trong sign-off checklist.
+Repository này **không phải bản sao** của `fpga-pqc-secure-telemetry`. Repo cũ
+chỉ được dùng làm tài liệu tham khảo theo từng module/thuật toán; cây thư mục,
+wrapper, interface và lịch sử của repo cũ không phải baseline triển khai ở đây.
 
-## 0. Source-of-truth hierarchy
-
-Khi tài liệu hoặc source bất đồng, dùng thứ tự sau:
-
-1. **phần cứng thật, schematic, pinout và electrical constraints**;
-2. **tài liệu chính thức của ban tổ chức / nhà sản xuất board / SDK**;
-3. **RTL, firmware, CST, SDC hiện hành và behavior đã được executable test xác nhận**;
-4. **quyết định integration của project** trong decision register/deployment profiles;
-5. **`FPST-SYS-SPEC-001 v1.1` chỉ là reference baseline**;
-6. Git history chỉ dùng để truy vết lịch sử, không dùng để build/deploy.
-
-Nếu source/constraint/profile mâu thuẫn với nguồn có thẩm quyền cao hơn: **STOP**, không tự đổi pin hoặc dây để khớp một file cũ.
-
-## 1. Deployment map
-
-| Target | Vai trò | Artifact |
-|---|---|---|
-| Kiwi Primer 20K #1 | PQC/NTT/INTT, Ascon encrypt, STP TX | Gowin `.fs` |
-| Kiwi Primer 20K #2 | Ascon decrypt/verify, STP RX, replay/auth handling | Gowin `.fs` |
-| Kiwi Tiny 1P5 | Hardware safety supervisor cho hai Primer trong MVP | Gowin `.fs` |
-| SONiX SN32F407F EVK | ML-KEM/KDF/session control, dual-Primer SPI bridge, telemetry | `.hex`/`.bin` |
-| PC | UART host, bring-up, logs, benchmark | Python package/tools |
-
-Chi tiết target/build: [`targets/`](targets/README.md).
-
-## 2. Current MVP topology
+## Kiến trúc đã chốt
 
 ```text
 PC host
-   |
-   | UART0 115200 8N1
+   | UART 115200 8N1
    v
 SN32F407F
-   |
-   | shared SPI0: Mode 0, MSB-first
-   | project bring-up: 1 MHz
-   | measured qualification only: 1 -> 2 -> 3 -> 4 -> 5 MHz
-   |
-   +---- CS1/IRQ1 ----> Primer #1 TX/PQC
-   |
-   +---- CS2/IRQ2 ----> Primer #2 RX/verify
+   | shared SPI Mode 0, MSB-first, bring-up 1 MHz
+   +---------------------> Primer #1: ML-KEM math + Ascon encrypt + TX
+   +---------------------> Primer #2: Ascon decrypt/tag verify + replay + RX
 
-Heartbeat/liveness:
-  SN32 ----------------------> Tiny
-  Primer #1 -----------------> Tiny
-  Primer #2 -----------------> Tiny
+Primer #1 -- UART một chiều, frame cố định 60 byte --> Primer #2
 
-Project local crypto fault:
-  Primer #2 J2-12/T13 -------> Tiny J1-11/pin15
-  [project-assigned route; physical continuity/levels still require measurement]
-
-Tiny hardware controls in MVP:
-  Tiny SECURE_ENABLE --------> Primer #1 + Primer #2
-  Tiny ZEROIZE_N ------------> Primer #1 + Primer #2
-  Tiny FAULT_LATCH ----------> Primer #1 + Primer #2
-
-Tiny J1-9 Tiny_FAULT_N --X--> SN32 P0.10/J11-1
-  [source-only candidate; physical connection remains blocked]
+SN32 / Primer #1 / Primer #2 -- heartbeat/fault --> Tiny 1P5
+Tiny 1P5 -- secure_enable / zeroize -----------> hai Primer
 ```
 
-### MVP Policy B security boundary
+Tiny 1P5 nằm ngoài đường payload. SN32 điều khiển ML-KEM-512 cấp cao, hash/KDF,
+entropy/session và giao tiếp PC; Primer #1 chỉ tăng tốc phép toán ML-KEM thực
+(`NTT`, `INTT`, `MultiplyNTTs/BaseCaseMultiply`) rồi mã hóa; Primer #2 xác thực
+tag trước khi cho phép plaintext đi tiếp.
+
+## Hợp đồng mật mã và frame
+
+- ML-KEM-512 hoàn chỉnh trong demo.
+- `n = 256`, `q = 3329`, hệ số 16 bit; I/O NTT ở standard domain, Montgomery
+  chỉ dùng nội bộ.
+- Ascon-AEAD128 theo NIST SP 800-232: encrypt ở Primer #1, decrypt/tag verify ở
+  Primer #2.
+- Mỗi session cần 32 byte CSPRNG entropy từ PC; KAT dùng seed vector cố định.
+- Plaintext 24 byte, ciphertext 24 byte, tag 16 byte.
+- Frame UART P1→P2 cố định 60 byte: `SYNC(2) + COMMAND(1) + btp_txn_id(1) +
+  LENGTH(2) + session_id(4) + sequence(8) + ciphertext(24) + tag(16) + CRC-16(2)`.
+- `SYNC = A5 5A`, `COMMAND = 0x60`, `LENGTH = 0x0034`, sequence bắt đầu từ 1,
+  `btp_txn_id = (sequence - 1) mod 256`.
+- Không giữ retry timeout, response cache, retained packet hoặc payload buffer
+  lớn của kiến trúc cũ.
+
+## Cấu trúc repository
 
 ```text
-Tiny hardware containment -> Primer #1 + Primer #2
-SN32 trusted controller    -> software session/CSPRNG/transient-secret hygiene
+/
+├── pc_host/       # ứng dụng chạy trên PC
+├── sn32/          # firmware/project Keil cho SN32F407F
+├── primer1/       # project Gowin self-contained cho Primer #1
+├── primer2/       # project Gowin self-contained cho Primer #2
+├── tiny1p5/       # project Gowin self-contained cho Tiny 1P5
+├── ai_context/    # kiến trúc, interface, KAT, test, evidence và checker
+├── README.md
+├── .gitignore
+└── LICENSE
 ```
 
-The legacy Tiny→SN32 reset path is not an MVP requirement. J1-9 is now a conditionally selected active-low fault indication, not a reset output; physical connection remains separately gated. The project does not claim asynchronous hardware reset/containment of a wedged SN32.
+Năm thư mục target phải tự build độc lập. Không tạo kho source dùng chung kiểu
+`rtl/`, `targets/`, `tb/`, `software/` hay `constraints/` ở root. Nếu hai target
+cùng cần CRC hoặc Ascon permutation thì mỗi target giữ một bản source của chính
+nó; checker trong `ai_context/` chịu trách nhiệm phát hiện các bản copy bị lệch.
+Target không được phụ thuộc `ai_context/` để build hoặc nạp.
 
-## 3. Current code status
+## Trạng thái hiện tại
 
-### Primer #1
+Đây là baseline cấu trúc sạch sau khi loại bỏ lần import nhầm repo cũ. Các file
+`target.toml` chỉ khóa thiết bị, vai trò và công cụ dự kiến; source triển khai mới
+chưa được coi là hoàn thành hoặc hardware-qualified.
 
-Code/RTL is complete for the current MVP integration and repository regression covers:
+| Hạng mục | Trạng thái |
+|---|---|
+| Kiến trúc và chính sách source | `LOCKED` |
+| Cấu trúc repository mới | `PASS` |
+| PC host mới | `NOT IMPLEMENTED` |
+| SN32 exact-target firmware | `NOT IMPLEMENTED` |
+| Primer #1 exact-device RTL | `NOT IMPLEMENTED` |
+| Primer #2 exact-device RTL | `NOT IMPLEMENTED` |
+| Tiny 1P5 exact-device RTL | `NOT IMPLEMENTED` |
+| Hardware-qualified | `NO` |
 
-- direct BTP v1 + CRC-32/ISO-HDLC;
-- duplicate-safe response cache/retry;
-- PQC command path, NTT/INTT/MultiplyNTTs/add-sub;
-- atomic key/session context;
-- Ascon-AEAD128 encrypt + STP TX;
-- retained encrypted packet and commit-gated sequence;
-- heartbeat liveness behavior through secure-disable/zeroize/fatal;
-- generic deployment synthesis.
-
-Next gate: exact Gowin build for `GW2A-LV18PG256C8/I7` and generated `.fs`.
-
-### Primer #2
-
-Code/RTL is complete for the current MVP integration and covers:
-
-- Ascon authenticated decrypt + quarantine;
-- replay/gap/session checks;
-- auth-failure counters and threshold fault;
-- local `auth_threshold_fault` exported on J2-12/T13;
-- heartbeat remains liveness-only after crypto fault/zeroize;
-- BTP endpoint/shared-MISO behavior;
-- P1→P2 cross-endpoint regression and deployment synthesis.
-
-Tiny J1-11/pin15 is confirmed as usable General I/O. The actual P2 J2-12→Tiny J1-11 jumper remains **PHYSICAL-PENDING** until continuity/electrical measurement.
-
-### Tiny 1P5
-
-Current supervisor package includes:
-
-- three heartbeat watchdogs;
-- tamper/manual/P2-local-crypto-fault arbitration;
-- startup/qualification/monitor/zeroize/safe-lock/recovery FSM;
-- zeroize-before-local-reset-output ordering;
-- blocked clear while cause remains active;
-- integrated Tiny + P1 + P2 security-plane regression.
-
-The current nominal `100 ms` heartbeat, `250 ms` foreground-progress lease,
-`350 ms` watchdog and `0x0608 ERR_AUTH_THRESHOLD` are **project profile/error
-values adopted from the FPST reference baseline**, not manufacturer electrical
-requirements.
-
-Next gate: exact Gowin build for `GW1N-UV1P5QN48XC7/I6` and generated `.fs`.
-
-### SN32F407F
-
-Final dual-Primer firmware includes:
-
-- direct BTP v1 master and bounded duplicate-safe retry;
-- shared SPI link with separate P1/P2 CS/IRQ;
-- pinned `mlkem-native v1.0.0` ML-KEM-512 integration;
-- low-RAM ML-KEM schedule for the 8 KiB device;
-- SHAKE256/KDF and atomic pair-session provisioning;
-- conditioned ADC entropy/CSPRNG path;
-- telemetry bridge/commit reconciliation;
-- UART diagnostics and a SysTick heartbeat gated by recent main-application
-  progress;
-- software zeroize/session/CSPRNG-state hygiene required by Policy B.
-
-Current EVK routes include UART0 J10 `P3.1/P3.2` and shared SPI0 `P1.0/P1.1/P1.2`.
-
-Next gate: exact ARM Compiler 6 build, `.map`/stack review and generated `.hex`.
-
-### PC host
-
-`software/host/` now matches the final dual-MCU dispatcher rather than the old `caps/reset` adapter.
-
-Read-only commands include:
-
-```text
-help wiring ping ping2 discover selftest id id2 status status2
-key-status key-status2 pqc-status rx-counters adc rng-status fault
-```
-
-State-changing commands:
-
-```text
-rng-reseed zeroize telemetry kem-session
-```
-
-`kem-session` uses the dedicated interactive ML-KEM public-key/ciphertext flow. The non-destructive demo is:
-
-```text
-wiring -> discover -> selftest -> status -> status2 -> rng-status
-```
-
-Python 3.10/3.12 CI covers the host package.
-
-## 4. Legacy transport policy
-
-The old A1/A2 memory-mailbox + CRC-16 + old 3 MHz bring-up profile is **not part of deployment**.
-
-- current-path tombstone: `docs/interfaces/FPST-MCU-FPGA-LINK-001-v1.1.md`;
-- obsolete documents and firmware helpers have been removed from the working
-  tree; their history remains recoverable from Git.
-
-Do not restore obsolete A1/A2, CRC-16 or 3 MHz sources merely to match
-historical material.
-
-## 5. What remains before programming/hardware qualification
-
-Code integration is ready for exact vendor builds. Hardware qualification still requires:
-
-1. Primer #1 Gowin synthesis/P&R/timing + `.fs`;
-2. Primer #2 Gowin synthesis/P&R/timing + `.fs`;
-3. Tiny Gowin synthesis/P&R/timing/utilization + `.fs`;
-4. SN32 ARM Compiler 6 build + `.map`/Flash/RAM/stack evidence + `.hex`;
-5. Gate-A continuity/common-ground/no-contention/fail-safe checks;
-6. Gate-B SPI Mode 0 at 1 MHz, then measured 1→2→3→4→5 MHz qualification;
-7. program all four devices and run end-to-end session/telemetry/retry/replay/bad-tag/zeroize/fault/recovery tests.
-
-Controlled evidence checklist:
-
-- [`docs/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md`](docs/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md)
-- [`docs/hardware/README_DEPLOYMENT_DIAGNOSTICS.md`](docs/hardware/README_DEPLOYMENT_DIAGNOSTICS.md) — build/resource/timing/memory/runtime/benchmark diagnostics và bộ log cần thu để review.
-
-CI/generic Yosys is functional evidence; it does **not** substitute for exact-device vendor reports or measurements.
-
-## 6. Repository structure
-
-```text
-targets/                       device-specific deployment entry points
-rtl/                           reusable RTL cores
-tb/                            unit/integration testbenches
-software/reference/            independent golden/reference models
-software/host/                 PC deployment application
-software/third_party/          pinned dependency metadata
-constraints/                   FPGA constraints
-docs/                          architecture/interface/decision/evidence records
-scripts/                       simulation/synthesis helpers
-results/                       generated verification/benchmark results
-```
-
-Rules:
-
-1. reusable algorithms live once under `rtl/`;
-2. each hardware target owns its top/source manifest/constraint/build instructions under `targets/<target>/`;
-3. testbench/reference code is not deployment RTL;
-4. interface changes update both endpoints and the decision register together;
-5. third-party crypto revisions remain explicitly pinned;
-6. Git history never overrides a maintained deployment profile.
-
-## 7. Maintained deployment entry points
-
-- Primer #1: [`targets/primer20k_1/README.md`](targets/primer20k_1/README.md)
-- Primer #2: [`targets/primer20k_2/README.md`](targets/primer20k_2/README.md)
-- SN32F407F: [`targets/sn32f407/README.md`](targets/sn32f407/README.md)
-- SN32 dual-Primer Keil profile: [`targets/sn32f407/firmware/KEIL_DUAL_PRIMER_BUILD.md`](targets/sn32f407/firmware/KEIL_DUAL_PRIMER_BUILD.md)
-- Tiny 1P5: [`targets/tiny1p5/README.md`](targets/tiny1p5/README.md)
-- PC: [`targets/pc/README.md`](targets/pc/README.md)
-- Primer #1 deployment profile: [`docs/interfaces/FPST-PRIMER1-DEPLOYMENT-PROFILE-v1.1.md`](docs/interfaces/FPST-PRIMER1-DEPLOYMENT-PROFILE-v1.1.md)
-- Integration decisions: [`docs/spec-delta/FPST-v1.1-implementation-decisions.md`](docs/spec-delta/FPST-v1.1-implementation-decisions.md)
-- Wiring guide: [`docs/hardware/FPST-WIRING-GUIDE-v1.1.md`](docs/hardware/FPST-WIRING-GUIDE-v1.1.md)
-- Pre-hardware sign-off: [`docs/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md`](docs/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md)
-- Deployment diagnostics: [`docs/hardware/README_DEPLOYMENT_DIAGNOSTICS.md`](docs/hardware/README_DEPLOYMENT_DIAGNOSTICS.md)
+Không dùng commit import cũ làm baseline build/nạp. Trạng thái triển khai chi
+tiết nằm tại `ai_context/status/IMPLEMENTATION_STATUS.md`.

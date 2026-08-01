@@ -1,0 +1,10 @@
+schema_version = 1
+target = "tiny1p5"
+kind = "fpga-rtl"
+role = "Independent heartbeat/fault supervisor with secure_enable and zeroize control"
+device = "GW1N-UV1P5QN48XC7/I6"
+clock_hz = 27000000
+toolchain = "Gowin EDA"
+top = "supervisor_top"
+implementation_status = "NOT_IMPLEMENTED"
+self_contained = true

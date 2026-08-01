@@ -1,0 +1,10 @@
+schema_version = 1
+target = "primer2"
+kind = "fpga-rtl"
+role = "UART RX, replay checking and Ascon-AEAD128 decrypt/tag verification"
+device = "GW2A-LV18PG256C8/I7"
+clock_hz = 27000000
+toolchain = "Gowin EDA"
+top = "primer2_top"
+implementation_status = "NOT_IMPLEMENTED"
+self_contained = true

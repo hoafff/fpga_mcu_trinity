@@ -14,77 +14,42 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# C/C++
+# Native build
 *.o
 *.obj
 *.elf
 *.exe
 *.out
-/cc*.s
-/cc*.res
+*.d
 
-# FPGA tool outputs
-*.bit
+# Keil / SN32 output
+Objects/
+Listings/
+RTE/
+*.uvguix.*
+*.axf
+*.hex
 *.bin
-*.mcs
-*.sof
-*.pof
-*.jed
-*.fs
-*.rpt
-*.jou
-*.log
-*.str
-*.dcp
-*.ltx
-*.wdb
-*.vcd
-*.fst
-*.ghw
+*.map
+*.lst
 
-# Vivado
-.Xil/
-*.cache/
-*.hw/
-*.ip_user_files/
-*.runs/
-*.sim/
-*.srcs/
-*.gen/
-*.xpr
-
-# Gowin
+# Gowin / FPGA output
 impl/
-gw_project.gprj.user
-
-# Quartus
-.db/
-incremental_db/
-output_files/
-
-# Simulation/build
 build/
 sim_build/
 work/
-obj_dir/
-coverage/
+*.fs
+*.bit
+*.gprj.user
+*.rpt
+*.log
+*.vcd
+*.fst
 
-# External pinned source checkouts (lock metadata stays tracked)
-software/third_party/mlkem-native/src/
-
-# Generated results
-results/**/*.csv
-results/**/*.json
-results/**/*.html
-results/**/*.png
-results/**/*.pdf
-!results/**/.gitkeep
-software/host/gate_*_results.jsonl
-
-# Secrets
+# Generated evidence and secrets
+ai_context/evidence/generated/
 .env
 .env.*
 *.pem
 *.key
-*.secret
 secrets/
