@@ -13,6 +13,7 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+.coverage
 
 # Native build
 *.o
@@ -21,8 +22,9 @@ venv/
 *.exe
 *.out
 *.d
+compile_commands.json
 
-# Keil / SN32 output
+# Keil / SN32 generated output
 Objects/
 Listings/
 RTE/
@@ -33,7 +35,7 @@ RTE/
 *.map
 *.lst
 
-# Gowin / FPGA output
+# Gowin / FPGA generated output
 impl/
 build/
 sim_build/

@@ -1,9 +1,12 @@
 schema_version = 1
 target = "sn32"
 kind = "mcu-firmware"
-role = "ML-KEM-512 high-level control, SHA3/SHAKE/KDF, session control and board coordination"
+role = "ML-KEM high-level control, SHA3/SHAKE/KDF, session and board coordination"
 device = "SONiX SN32F407F"
 clock_hz = 12000000
 toolchain = "Keil uVision / Arm Compiler 6"
-implementation_status = "NOT_IMPLEMENTED"
-self_contained = true
+implementation_status = "SOURCE_ONLY_PARTIAL_P010_GUARD"
+deployment_buildable = false
+self_contained = false
+exact_target_build = "NOT_STARTED"
+hardware_qualified = false

@@ -1,7 +1,8 @@
 schema_version = 1
 target = "pc_host"
 kind = "python-application"
-role = "UART session control, 32-byte CSPRNG seed, telemetry input and result display"
+role = "UART session control, entropy input, telemetry and result display"
 runtime = "Python 3.12"
 implementation_status = "NOT_IMPLEMENTED"
-self_contained = true
+deployment_buildable = false
+self_contained = false

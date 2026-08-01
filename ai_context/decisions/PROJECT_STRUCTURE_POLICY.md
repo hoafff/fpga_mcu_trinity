@@ -1,24 +1,17 @@
-# Chính sách cấu trúc source
+# Project Structure Policy
 
-## Quy tắc bắt buộc
+1. Root contains only `pc_host/`, `sn32/`, `primer1/`, `primer2/`, `tiny1p5/`,
+   `ai_context/`, `README.md`, `.gitignore` and `LICENSE`.
+2. Deployment source belongs inside its target. A target may be marked partial,
+   but it must never be falsely marked buildable.
+3. Testbench, reference models, evidence, migration records and detailed guides
+   belong only in `ai_context/`.
+4. No target may depend on `ai_context/` for a deployment build.
+5. No generated `.fs`, `.hex`, `.axf`, build log, report or cache is committed.
+6. The old repository may be mined file-by-file, but its root tree is forbidden.
+7. Exact candidate files relocated during migration must remain hash-verifiable.
+8. A status label must distinguish source-only, exact build and hardware proof.
 
-1. Root chỉ có sáu thư mục `pc_host/`, `sn32/`, `primer1/`, `primer2/`,
-   `tiny1p5/`, `ai_context/` và ba file `README.md`, `.gitignore`, `LICENSE`.
-2. Năm target phải hoàn toàn self-contained và không tham chiếu source của target
-   khác bằng đường dẫn tương đối.
-3. Không tạo thư mục source dùng chung thứ bảy ở root.
-4. Module cần dùng ở nhiều target (ví dụ CRC hoặc Ascon permutation) được copy
-   vào từng target cần dùng. Mọi bản copy phải được kiểm checksum trong
-   `ai_context/`.
-5. Testbench, KAT, reference model, kiến trúc, interface, report, evidence và
-   checker chỉ nằm trong `ai_context/`.
-6. Target không được phụ thuộc `ai_context/` để build/nạp.
-7. Không để README, log, report, ZIP, bitstream hoặc output/cache trong năm thư
-   mục target.
-8. Không import nguyên cây hoặc lịch sử `fpga-pqc-secure-telemetry`.
-
-## Trạng thái scaffold
-
-Trong commit khởi tạo sửa lỗi, mỗi target chỉ có `target.toml` để khóa danh tính
-thiết bị, clock, vai trò và trạng thái triển khai. Khi source/project thật được
-thêm, manifest phải đổi khỏi `NOT_IMPLEMENTED` trong cùng commit đã qua test.
+Current exception: `sn32/` is intentionally a source-only partial integration
+slice for P0.10/P0.11. Its manifest explicitly says it is not deployment
+buildable; this is not a waiver of the final self-contained-target requirement.
