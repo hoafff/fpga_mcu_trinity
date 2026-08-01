@@ -33,10 +33,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Import pinned portable source and run upstream KAT
-        run: |
-          python ai_context/scripts/vendor_mlkem_native.py --verify-upstream-kat
-          mv sn32/third_party/mlkem-native/README.md \
-             sn32/third_party/mlkem-native/VENDOR_NOTES.txt
+        run: python ai_context/scripts/vendor_mlkem_native.py --verify-upstream-kat
       - name: Gate 3 portable wrapper tests
         run: make -C sn32/tests/mlkem_gate3 clean test
       - name: Existing portable regression
