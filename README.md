@@ -1,39 +1,56 @@
 # FPGA MCU Trinity
 
-`fpga_mcu_trinity` là dự án mới, tinh giản cho hệ thống gồm PC host, SONiX
-SN32F407F, hai bo Gowin Primer 20K và một bo Gowin Tiny 1P5. Repository cũ
-`fpga-pqc-secure-telemetry` chỉ là nguồn tham khảo; cây source cũ không phải cấu
-trúc triển khai của repository này.
+`fpga_mcu_trinity` là dự án mới cho hệ thống gồm PC host, SONiX SN32F407F,
+hai bo Gowin Primer 20K và một bo Gowin Tiny 1P5. Repository
+`fpga-pqc-secure-telemetry` chỉ là nguồn tham khảo lịch sử; không phải baseline
+kiến trúc hoặc source tree của dự án này.
 
 ```text
-PC host --UART--> SN32F407F --shared SPI--> Primer #1 / Primer #2
-Primer #1 -------- UART frame 60 byte ----> Primer #2
-SN32 + hai Primer --heartbeat/fault-------> Tiny 1P5
-Tiny 1P5 ----------secure/zeroize---------> hai Primer
+PC host <---UART---> SN32F407F ---shared SPI---> Primer #1 / Primer #2
+Primer #1 ===== direct UART frame 66 byte =====> Primer #2
+SN32 + hai Primer -------- heartbeat/fault ----> Tiny 1P5
+Tiny 1P5 ----------------- secure/zeroize -----> hai Primer
 ```
 
-## Cấu trúc
+## Nguồn chân lý
 
-- `pc_host/`: ứng dụng PC.
-- `sn32/`: firmware SN32F407F.
-- `primer1/`: RTL/project Primer #1.
-- `primer2/`: RTL/project Primer #2.
-- `tiny1p5/`: RTL/constraint Tiny 1P5.
-- `ai_context/`: kiến trúc, quyết định, testbench, evidence và checker.
+Đọc theo thứ tự:
+
+1. `ai_context/README_AI.md`
+2. `ai_context/architecture/FPGA_MCU_TRINITY_SYSTEM_SPEC_v0.3.md`
+3. `ai_context/decisions/FPGA_MCU_TRINITY_DECISION_REGISTER_v0.3.md`
+4. `ai_context/status/IMPLEMENTATION_STATUS.md`
+
+Hai baseline v0.3 đã được phê duyệt về kiến trúc nhưng vẫn còn open item. Không
+được tự triển khai phần phụ thuộc O-001, O-003, O-004, O-005 hoặc O-006.
+
+## Cấu trúc repository
+
+- `pc_host/`: code chạy trên PC.
+- `sn32/`: firmware/project nạp SN32F407F.
+- `primer1/`: RTL/project nạp Primer #1.
+- `primer2/`: RTL/project nạp Primer #2.
+- `tiny1p5/`: RTL/project nạp Tiny 1P5.
+- `ai_context/`: toàn bộ kiến trúc, quyết định, memory/handoff, test, evidence,
+  build guide và migration records.
+
+Không tạo `docs/`, `rtl/`, `targets/`, `software/`, `tb/` hoặc `constraints/` ở
+root. Nội dung không trực tiếp tham gia build/nạp của một target phải nằm trong
+`ai_context/`.
 
 ## Trạng thái hiện tại
 
 | Hạng mục | Trạng thái |
 |---|---|
-| Kiến trúc v1.8 | `LOCKED` |
-| Overlay P0-J19-001, đủ 29 file | `MIGRATED / EXACT HASH MANIFEST PROVIDED` |
-| Tiny 1P5 source candidate | `PASS — SOURCE-ONLY (inherited evidence)` |
-| Tiny exact-device Gowin build | `PENDING — USER BUILD` |
-| SN32 P0.10/P0.11 guard | `PASS — SOURCE-ONLY (inherited evidence)` |
-| SN32 exact-target Keil build | `NOT STARTED` |
-| PC host, Primer #1, Primer #2 mới | `NOT IMPLEMENTED` |
-| Hardware route J1-9 ↔ P0.10 | `BLOCKED / KEEP DISCONNECTED` |
+| Architecture baseline v0.3 | `CONFIRMED / OPEN ITEMS REMAIN` |
+| PC host | `NOT IMPLEMENTED` |
+| SN32 full firmware | `NOT IMPLEMENTED` |
+| Primer #1 | `NOT IMPLEMENTED` |
+| Primer #2 | `NOT IMPLEMENTED` |
+| Tiny 1P5 source candidate | `TESTED — INHERITED SOURCE-ONLY` |
+| Tiny exact-device build | `BUILD-PENDING` |
+| P0-J19-001 migration | `29 FILES HASH-VERIFIABLE` |
+| Wiring/hardware qualification | `PHYSICAL-PENDING` |
 
-Không được nối Tiny `J1-9` với SN32 `P0.10/J11-1`, program bo hoặc tuyên bố
-hardware-qualified chỉ từ source trong repository. Hướng dẫn và trạng thái chi
-tiết nằm tại `ai_context/README_AI.md`.
+Không nối dây, program bo hoặc tuyên bố hardware-qualified chỉ từ source/evidence
+hiện có.

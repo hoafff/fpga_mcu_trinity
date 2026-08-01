@@ -12,6 +12,26 @@ FORBIDDEN_ROOT = {".github", "boards", "constraints", "docs", "rtl", "scripts", 
 FORBIDDEN_TARGET_NAMES = {"README.md", "README", "CONTRIBUTING.md"}
 FORBIDDEN_SUFFIXES = {".axf", ".bin", ".bit", ".fs", ".hex", ".log", ".rpt", ".zip"}
 
+REQUIRED_CONTEXT = (
+    "ai_context/README_AI.md",
+    "ai_context/architecture/FPGA_MCU_TRINITY_SYSTEM_SPEC_v0.3.md",
+    "ai_context/decisions/FPGA_MCU_TRINITY_DECISION_REGISTER_v0.3.md",
+    "ai_context/decisions/PROJECT_STRUCTURE_POLICY.md",
+    "ai_context/status/IMPLEMENTATION_STATUS.md",
+)
+
+FORBIDDEN_ACTIVE_LEGACY = (
+    "ai_context/architecture/ARCHITECTURE_BASELINE_v1.8.md",
+    "ai_context/architecture/tiny1p5-supervisor-profile-v1.1.md",
+    "ai_context/decisions/FPST-v1.1-implementation-decisions.md",
+    "ai_context/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md",
+    "ai_context/hardware/FPST-WIRING-GUIDE-v1.1.md",
+    "ai_context/build_guides/SN32_SOURCE_PROFILE.md",
+    "ai_context/build_guides/SN32_KEIL_BUILD.md",
+    "ai_context/build_guides/SN32_KEIL_DUAL_PRIMER_BUILD.md",
+    "ai_context/build_guides/TINY1P5_SOURCE_PROFILE.md",
+)
+
 errors: list[str] = []
 root_entries = {p.name for p in ROOT.iterdir()}
 for name in sorted(root_entries - ALLOWED_ROOT):
@@ -22,6 +42,21 @@ for name in sorted(FORBIDDEN_ROOT & root_entries):
 for required in ("README.md", ".gitignore", "LICENSE", "ai_context", *TARGETS):
     if not (ROOT / required).exists():
         errors.append(f"missing required root entry: {required}")
+
+for relative in REQUIRED_CONTEXT:
+    if not (ROOT / relative).is_file():
+        errors.append(f"missing canonical project-memory file: {relative}")
+
+for relative in FORBIDDEN_ACTIVE_LEGACY:
+    if (ROOT / relative).exists():
+        errors.append(f"legacy document remains in active context: {relative}")
+
+handoff = ROOT / "ai_context/README_AI.md"
+if handoff.is_file():
+    text = handoff.read_text(encoding="utf-8")
+    for required_ref in REQUIRED_CONTEXT[1:]:
+        if required_ref not in text:
+            errors.append(f"AI handoff does not reference canonical file: {required_ref}")
 
 for target in TARGETS:
     target_root = ROOT / target
@@ -90,7 +125,9 @@ if errors:
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
     raise SystemExit(1)
-print("PASS: canonical six-folder root and no legacy source tree")
+print("PASS: canonical six-folder root and no legacy root tree")
+print("PASS: canonical project-memory files are present and indexed")
+print("PASS: legacy candidate documents are isolated under migration")
 print("PASS: Tiny source-only candidate is structurally self-contained")
 print("PASS: SN32 P0.10 guard integration slice is present and explicitly partial")
 print("INFO: PC host, Primer #1 and Primer #2 remain NOT_IMPLEMENTED")

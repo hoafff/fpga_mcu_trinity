@@ -1,65 +1,74 @@
-# AI Handoff — FPGA MCU Trinity
+# FPGA MCU Trinity — Project Memory / AI Handoff
 
-## 1. Authority and scope
+**Status:** `APPROVED ARCHITECTURE BASELINE / OPEN ITEMS REMAIN`  
+**Purpose:** Điểm đọc đầu tiên cho mọi AI, thành viên hoặc bên phản biện khi mở repository trong phiên mới.
 
-This repository is a new project. The old `fpga-pqc-secure-telemetry` tree is
-reference material only. The active root layout is fixed to five target folders
-plus `ai_context/`. Do not restore legacy root folders such as `rtl/`, `targets/`,
-`tb/`, `software/`, `constraints/` or `docs/`.
+## 1. Thứ tự đọc bắt buộc
 
-Status vocabulary:
+1. `ai_context/decisions/A-018_PROJECT_MEMORY_PLACEMENT.md`
+2. `ai_context/architecture/FPGA_MCU_TRINITY_SYSTEM_SPEC_v0.3.md`
+3. `ai_context/decisions/FPGA_MCU_TRINITY_DECISION_REGISTER_v0.3.md`
+4. `ai_context/status/IMPLEMENTATION_STATUS.md`
+5. `ai_context/decisions/PROJECT_STRUCTURE_POLICY.md`
+6. `target.toml` của target đang làm việc.
 
-- `CONFIRMED`: fixed by approved architecture or authoritative source.
-- `TESTED`: executable test evidence exists for the exact stated source scope.
-- `BUILD-PENDING`: exact vendor build has not passed.
-- `PHYSICAL-PENDING`: wiring/electrical evidence is incomplete.
-- `FAILED`: a required check failed.
-- `DEPRECATED`: retained only for traceability; not active deployment source.
+A-018 chỉ sửa vị trí lưu tài liệu/golden model của baseline v0.3 và có ưu tiên hơn các đường dẫn cũ tại System Spec §25, Q50 và A-006. Nó không thay đổi kiến trúc mật mã, giao thức hay phân chia chức năng.
 
-## 2. Locked architecture
+## 2. Nguồn chân lý
 
-- PC ↔ SN32: UART 115200 8N1.
-- SN32 ↔ two Primer boards: shared SPI Mode 0, MSB first, separate CS/IRQ;
-  deselected MISO must be high-Z.
-- Primer #1: ML-KEM arithmetic acceleration, Ascon-AEAD128 encrypt and UART TX.
-- Primer #2: UART RX, replay handling and Ascon decrypt/tag verification.
-- P1 → P2: one-way fixed 60-byte frame.
-- Tiny 1P5: supervisor only; it is outside the payload path.
+Ưu tiên: quyết định mới nhất đã commit trên `main` → System Specification hiện hành → tài liệu phần cứng chính thức → source cùng test đúng scope → exact build/đo phần cứng. Repo `fpga-pqc-secure-telemetry`, Git history và mọi file dưới `ai_context/migration/` chỉ là tham khảo/provenance.
 
-The 60-byte frame is:
-`A5 5A | command | transaction_id | length | session_id | sequence |
-ciphertext[24] | tag[16] | CRC16`, with sequence starting at 1.
+Không tự biến `OPEN`, `BUILD-PENDING` hoặc `PHYSICAL-PENDING` thành `CONFIRMED`/`TESTED`; không tự điền open item bằng lựa chọn “hợp lý”.
 
-## 3. Current implementation truth
-
-- `tiny1p5/` contains the accepted P0-J19-001 source candidate plus all seven
-  synthesizable dependencies and exact CST/SDC. Source-only evidence is inherited
-  from the accepted package. Exact Gowin synthesis/P&R/timing is still pending.
-- `sn32/` contains only the accepted P0.10/P0.11 guard integration slice. It is
-  not a complete Keil firmware project and must not be described as buildable.
-- `pc_host/`, `primer1/` and `primer2/` remain unimplemented in this new tree.
-- The exact 29 candidate files are preserved. The repository provides
-  `ai_context/scripts/check_candidate_hashes.py` to verify them locally.
-
-## 4. P0-J19-001 safety boundary
-
-`P0-J19-001` is an evidence ID, not a connector. The physical candidate is Tiny
-J1-9/pin 12 ↔ SN32 P0.10/J11-1. Tiny source drives only `0/Z`; SN32 source locks
-P0.10/P0.11 as input/no-pull and disables alternate output owners. This is not
-sufficient to authorize the wire. Keep the endpoints disconnected until exact
-I/O reports, power-order/injection tests and measured levels pass review.
-
-## 5. Checks
-
-Run from repository root:
+## 3. Kiến trúc đã chốt
 
 ```text
-python3 ai_context/scripts/check_repository_layout.py
-python3 ai_context/scripts/check_candidate_hashes.py
-python3 ai_context/tests/tiny1p5/check_j1_9_open_drain.py
-bash ai_context/tests/sn32/run_source_guard_test.sh
-bash ai_context/tests/tiny1p5/run_iverilog.sh
+CONTROL: PC <-> SN32 -- shared SPI, CS/IRQ riêng --> Primer #1 / Primer #2
+PAYLOAD: Primer #1 == UART một chiều, frame 66 byte ==> Primer #2
+SECURITY: SN32/P1/P2 -- heartbeat/fault --> Tiny; Tiny -- secure/zeroize --> P1/P2
 ```
 
-The final two commands require a C compiler and Icarus Verilog respectively.
-Do not convert inherited source-only evidence into exact-device or hardware PASS.
+- Payload P1→P2 đi trực tiếp, không đi vòng qua SN32, PC hoặc Tiny.
+- SN32 điều phối toàn bộ lifecycle ML-KEM-512; KeyGen sau cold boot, Encaps/Decaps mỗi session.
+- P1 chỉ tăng tốc `NTT`, `INTT`, `MultiplyNTTs/BaseCaseMultiply`, rồi Ascon encrypt và UART TX.
+- P2 nhận UART, kiểm tra framing/session/sequence/replay, Ascon decrypt/tag verify; chỉ release plaintext sau tag PASS.
+- Tiny không xử lý payload; Tiny giám sát liveness/fault và containment.
+
+## 4. Hợp đồng nổi bật
+
+- ML-KEM: `n=256`, `q=3329`, hệ số interface canonical unsigned 16 bit; standard domain tại boundary, Montgomery nội bộ.
+- Ascon-AEAD128 theo NIST SP 800-232: key 16 B, nonce 16 B, AD 24 B, plaintext/ciphertext 24 B, tag 16 B.
+- Nonce: `nonce_prefix[8] || sequence_be64[8]`.
+- Frame P1→P2: `A5 5A || AD24 || C24 || TAG16` = 66 B; không CRC; timeout 20 ms; chỉ tìm sync trong `HUNT_SYNC`.
+- Replay state chỉ cập nhật sau tag PASS.
+- P2 dùng single-entry authenticated result buffer; SN32 đọc qua SPI rồi `ACK/consume`; đây chỉ là result readback control-plane.
+- Mỗi target giữ một side-effect transaction gần nhất; duplicate cùng ID+nội dung trả kết quả cũ, khác nội dung trả `TRANSACTION_CONFLICT`.
+- Self-test bắt buộc trước session đầu; zeroize hủy operation, ghi đè BSRAM tuần tự và bắt buộc session mới.
+- Heartbeat toggle 100 ms, timeout 350 ms, startup grace 1000 ms; ba framing-valid bad tag liên tiếp tạo crypto fault.
+
+## 5. Gate chưa khóa
+
+Không triển khai toàn bộ hệ thống trước khi khóa `O-001`, `O-003`, `O-004`, `O-005`, `O-006`.
+
+- `O-002` chỉ chặn claim `DEMO_SECURE`.
+- `O-008` chặn wiring, final constraint và physical qualification.
+- `O-009` chỉ đóng sau exact-device build evidence.
+- `O-011` chặn hoàn thiện timeout PC↔SN32.
+
+## 6. Trạng thái hiện tại
+
+PC host, SN32 full firmware, Primer #1 và Primer #2 chưa triển khai. SN32 hiện chỉ có candidate P0.10/P0.11 guard. Tiny có source candidate tự chứa và inherited source-only evidence; exact Gowin build vẫn `BUILD-PENDING`. Chưa có hardware qualification.
+
+## 7. Phân vùng `ai_context`
+
+- `architecture/`: baseline kiến trúc hiện hành.
+- `decisions/`: Decision Register và các amendment/policy hiện hành.
+- `status/`: implementation truth.
+- `tests/`, `testbenches/`, `verification/`: kiểm thử/reference, không tham gia deployment build.
+- `evidence/`: bằng chứng theo scope.
+- `build_guides/`: hướng dẫn, không có quyền ghi đè baseline.
+- `migration/`: legacy/provenance; không có thẩm quyền kiến trúc.
+
+## 8. Lưu quyết định mới
+
+Mọi quyết định mới phải commit trực tiếp lên `main`, có ID, cập nhật Decision Register hoặc amendment được Decision Register dẫn chiếu. Nếu thay đổi kiến trúc thì cập nhật System Specification cùng commit. Chi tiết chưa khóa phải tạo open item riêng; không dùng trạng thái ghép hoặc tạo bản quyết định cạnh tranh.

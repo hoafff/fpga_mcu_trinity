@@ -1,15 +1,15 @@
 old_path	new_exact_content_path	role
 README.md	ai_context/migration/P0-J19-001/original_overlay/README.md	legacy candidate root README retained for audit
-docs/architecture/tiny1p5-supervisor-profile-v1.1.md	ai_context/architecture/tiny1p5-supervisor-profile-v1.1.md	architecture evidence
-docs/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md	ai_context/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md	hardware gate
-docs/hardware/FPST-WIRING-GUIDE-v1.1.md	ai_context/hardware/FPST-WIRING-GUIDE-v1.1.md	wiring evidence
-docs/spec-delta/FPST-v1.1-implementation-decisions.md	ai_context/decisions/FPST-v1.1-implementation-decisions.md	decision register
+docs/architecture/tiny1p5-supervisor-profile-v1.1.md	ai_context/migration/P0-J19-001/legacy_docs/architecture/tiny1p5-supervisor-profile-v1.1.md	legacy architecture evidence; non-authoritative
+docs/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md	ai_context/migration/P0-J19-001/legacy_docs/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md	legacy hardware gate; non-authoritative
+docs/hardware/FPST-WIRING-GUIDE-v1.1.md	ai_context/migration/P0-J19-001/legacy_docs/hardware/FPST-WIRING-GUIDE-v1.1.md	legacy wiring evidence; non-authoritative
+docs/spec-delta/FPST-v1.1-implementation-decisions.md	ai_context/migration/P0-J19-001/legacy_docs/decisions/FPST-v1.1-implementation-decisions.md	legacy decision register; non-authoritative
 rtl/supervisor/fpst_supervisor_core.sv	tiny1p5/rtl/fpst_supervisor_core.sv	active Tiny RTL
 targets/README.md	ai_context/migration/P0-J19-001/original_overlay/targets/README.md	legacy target index retained
-targets/sn32f407/README.md	ai_context/build_guides/SN32_SOURCE_PROFILE.md	build/source guide
+targets/sn32f407/README.md	ai_context/migration/P0-J19-001/legacy_docs/build_guides/SN32_SOURCE_PROFILE.md	legacy build/source guide; non-authoritative
 targets/sn32f407/firmware/CMakeLists.txt	ai_context/migration/P0-J19-001/original_overlay/targets/sn32f407/firmware/CMakeLists.txt	legacy-path build file retained
-targets/sn32f407/firmware/KEIL_BUILD.md	ai_context/build_guides/SN32_KEIL_BUILD.md	build guide
-targets/sn32f407/firmware/KEIL_DUAL_PRIMER_BUILD.md	ai_context/build_guides/SN32_KEIL_DUAL_PRIMER_BUILD.md	build guide
+targets/sn32f407/firmware/KEIL_BUILD.md	ai_context/migration/P0-J19-001/legacy_docs/build_guides/SN32_KEIL_BUILD.md	legacy build guide; non-authoritative
+targets/sn32f407/firmware/KEIL_DUAL_PRIMER_BUILD.md	ai_context/migration/P0-J19-001/legacy_docs/build_guides/SN32_KEIL_DUAL_PRIMER_BUILD.md	legacy build guide; non-authoritative
 targets/sn32f407/firmware/platform/sn32f407/board_profile.h	sn32/firmware/platform/sn32f407/board_profile.h	active candidate source
 targets/sn32f407/firmware/platform/sn32f407/fpst_sn32f407_dual_main.c	sn32/firmware/platform/sn32f407/fpst_sn32f407_dual_main.c	active candidate source
 targets/sn32f407/firmware/platform/sn32f407/fpst_sn32f407_main.c	sn32/firmware/platform/sn32f407/fpst_sn32f407_main.c	active candidate source
@@ -19,7 +19,7 @@ targets/sn32f407/firmware/platform/sn32f407/fpst_sn32f407_port.c	sn32/firmware/p
 targets/sn32f407/firmware/platform/sn32f407/fpst_sn32f407_port.h	sn32/firmware/platform/sn32f407/fpst_sn32f407_port.h	active candidate source
 targets/sn32f407/firmware/tests/check_p010_source_contract.py	ai_context/migration/P0-J19-001/original_overlay/targets/sn32f407/firmware/tests/check_p010_source_contract.py	exact script retained; relocated runner provided
 targets/sn32f407/firmware/tests/test_sn32_p010_guard.c	ai_context/tests/sn32/test_sn32_p010_guard.c	active source-only test
-targets/tiny1p5/README.md	ai_context/build_guides/TINY1P5_SOURCE_PROFILE.md	build/source guide
+targets/tiny1p5/README.md	ai_context/migration/P0-J19-001/legacy_docs/build_guides/TINY1P5_SOURCE_PROFILE.md	legacy build/source guide; non-authoritative
 targets/tiny1p5/constraints/kiwi_tiny1p5_fpst.cst	tiny1p5/constraints/kiwi_tiny1p5_fpst.cst	active Tiny constraint
 targets/tiny1p5/rtl/supervisor_top.sv	tiny1p5/rtl/supervisor_top.sv	active Tiny top
 targets/tiny1p5/scripts/check_j1_9_open_drain.py	ai_context/migration/P0-J19-001/original_overlay/targets/tiny1p5/scripts/check_j1_9_open_drain.py	exact script retained; relocated runner provided
