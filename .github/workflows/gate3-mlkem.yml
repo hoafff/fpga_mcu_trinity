@@ -12,6 +12,8 @@ on:
       - sn32/src/trinity_mlkem.c
       - sn32/src/trinity_mlkem_backend.c
       - sn32/tests/mlkem_gate3/**
+  issues:
+    types: [opened]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +25,7 @@ concurrency:
 
 jobs:
   vendor-test-commit:
+    if: github.event_name != 'issues' || github.event.issue.title == 'TRINITY_GATE3_RUN'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
