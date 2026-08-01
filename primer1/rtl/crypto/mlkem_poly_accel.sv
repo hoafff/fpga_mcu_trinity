@@ -19,12 +19,37 @@ module mlkem_poly_accel (
 );
   localparam integer Q = 3329;
 
+  // Two 256x16 true-dual-port memories. The arithmetic FSM only presents two
+  // addresses and two writes per bank, matching Gowin BSRAM port capability.
   (* ram_style = "block", syn_ramstyle = "block_ram" *) logic signed [15:0] poly_a [0:255];
   (* ram_style = "block", syn_ramstyle = "block_ram" *) logic signed [15:0] poly_b [0:255];
 
-  typedef enum logic [3:0] {
-    P_IDLE, P_NTT_GROUP, P_NTT_BFLY, P_INTT_GROUP, P_INTT_BFLY,
-    P_INTT_SCALE, P_BM0, P_BM1, P_ZEROIZE, P_DONE
+  logic [7:0] a_addr0, a_addr1, b_addr0, b_addr1;
+  logic a_we0, a_we1, b_we0, b_we1;
+  logic signed [15:0] a_din0, a_din1, b_din0, b_din1;
+  logic signed [15:0] a_q0, a_q1, b_q0, b_q1;
+  logic read_slot_d;
+
+  always_ff @(posedge clk_i) begin
+    if (a_we0) poly_a[a_addr0] <= a_din0;
+    if (a_we1) poly_a[a_addr1] <= a_din1;
+    if (b_we0) poly_b[b_addr0] <= b_din0;
+    if (b_we1) poly_b[b_addr1] <= b_din1;
+    a_q0 <= poly_a[a_addr0];
+    a_q1 <= poly_a[a_addr1];
+    b_q0 <= poly_b[b_addr0];
+    b_q1 <= poly_b[b_addr1];
+    if (!busy_o && !zeroize_busy_o)
+      read_slot_d <= read_slot_i;
+  end
+
+  typedef enum logic [4:0] {
+    P_IDLE,
+    P_NTT_GROUP, P_NTT_READ, P_NTT_WRITE,
+    P_INTT_GROUP, P_INTT_READ, P_INTT_WRITE,
+    P_SCALE_READ, P_SCALE_WRITE,
+    P_BM_READ0, P_BM_WRITE0, P_BM_READ1, P_BM_WRITE1,
+    P_ZEROIZE, P_DONE
   } pstate_e;
   pstate_e state;
 
@@ -109,29 +134,88 @@ module mlkem_poly_accel (
     end
   endfunction
 
-  logic signed [15:0] bm_a0, bm_a1, bm_b0, bm_b1, bm_z;
+  logic signed [15:0] ntt_t;
+  logic signed [15:0] intt_sum, intt_diff;
   logic signed [15:0] bm_r0, bm_r1;
+
   always_comb begin
-    bm_a0 = poly_a[{bm_index[5:0],2'b00}];
-    bm_a1 = poly_a[{bm_index[5:0],2'b00}+1'b1];
-    bm_b0 = poly_b[{bm_index[5:0],2'b00}];
-    bm_b1 = poly_b[{bm_index[5:0],2'b00}+1'b1];
-    bm_z = zeta(8'd64 + bm_index);
-    bm_r0 = fqmul(fqmul(bm_a1,bm_b1),bm_z) + fqmul(bm_a0,bm_b0);
-    bm_r1 = fqmul(bm_a0,bm_b1) + fqmul(bm_a1,bm_b0);
+    ntt_t = fqmul(zeta_reg, a_q1);
+    intt_sum = barrett_reduce($signed(a_q0) + $signed(a_q1));
+    intt_diff = fqmul(zeta_reg, $signed(a_q1) - $signed(a_q0));
+    bm_r0 = fqmul(fqmul(a_q1,b_q1),zeta_reg) + fqmul(a_q0,b_q0);
+    bm_r1 = fqmul(a_q0,b_q1) + fqmul(a_q1,b_q0);
   end
 
-  logic signed [15:0] read_raw;
-  always_ff @(posedge clk_i) begin
-    if (read_slot_i)
-      read_raw <= poly_b[read_addr_i];
-    else
-      read_raw <= poly_a[read_addr_i];
-  end
-  always_comb read_data_o = canonical(read_raw);
+  always_comb begin
+    a_addr0 = read_addr_i;
+    a_addr1 = 8'd0;
+    b_addr0 = read_addr_i;
+    b_addr1 = 8'd0;
+    a_we0 = 1'b0; a_we1 = 1'b0; b_we0 = 1'b0; b_we1 = 1'b0;
+    a_din0 = '0; a_din1 = '0; b_din0 = '0; b_din1 = '0;
 
-  logic signed [15:0] butterfly_t;
-  always_comb butterfly_t = fqmul(zeta_reg, poly_a[j_reg + len_reg]);
+    case (state)
+      P_IDLE: begin
+        if (load_we_i) begin
+          if (load_slot_i) begin
+            b_addr0 = load_addr_i; b_we0 = 1'b1; b_din0 = $signed(load_data_i);
+          end else begin
+            a_addr0 = load_addr_i; a_we0 = 1'b1; a_din0 = $signed(load_data_i);
+          end
+        end
+      end
+      P_NTT_READ, P_NTT_WRITE, P_INTT_READ, P_INTT_WRITE: begin
+        a_addr0 = j_reg[7:0];
+        a_addr1 = j_reg[7:0] + len_reg;
+        if (state == P_NTT_WRITE) begin
+          a_we0 = 1'b1; a_we1 = 1'b1;
+          a_din0 = a_q0 + ntt_t;
+          a_din1 = a_q0 - ntt_t;
+        end else if (state == P_INTT_WRITE) begin
+          a_we0 = 1'b1; a_we1 = 1'b1;
+          a_din0 = intt_sum;
+          a_din1 = intt_diff;
+        end
+      end
+      P_SCALE_READ, P_SCALE_WRITE: begin
+        a_addr0 = scale_index;
+        if (state == P_SCALE_WRITE) begin
+          a_we0 = 1'b1;
+          a_din0 = fqmul(a_q0,16'sd512);
+        end
+      end
+      P_BM_READ0, P_BM_WRITE0: begin
+        a_addr0 = {bm_index[5:0],2'b00};
+        a_addr1 = {bm_index[5:0],2'b00} + 1'b1;
+        b_addr0 = {bm_index[5:0],2'b00};
+        b_addr1 = {bm_index[5:0],2'b00} + 1'b1;
+        if (state == P_BM_WRITE0) begin
+          a_we0 = 1'b1; a_we1 = 1'b1;
+          a_din0 = fqmul(bm_r0,16'sd1353);
+          a_din1 = fqmul(bm_r1,16'sd1353);
+        end
+      end
+      P_BM_READ1, P_BM_WRITE1: begin
+        a_addr0 = {bm_index[5:0],2'b00} + 2;
+        a_addr1 = {bm_index[5:0],2'b00} + 3;
+        b_addr0 = {bm_index[5:0],2'b00} + 2;
+        b_addr1 = {bm_index[5:0],2'b00} + 3;
+        if (state == P_BM_WRITE1) begin
+          a_we0 = 1'b1; a_we1 = 1'b1;
+          a_din0 = fqmul(bm_r0,16'sd1353);
+          a_din1 = fqmul(bm_r1,16'sd1353);
+        end
+      end
+      P_ZEROIZE: begin
+        a_addr0 = zero_index; b_addr0 = zero_index;
+        a_we0 = 1'b1; b_we0 = 1'b1;
+        a_din0 = '0; b_din0 = '0;
+      end
+      default: begin end
+    endcase
+  end
+
+  always_comb read_data_o = canonical(read_slot_d ? b_q0 : a_q0);
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -155,13 +239,6 @@ module mlkem_poly_accel (
         zeroize_busy_o <= 1'b1;
         error_o <= 1'b0;
       end else begin
-        if (load_we_i && state == P_IDLE) begin
-          if (load_slot_i)
-            poly_b[load_addr_i] <= $signed(load_data_i);
-          else
-            poly_a[load_addr_i] <= $signed(load_data_i);
-        end
-
         case (state)
           P_IDLE: begin
             busy_o <= 1'b0;
@@ -172,7 +249,7 @@ module mlkem_poly_accel (
               case (operation_i)
                 2'd1: begin len_reg<=8'd128; start_reg<=0; k_reg<=1; state<=P_NTT_GROUP; end
                 2'd2: begin len_reg<=8'd2; start_reg<=0; k_reg<=8'd127; state<=P_INTT_GROUP; end
-                2'd3: begin bm_index<=0; state<=P_BM0; end
+                2'd3: begin bm_index<=0; state<=P_BM_READ0; end
                 default: begin error_o<=1'b1; state<=P_DONE; end
               endcase
             end
@@ -186,70 +263,57 @@ module mlkem_poly_accel (
               zeta_reg <= zeta(k_reg);
               k_reg <= k_reg + 1'b1;
               j_reg <= start_reg;
-              state <= P_NTT_BFLY;
+              state <= P_NTT_READ;
             end
           end
-
-          P_NTT_BFLY: begin
-            poly_a[j_reg + len_reg] <= poly_a[j_reg[7:0]] - butterfly_t;
-            poly_a[j_reg[7:0]] <= poly_a[j_reg[7:0]] + butterfly_t;
+          P_NTT_READ: state <= P_NTT_WRITE;
+          P_NTT_WRITE: begin
             if (j_reg == start_reg + len_reg - 1'b1) begin
               start_reg <= start_reg + ({1'b0,len_reg} << 1);
               state <= P_NTT_GROUP;
-            end else j_reg <= j_reg + 1'b1;
+            end else begin
+              j_reg <= j_reg + 1'b1;
+              state <= P_NTT_READ;
+            end
           end
 
           P_INTT_GROUP: begin
             if (start_reg >= 9'd256) begin
-              if (len_reg == 8'd128) begin scale_index<=0; state<=P_INTT_SCALE; end
+              if (len_reg == 8'd128) begin scale_index<=0; state<=P_SCALE_READ; end
               else begin len_reg<=len_reg<<1; start_reg<=0; end
             end else begin
               zeta_reg <= zeta(k_reg);
               k_reg <= k_reg - 1'b1;
               j_reg <= start_reg;
-              state <= P_INTT_BFLY;
+              state <= P_INTT_READ;
             end
           end
-
-          P_INTT_BFLY: begin
-            poly_a[j_reg[7:0]] <= barrett_reduce($signed(poly_a[j_reg[7:0]]) + $signed(poly_a[j_reg+len_reg]));
-            poly_a[j_reg+len_reg] <= fqmul(zeta_reg, $signed(poly_a[j_reg+len_reg]) - $signed(poly_a[j_reg[7:0]]));
+          P_INTT_READ: state <= P_INTT_WRITE;
+          P_INTT_WRITE: begin
             if (j_reg == start_reg + len_reg - 1'b1) begin
               start_reg <= start_reg + ({1'b0,len_reg} << 1);
               state <= P_INTT_GROUP;
-            end else j_reg <= j_reg + 1'b1;
+            end else begin
+              j_reg <= j_reg + 1'b1;
+              state <= P_INTT_READ;
+            end
           end
 
-          P_INTT_SCALE: begin
-            poly_a[scale_index] <= fqmul(poly_a[scale_index],16'sd512);
+          P_SCALE_READ: state <= P_SCALE_WRITE;
+          P_SCALE_WRITE: begin
             if (scale_index == 8'd255) state <= P_DONE;
-            else scale_index <= scale_index + 1'b1;
+            else begin scale_index <= scale_index + 1'b1; state <= P_SCALE_READ; end
           end
 
-          P_BM0: begin
-            poly_a[{bm_index[5:0],2'b00}] <= fqmul(bm_r0,16'sd1353);
-            poly_a[{bm_index[5:0],2'b00}+1'b1] <= fqmul(bm_r1,16'sd1353);
-            state <= P_BM1;
-          end
-
-          P_BM1: begin
-            logic signed [15:0] a0,a1,b0,b1,nz,r0v,r1v;
-            a0 = poly_a[{bm_index[5:0],2'b00}+2];
-            a1 = poly_a[{bm_index[5:0],2'b00}+3];
-            b0 = poly_b[{bm_index[5:0],2'b00}+2];
-            b1 = poly_b[{bm_index[5:0],2'b00}+3];
-            nz = -zeta(8'd64 + bm_index);
-            r0v = fqmul(fqmul(a1,b1),nz) + fqmul(a0,b0);
-            r1v = fqmul(a0,b1) + fqmul(a1,b0);
-            poly_a[{bm_index[5:0],2'b00}+2] <= fqmul(r0v,16'sd1353);
-            poly_a[{bm_index[5:0],2'b00}+3] <= fqmul(r1v,16'sd1353);
+          P_BM_READ0: begin zeta_reg <= zeta(8'd64 + bm_index); state <= P_BM_WRITE0; end
+          P_BM_WRITE0: state <= P_BM_READ1;
+          P_BM_READ1: begin zeta_reg <= -zeta(8'd64 + bm_index); state <= P_BM_WRITE1; end
+          P_BM_WRITE1: begin
             if (bm_index == 8'd63) state <= P_DONE;
-            else begin bm_index <= bm_index + 1'b1; state <= P_BM0; end
+            else begin bm_index <= bm_index + 1'b1; state <= P_BM_READ0; end
           end
 
           P_ZEROIZE: begin
-            poly_a[zero_index] <= 16'sd0;
-            poly_b[zero_index] <= 16'sd0;
             if (zero_index == 8'd255) begin
               zeroize_busy_o <= 1'b0;
               zeroize_done_o <= 1'b1;
