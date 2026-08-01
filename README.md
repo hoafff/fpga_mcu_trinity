@@ -17,5 +17,6 @@ Current milestone:
 - Gate 1 PC protocol/common types implemented;
 - Gate 2 SPI protocol/common types implemented;
 - portable Python/C tests and registry consistency checks provided;
-- no final pins/CST chosen;
-- no Gowin, Keil, timing or hardware PASS claimed.
+- SN32 S0 exact-target Keil project added from a hardware-proven donor;
+- SN32 S0 exact ArmClang build, AXF/HEX/MAP and hardware evidence remain pending;
+- no Gowin, Keil, timing or hardware PASS is claimed for Trinity.

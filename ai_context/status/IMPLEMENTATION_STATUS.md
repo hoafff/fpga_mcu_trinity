@@ -10,7 +10,8 @@
 | ML-KEM backend mapping | `CONFIRMED` for implementation / verification `OPEN` |
 | Logical pin mapping | `CONFIRMED` |
 | Physical pin/wiring qualification | `PHYSICAL-PENDING` |
-| Toolchain policy | `CONFIRMED`; exact runtime evidence `OPEN` and non-blocking |
+| Toolchain policy | `CONFIRMED`; S0 project locks donor versions |
+| SN32 S0 exact-target Keil project | `IMPLEMENTED / BUILD-PENDING` |
 | Exact vendor build/timing/hardware | `BUILD-PENDING` |
 
 ## Gate progress
@@ -28,6 +29,14 @@
 | 9 | Tiny integration | `OPEN` |
 | 10 | end-to-end tests | `OPEN` |
 
-Gate 1/2 `TESTED` is limited to portable source tests. Gate 3 is not complete
-until the pinned upstream KAT and Trinity wrapper tests actually run and pass.
-No status here implies Gowin, Keil, timing, resource or hardware PASS.
+## SN32 milestone progress
+
+| Milestone | Scope | Status |
+|---:|---|---|
+| S0 | clean exact-target Keil project | `SOURCE IMPLEMENTED / USER KEIL BUILD PENDING` |
+| S1+ | GPIO, UART, protocol and later integration | `NOT STARTED` |
+
+S0 compiles only the new `trinity_main.c` plus SONiX pack startup/system sources.
+UART, SPI, ML-KEM, Tiny session commit and DEMO_SECURE remain compile-time
+disabled. Gate 1/2 `TESTED` remains limited to portable source tests. No status
+here implies Gowin, Keil, timing, resource, programming or hardware PASS.
