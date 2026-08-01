@@ -13,9 +13,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Repository and registry checks
+      - name: Repository and project-memory checks
         run: |
           python ai_context/scripts/check_repository_layout.py
+          python ai_context/scripts/check_project_memory_detail.py
           python ai_context/scripts/check_protocol_registry.py
           python ai_context/scripts/check_candidate_hashes.py
       - name: Python protocol tests
