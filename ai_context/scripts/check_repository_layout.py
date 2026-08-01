@@ -7,17 +7,23 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = ("pc_host", "sn32", "primer1", "primer2", "tiny1p5")
-ALLOWED_ROOT = {".git", ".gitignore", "LICENSE", "README.md", "ai_context", *TARGETS}
-FORBIDDEN_ROOT = {".github", "boards", "constraints", "docs", "rtl", "scripts", "software", "targets", "tb", "tools"}
+ALLOWED_ROOT = {".git", ".github", ".gitignore", "LICENSE", "README.md", "ai_context", *TARGETS}
+FORBIDDEN_ROOT = {"boards", "constraints", "docs", "rtl", "scripts", "software", "targets", "tb", "tools"}
 FORBIDDEN_TARGET_NAMES = {"README.md", "README", "CONTRIBUTING.md"}
 FORBIDDEN_SUFFIXES = {".axf", ".bin", ".bit", ".fs", ".hex", ".log", ".rpt", ".zip"}
 
 REQUIRED_CONTEXT = (
     "ai_context/README_AI.md",
-    "ai_context/architecture/FPGA_MCU_TRINITY_SYSTEM_SPEC_v0.3.md",
-    "ai_context/decisions/FPGA_MCU_TRINITY_DECISION_REGISTER_v0.3.md",
+    "ai_context/architecture/FPGA_MCU_TRINITY_SYSTEM_SPEC_v0.4.md",
+    "ai_context/decisions/FPGA_MCU_TRINITY_DECISION_REGISTER_v0.4.md",
     "ai_context/decisions/PROJECT_STRUCTURE_POLICY.md",
+    "ai_context/interfaces/SPI_CONTROL_PLANE_ICD_v0.1.md",
+    "ai_context/interfaces/PC_SN32_PROTOCOL_ICD_v0.1.md",
+    "ai_context/interfaces/MLKEM_BACKEND_SPEC_v0.1.md",
+    "ai_context/interfaces/PROTOCOL_REGISTRY_v0.1.json",
+    "ai_context/status/OPEN_ITEMS.md",
     "ai_context/status/IMPLEMENTATION_STATUS.md",
+    "ai_context/toolchains/TOOLCHAIN_LOCK.md",
 )
 
 FORBIDDEN_ACTIVE_LEGACY = (
@@ -26,10 +32,6 @@ FORBIDDEN_ACTIVE_LEGACY = (
     "ai_context/decisions/FPST-v1.1-implementation-decisions.md",
     "ai_context/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md",
     "ai_context/hardware/FPST-WIRING-GUIDE-v1.1.md",
-    "ai_context/build_guides/SN32_SOURCE_PROFILE.md",
-    "ai_context/build_guides/SN32_KEIL_BUILD.md",
-    "ai_context/build_guides/SN32_KEIL_DUAL_PRIMER_BUILD.md",
-    "ai_context/build_guides/TINY1P5_SOURCE_PROFILE.md",
 )
 
 errors: list[str] = []
@@ -38,6 +40,17 @@ for name in sorted(root_entries - ALLOWED_ROOT):
     errors.append(f"unexpected root entry: {name}")
 for name in sorted(FORBIDDEN_ROOT & root_entries):
     errors.append(f"legacy root is forbidden: {name}/")
+
+github_root = ROOT / ".github"
+if github_root.exists():
+    unexpected = {p.name for p in github_root.iterdir()} - {"workflows"}
+    for name in sorted(unexpected):
+        errors.append(f"unexpected .github entry: {name}")
+    workflows = github_root / "workflows"
+    if workflows.exists():
+        for path in workflows.rglob("*"):
+            if path.is_file() and path.suffix not in {".yml", ".yaml"}:
+                errors.append(f"non-YAML workflow file: {path.relative_to(ROOT)}")
 
 for required in ("README.md", ".gitignore", "LICENSE", "ai_context", *TARGETS):
     if not (ROOT / required).exists():
@@ -108,7 +121,7 @@ for relative in source_lines:
     if not path.is_file():
         errors.append(f"Tiny manifest source missing: {relative}")
 
-required_sn32 = [
+required_sn32_guard = [
     "firmware/platform/sn32f407/board_profile.h",
     "firmware/platform/sn32f407/fpst_sn32f407_main.c",
     "firmware/platform/sn32f407/fpst_sn32f407_dual_main.c",
@@ -117,17 +130,29 @@ required_sn32 = [
     "firmware/platform/sn32f407/fpst_sn32f407_port.c",
     "firmware/platform/sn32f407/fpst_sn32f407_port.h",
 ]
-for relative in required_sn32:
+for relative in required_sn32_guard:
     if not (ROOT / "sn32" / relative).is_file():
         errors.append(f"missing SN32 guard candidate file: sn32/{relative}")
+
+required_protocol = [
+    "pc_host/src/trinity_host/protocol/constants.py",
+    "pc_host/src/trinity_host/protocol/frame.py",
+    "sn32/include/trinity_protocol_common.h",
+    "sn32/include/trinity_pc_protocol.h",
+    "sn32/include/trinity_spi_protocol.h",
+    "primer1/rtl/common/trinity_spi_pkg.sv",
+    "primer2/rtl/common/trinity_spi_pkg.sv",
+]
+for relative in required_protocol:
+    if not (ROOT / relative).is_file():
+        errors.append(f"missing protocol implementation file: {relative}")
 
 if errors:
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
     raise SystemExit(1)
-print("PASS: canonical six-folder root and no legacy root tree")
-print("PASS: canonical project-memory files are present and indexed")
-print("PASS: legacy candidate documents are isolated under migration")
-print("PASS: Tiny source-only candidate is structurally self-contained")
-print("PASS: SN32 P0.10 guard integration slice is present and explicitly partial")
-print("INFO: PC host, Primer #1 and Primer #2 remain NOT_IMPLEMENTED")
+
+print("PASS: canonical target/ai_context root plus portable-CI exception")
+print("PASS: project-memory v0.4 and approved protocol ICDs are indexed")
+print("PASS: Tiny and SN32 guard candidate files remain present")
+print("PASS: Gate 1 and Gate 2 protocol/common source files are present")

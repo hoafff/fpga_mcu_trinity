@@ -1,8 +1,9 @@
 schema_version = 1
 target = "pc_host"
 kind = "python-application"
-role = "UART session control, entropy input, telemetry and result display"
-runtime = "Python 3.12"
-implementation_status = "NOT_IMPLEMENTED"
+role = "UART session control, deterministic test input, telemetry, reconciliation and result display"
+runtime = "Python >=3.11; exact installed runtime captured in acceptance evidence"
+implementation_status = "SOURCE_PARTIAL_PROTOCOL_COMMON"
 deployment_buildable = false
 self_contained = false
+portable_tests = "PASS_PENDING_COMMIT_EVIDENCE"

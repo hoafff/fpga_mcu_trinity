@@ -1,78 +1,180 @@
 # FPGA MCU Trinity — SPI Control Plane ICD
 
-**Status:** `ASSUMED — FINAL OWNER REVIEW REQUIRED`  
-**Version:** `v0.1`  
-**Date:** `2026-08-01`  
-**Applies to:** SN32↔Primer #1 and SN32↔Primer #2
+**Status:** `APPROVED IMPLEMENTATION BASELINE`  
+**Version:** `v0.1`
 
-Header/transaction/size rules are confirmed by D16–D22. Byte-exact command
-payloads, success/error envelope details and numeric error assignments below are
-engineering details derived to complete the ICD and are tracked by O-013.
+## Packet
 
-## 1. Electrical/transaction contract
-
-- SPI Mode 0, MSB-first.
-- Shared SCK/MOSI/MISO; CS/IRQ separate per target.
-- Bring-up 1 MHz; measured qualification before increasing toward 5 MHz.
-- Never assert both CS simultaneously.
-- Deselect target MISO must be high-Z.
-- One request per CS assertion; response is a later separate CS assertion.
-- IRQ active-low level.
-
-## 2. Packet
+SPI Mode 0, MSB-first, shared SCK/MOSI/MISO, separate CS/IRQ. Request and
+response use separate CS assertions. Deselect MISO is high-Z.
 
 ```text
-offset  size  field
-0       1     MAGIC = A5
-1       1     VERSION = 01
-2       1     COMMAND
-3       1     FLAGS
-4       2     TRANSACTION_ID, big-endian
-6       2     PAYLOAD_LENGTH, big-endian, payload bytes only
-8       N     PAYLOAD
-8+N     2     CRC16/CCITT-FALSE, big-endian
+0       MAGIC = 0xA5
+1       VERSION = 0x01
+2       COMMAND
+3       FLAGS
+4..5    TRANSACTION_ID, big-endian
+6..7    PAYLOAD_LENGTH, big-endian, payload only
+8..     PAYLOAD
+last 2  CRC-16/CCITT-FALSE, big-endian
 ```
 
-CRC parameters: poly `0x1021`, init `0xFFFF`, refin false, refout false, xorout `0x0000`.
-CRC covers header[0..7] + payload and excludes CRC field.
-
-Flags:
-
-```text
-bit0 RESPONSE
-bit1 ERROR
-bit2 MORE
-bit3 EVENT
-bit4..7 reserved = 0
-```
-
-Any reserved flag set → `BAD_FLAGS`.
+CRC parameters: poly `0x1021`, init `0xFFFF`, refin/refout false, xorout `0x0000`.
+Flags: `RESPONSE=0x01`, `ERROR=0x02`, `MORE=0x04`, `EVENT=0x08`; all reserved
+bits must be zero or receiver returns `0x0105 BAD_FLAGS`.
 
 Limits:
 
 ```text
-maximum polynomial data chunk = 64 B
-maximum polynomial payload    = 66 B
-maximum whole packet          = 8 + 66 + 2 = 76 B
+polynomial data chunk = 64 bytes
+maximum SPI payload   = 66 bytes
+maximum packet        = 76 bytes
 ```
 
-## 3. Response/error rule — O-013 review item
+## Enum registry
 
-- Success response: same COMMAND, `RESPONSE=1`, `ERROR=0`, command-specific payload.
-- Error response: same COMMAND, `RESPONSE=1`, `ERROR=1`, payload:
+### TARGET_ID
 
 ```text
-offset  size  field
-0       2     ERROR_CODE, big-endian
-2       1     SESSION_STATE
-3       1     OPERATION_STATE
-4       2     DETAIL, big-endian; 0 when unused
+0x01 PRIMER1
+0x02 PRIMER2
 ```
 
-- Malformed header with no trustworthy command/txid may be dropped and reflected
-  by diagnostic counter rather than generating a response.
+### SESSION_STATE
 
-## 4. Command registry
+```text
+0x00 BOOT
+0x01 SELF_TEST_REQUIRED
+0x02 SELF_TEST_RUNNING
+0x03 READY_NO_SESSION
+0x04 SESSION_STAGED
+0x05 COMMITTED_BLOCKED
+0x06 ACTIVE
+0x07 ZEROIZE_BUSY
+0x08 FAULT_LOCKED
+```
+
+### OPERATION_STATE
+
+```text
+0x00 IDLE
+0x01 LOAD_INPUT
+0x02 READY_TO_EXECUTE
+0x03 EXECUTING
+0x04 RESULT_READY
+```
+
+### TRANSACTION_STATE
+
+```text
+0x00 NONE
+0x01 ACCEPTED
+0x02 RUNNING
+0x03 SUCCEEDED
+0x04 FAILED
+0x05 ZEROIZED
+0x06 OUTCOME_UNKNOWN
+```
+
+### RX_STATE
+
+```text
+0x00 HUNT_SYNC
+0x01 RECEIVE_BODY
+0x02 VALIDATE
+0x03 VERIFY_TAG
+0x04 RESULT_PENDING
+```
+
+### PENDING_FLAGS
+
+```text
+0x01 RESPONSE_MAILBOX
+0x02 SIDE_EFFECT_RESULT
+0x04 AUTHENTICATED_RESULT
+```
+
+### SECURE_FLAGS
+
+```text
+0x01 SELF_TEST_PASS
+0x02 SESSION_STAGED
+0x04 SECURE_ENABLE
+0x08 ZEROIZE_BUSY
+0x10 FAULT_LOCKED
+```
+
+### CAPABILITY_BITS (`u32`)
+
+```text
+bit0 SELF_TEST
+bit1 ZEROIZE
+bit2 TRANSACTION_RECONCILIATION
+bit3 SESSION_STAGE_COMMIT
+bit4 NTT
+bit5 INTT
+bit6 BASEMUL
+bit7 ASCON_ENCRYPT
+bit8 UART_TX
+bit9 ASCON_DECRYPT
+bit10 REPLAY_FILTER
+bit11 AUTH_RESULT_BUFFER
+bit12 DIAGNOSTICS
+```
+
+### TEST_PROFILE
+
+```text
+0x00 QUICK
+0x01 FULL
+0x02 KAT
+0x03 DIAGNOSTIC
+```
+
+### TEST_MASK (`u16`)
+
+```text
+bit0 PROTOCOL
+bit1 MEMORY
+bit2 NTT
+bit3 INTT
+bit4 BASEMUL
+bit5 ASCON
+bit6 UART
+bit7 SESSION
+bit8 ZEROIZE
+bit9 HEARTBEAT
+```
+
+### ZEROIZE_SCOPE (`u8`)
+
+```text
+bit0 ACTIVE_SESSION
+bit1 STAGED_SESSION
+bit2 POLYNOMIAL_BUFFERS
+bit3 TELEMETRY_OR_AUTH_RESULT
+bit4 TRANSACTION_STATE
+bit5 DIAGNOSTIC_TRANSIENT
+0xFF ALL
+```
+
+### DIAGNOSTIC_COUNTER_MASK (`u32`)
+
+```text
+bit0 TRANSPORT
+bit1 CRC
+bit2 BAD_COMMAND
+bit3 TRANSACTION_CONFLICT
+bit4 BAD_TAG
+bit5 REPLAY_OR_STALE
+bit6 FRAME_ERROR
+bit7 RESULT_PENDING_DROP
+bit8 HEARTBEAT_OR_FAULT
+bit9 SELF_TEST
+0xFFFFFFFF ALL
+```
+
+## Command registry
 
 ```text
 0x01 GET_INFO
@@ -85,7 +187,6 @@ offset  size  field
 0x08 COMMIT_SESSION
 0x09 ABORT_SESSION
 
-P1:
 0x20 POLY_BEGIN
 0x21 POLY_WRITE_CHUNK
 0x22 POLY_EXECUTE
@@ -94,324 +195,63 @@ P1:
 0x30 LOAD_TELEMETRY
 0x31 ENCRYPT_AND_SEND
 
-P2:
 0x40 GET_RX_STATUS
 0x41 READ_AUTH_RESULT
 0x42 ACK_AUTH_RESULT
 0x43 CLEAR_DIAGNOSTIC_COUNTERS
 ```
 
-## 5. Common command payloads — O-013 review item
+Command payloads and flows remain exactly as approved in v0.1:
 
-### 0x01 GET_INFO
+- `POLY_WRITE_CHUNK = slot_id || chunk_index || data[64]`;
+- NTT/INTT use slot A; BaseMul uses A+B and overwrites A;
+- retry reconciliation uses CRC32C fingerprint over
+  `command || flags || payload_length_be16 || payload`;
+- IRQ is low while any response mailbox, side-effect result or authenticated
+  result remains pending;
+- retire/ACK commands are retry-safe and do not recursively retain themselves.
 
-Request: empty.
+## Error registry
 
-Success response, 12 bytes:
-
-```text
-0 target_id: 1=P1, 2=P2
-1 protocol_version=1
-2..5 capability_bits u32 BE
-6..9 build_id u32 BE
-10..11 reserved=0
-```
-
-### 0x02 GET_STATUS
-
-Request: empty.
-
-Success response, 16 bytes:
+All wire values are hexadecimal:
 
 ```text
-0 session_state
-1 operation_state
-2 pending_flags: bit0 mailbox, bit1 side_effect_result, bit2 authenticated_result
-3 secure_flags: bit0 self_test_pass, bit1 session_staged, bit2 secure_enable,
-                bit3 zeroize_busy, bit4 fault_locked
-4..7 session_id u32 BE; 0 if none
-8..9 last_error u16 BE
-10..11 active_transaction_id u16 BE; 0 if none
-12..15 diagnostic_summary u32 BE
+0x0000 OK
+0x0101 BAD_MAGIC
+0x0102 BAD_VERSION
+0x0103 BAD_LENGTH
+0x0104 BAD_CRC
+0x0105 BAD_FLAGS
+0x0201 BAD_COMMAND
+0x0202 BAD_STATE
+0x0203 BUSY
+0x0204 RESULT_PENDING
+0x0205 TRANSACTION_CONFLICT
+0x0206 OUTCOME_UNKNOWN_TARGET_RESET
+0x0301 BAD_CHUNK_INDEX
+0x0302 CHUNK_CONFLICT
+0x0303 INCOMPLETE_INPUT
+0x0304 RESULT_NOT_READY
+0x0305 SELF_TEST_FAILED
+0x0306 MLKEM_SHARED_SECRET_MISMATCH
+0x0401 SESSION_ID_COLLISION
+0x0402 BAD_SESSION
+0x0403 ZEROIZED
+0x0501 REPLAY
+0x0502 STALE_SEQUENCE
+0x0503 BAD_TAG
+0x0504 MALFORMED_FRAME
+0x0505 FRAME_TIMEOUT
+0x0506 RESULT_PENDING_DROP
+0x0601 AUTH_THRESHOLD
+0x0602 COMMIT_REJECTED
+0x0603 SESSION_COMMIT_FAILED
+0x0604 HEARTBEAT_TIMEOUT
+0x0605 FAULT_LOCKED
+0x0701 INTERNAL_FAULT
+0x0702 NOT_SUPPORTED
 ```
 
-### 0x03 RUN_SELF_TEST
-
-Request, 4 bytes: `test_mask u16 BE || reserved u16=0`.
-
-Success mailbox response: empty. Final result is retained and read via
-`GET_TXN_RESULT`.
-
-### 0x04 GET_TXN_RESULT
-
-Request, 2 bytes: queried transaction ID u16 BE.
-
-Success response, 10+N bytes:
-
-```text
-0..1 queried_txid
-2 transaction_state
-3 original_command
-4..5 result_code u16 BE
-6..7 result_length N u16 BE
-8..9 reserved=0
-10.. result_data[N]
-```
-
-### 0x05 RETIRE_TXN_RESULT
-
-Request: transaction ID u16 BE. Success response empty. This command is
-retry-safe and does not create a retained side-effect record.
-
-### 0x06 ZEROIZE
-
-Request, 4 bytes: `scope u8 || reserved[3]=0`; baseline scope `0xFF` means all.
-Success mailbox response empty; retained final result is `ZEROIZED`.
-
-### 0x07 STAGE_SESSION
-
-Request, 28 bytes:
-
-```text
-0..3 session_id u32 BE
-4..19 ascon_key[16]
-20..27 nonce_prefix[8]
-```
-
-Same session ID + byte-identical context is retry-safe.
-
-### 0x08 COMMIT_SESSION
-
-Request: session_id u32 BE. Final result retained.
-
-### 0x09 ABORT_SESSION
-
-Request: session_id u32 BE; zero means current session. Retry-safe.
-
-## 6. Polynomial commands
-
-Slot IDs: A=`0`, B=`1`. Chunk index must be 0..7. Each chunk contains 32
-coefficients serialized uint16 little-endian and canonical `0..3328`.
-
-Operations: NTT=`1`, INTT=`2`, BASEMUL=`3`.
-
-### 0x20 POLY_BEGIN
-
-Request, 4 bytes:
-
-```text
-0 operation
-1 slot_mask: bit0 A, bit1 B
-2 expected_chunks_per_slot = 8
-3 reserved=0
-```
-
-Required slot mask: NTT/INTT=`0x01`, BASEMUL=`0x03`.
-
-### 0x21 POLY_WRITE_CHUNK
-
-Request exactly 66 bytes:
-
-```text
-0 slot_id
-1 chunk_index
-2..65 data[64]
-```
-
-Retry same slot/index/data is safe. Same slot/index with different data →
-`CHUNK_CONFLICT`. Index outside 0..7 → `BAD_CHUNK_INDEX`.
-
-### 0x22 POLY_EXECUTE
-
-Request, 2 bytes: `operation || reserved=0`. Reject if required chunks incomplete.
-Final result retained. Same txid is reconciled, not executed twice.
-
-### 0x23 POLY_READ_CHUNK
-
-Request, 2 bytes: `slot_id || chunk_index`.
-
-Success response exactly 66 bytes: `slot_id || chunk_index || data[64]`.
-Reject before result-ready with `RESULT_NOT_READY`.
-
-### 0x24 POLY_RETIRE
-
-Request, 2 bytes: `slot_mask || reserved=0`. Retry-safe; clear selected polynomial
-valid/result state. Does not create a retained side-effect record.
-
-### Operation flow
-
-NTT/INTT:
-
-```text
-POLY_BEGIN
--> 8 x WRITE A
--> EXECUTE
--> IRQ/result
--> 8 x READ A
--> POLY_RETIRE
-```
-
-BASEMUL:
-
-```text
-POLY_BEGIN
--> 8 x WRITE A
--> 8 x WRITE B
--> EXECUTE
--> IRQ/result
--> 8 x READ A
--> POLY_RETIRE
-```
-
-BaseMul result overwrites slot A.
-
-## 7. P1 telemetry commands
-
-### 0x30 LOAD_TELEMETRY
-
-Request, 32 bytes:
-
-```text
-0 message_type
-1 reserved=0
-2..3 AD flags u16 BE
-4..5 source_id u16 BE
-6..7 reserved=0
-8..31 plaintext[24]
-```
-
-Byte-identical retry is safe while telemetry is loaded and not sent.
-
-### 0x31 ENCRYPT_AND_SEND
-
-Request empty. Uses current session/sequence and loaded telemetry. Same txid is
-reconciled, never executed twice. Final result data:
-
-```text
-session_id u32 BE || sequence u64 BE || bytes_sent u16 BE
-```
-
-Sequence advances only after full 66-byte frame transmission completes.
-
-## 8. P2 result commands
-
-### 0x40 GET_RX_STATUS
-
-Request empty. Response, 16 bytes:
-
-```text
-0 rx_state
-1 result_valid
-2 rx_ready
-3 consecutive_bad_tag_count
-4..7 session_id u32 BE
-8..15 last_accepted_sequence u64 BE
-```
-
-### 0x41 READ_AUTH_RESULT
-
-Request empty. Success response, 38 bytes:
-
-```text
-0..3 session_id u32 BE
-4..11 sequence u64 BE
-12..35 plaintext[24]
-36..37 authentication_status u16 BE
-```
-
-### 0x42 ACK_AUTH_RESULT
-
-Request, 12 bytes: `session_id u32 BE || sequence u64 BE`. Repeated ACK for the
-same already-cleared result succeeds idempotently.
-
-### 0x43 CLEAR_DIAGNOSTIC_COUNTERS
-
-Request: counter mask u32 BE. Retry-safe.
-
-## 9. Retry classification
-
-Retry-safe/idempotent:
-
-```text
-GET_INFO GET_STATUS GET_TXN_RESULT RETIRE_TXN_RESULT POLY_READ_CHUNK
-READ_AUTH_RESULT LOAD_TELEMETRY(byte-identical, unsent)
-POLY_WRITE_CHUNK(same slot/index/data) STAGE_SESSION(byte-identical)
-ABORT_SESSION ZEROIZE POLY_RETIRE ACK_AUTH_RESULT CLEAR_DIAGNOSTIC_COUNTERS
-```
-
-No blind retry with a new transaction ID:
-
-```text
-RUN_SELF_TEST COMMIT_SESSION POLY_EXECUTE ENCRYPT_AND_SEND
-```
-
-## 10. Request fingerprint
-
-```text
-CRC32C(command || flags || payload_length_be16 || payload)
-```
-
-Store with transaction ID. Same ID/different fingerprint → `TRANSACTION_CONFLICT`.
-
-## 11. IRQ sources
-
-```text
-response_mailbox_pending
-side_effect_result_valid
-authenticated_result_valid
-```
-
-IRQ remains low while any source is pending. Reading the mailbox clears only the
-mailbox. `RETIRE_TXN_RESULT` clears retained side-effect result.
-`ACK_AUTH_RESULT` clears authenticated result.
-
-## 12. Initial timeout defaults
-
-| Operation | Timeout |
-|---|---:|
-| status/read | 100 ms |
-| NTT/INTT/BaseMul | 500 ms |
-| self-test | 2 s |
-| zeroize | 500 ms |
-| Ascon/frame path | 500 ms |
-
-On timeout SN32 performs one status/reconciliation read before reset/abort policy.
-
-## 13. Numeric error table — O-013 review item
-
-```text
-0000 OK
-0101 BAD_MAGIC
-0102 BAD_VERSION
-0103 BAD_LENGTH
-0104 BAD_CRC
-0105 BAD_FLAGS
-0201 BAD_COMMAND
-0202 BAD_STATE
-0203 BUSY
-0204 RESULT_PENDING
-0205 TRANSACTION_CONFLICT
-0206 OUTCOME_UNKNOWN_TARGET_RESET
-0301 BAD_CHUNK_INDEX
-0302 CHUNK_CONFLICT
-0303 INCOMPLETE_INPUT
-0304 RESULT_NOT_READY
-0305 SELF_TEST_FAILED
-0306 MLKEM_SHARED_SECRET_MISMATCH
-0401 SESSION_ID_COLLISION
-0402 BAD_SESSION
-0403 ZEROIZED
-0501 REPLAY
-0502 STALE_SEQUENCE
-0503 BAD_TAG
-0504 MALFORMED_FRAME
-0505 FRAME_TIMEOUT
-0506 RESULT_PENDING_DROP
-0601 AUTH_THRESHOLD
-0602 COMMIT_REJECTED
-0603 SESSION_COMMIT_FAILED
-0604 HEARTBEAT_TIMEOUT
-0605 FAULT_LOCKED
-0701 INTERNAL_FAULT
-0702 NOT_SUPPORTED
-```
+Initial timeouts remain status/read 100 ms, NTT/INTT/BaseMul 500 ms, self-test
+2 s, zeroize 500 ms and Ascon/frame path 500 ms. Changes require evidence-backed
+amendment.

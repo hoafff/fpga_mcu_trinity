@@ -1,0 +1,297 @@
+{
+  "schema_version": 1,
+  "protocol_version": 1,
+  "pc": {
+    "max_payload": 256,
+    "commands": {
+      "PING": 1,
+      "GET_SYSTEM_INFO": 2,
+      "GET_SYSTEM_STATUS": 3,
+      "GET_LAST_ERROR": 4,
+      "GET_TXN_RESULT": 5,
+      "RETIRE_TXN_RESULT": 6,
+      "RUN_SELF_TEST": 16,
+      "GENERATE_KEYPAIR": 17,
+      "CREATE_SESSION": 18,
+      "CLOSE_SESSION": 19,
+      "ZEROIZE_SYSTEM": 20,
+      "SEND_ONE_TELEMETRY": 32,
+      "RUN_DEMO": 33,
+      "READ_LAST_RESULT": 34,
+      "RUN_NTT_TEST": 48,
+      "RUN_ASCON_TEST": 49,
+      "RUN_BENCHMARK": 50,
+      "RUN_TRANSPORT_STRESS": 51,
+      "INJECT_TEST_FAULT": 64,
+      "REQUEST_FAULT_CLEAR": 65,
+      "EVENT": 224
+    },
+    "system_state": {
+      "BOOT": 0,
+      "SELF_TEST_REQUIRED": 1,
+      "SELF_TEST_RUNNING": 2,
+      "READY_NO_KEYPAIR": 3,
+      "READY_NO_SESSION": 4,
+      "SESSION_ESTABLISHING": 5,
+      "ACTIVE": 6,
+      "ZEROIZE_BUSY": 7,
+      "FAULT_LOCKED": 8,
+      "ERROR": 9
+    },
+    "mode": {
+      "KAT": 0,
+      "DEMO_DETERMINISTIC": 1,
+      "DEMO_SECURE": 2
+    },
+    "target_ready_mask": {
+      "SN32": 1,
+      "PRIMER1": 2,
+      "PRIMER2": 4,
+      "TINY1P5": 8
+    },
+    "fault_flags": {
+      "SN32": 1,
+      "PRIMER1": 2,
+      "PRIMER2": 4,
+      "TINY1P5": 8,
+      "COMMIT_REJECTED": 16,
+      "HEARTBEAT_TIMEOUT": 32,
+      "AUTH_THRESHOLD": 64,
+      "TRANSPORT": 128
+    },
+    "source": {
+      "SN32": 0,
+      "PRIMER1": 1,
+      "PRIMER2": 2,
+      "TINY1P5": 3,
+      "HOST_PROTOCOL": 4
+    },
+    "event_type": {
+      "PROGRESS": 1,
+      "STATUS_CHANGED": 2,
+      "RESULT_READY": 3,
+      "FAULT": 4,
+      "RECOVERY_REQUIRED": 5,
+      "LOG": 6,
+      "TRANSACTION_COMPLETED": 7
+    },
+    "capability_bits": {
+      "KAT": 1,
+      "DEMO_DETERMINISTIC": 2,
+      "DEMO_SECURE": 4,
+      "MLKEM512": 8,
+      "PRIMER1_ACCELERATOR": 16,
+      "ASCON_AEAD128": 32,
+      "PAYLOAD_UART": 64,
+      "TINY_SUPERVISOR": 128,
+      "FAULT_INJECTION": 256,
+      "BENCHMARK": 512,
+      "TRANSPORT_STRESS": 1024,
+      "TRANSACTION_RECONCILIATION": 2048
+    },
+    "fault_injection_id": {
+      "DROP_SN32_HEARTBEAT": 1,
+      "DROP_P1_HEARTBEAT": 2,
+      "DROP_P2_HEARTBEAT": 3,
+      "FORCE_BAD_TAG": 4,
+      "FORCE_REPLAY": 5,
+      "FORCE_FRAME_TIMEOUT": 6,
+      "FORCE_SPI_CRC_ERROR": 7,
+      "FORCE_TARGET_RESET": 8,
+      "FORCE_COMMIT_REJECTED": 9,
+      "FORCE_ZEROIZE": 10
+    },
+    "benchmark_operation_mask": {
+      "NTT": 1,
+      "INTT": 2,
+      "BASEMUL": 4,
+      "MLKEM_KEYGEN": 8,
+      "MLKEM_ENCAPS": 16,
+      "MLKEM_DECAPS": 32,
+      "ASCON_ENCRYPT": 64,
+      "ASCON_DECRYPT": 128,
+      "SPI": 256,
+      "PAYLOAD_UART": 512,
+      "END_TO_END": 1024
+    }
+  },
+  "spi": {
+    "magic": 165,
+    "header_size": 8,
+    "crc_size": 2,
+    "max_polynomial_data": 64,
+    "max_payload": 66,
+    "max_packet": 76,
+    "commands": {
+      "GET_INFO": 1,
+      "GET_STATUS": 2,
+      "RUN_SELF_TEST": 3,
+      "GET_TXN_RESULT": 4,
+      "RETIRE_TXN_RESULT": 5,
+      "ZEROIZE": 6,
+      "STAGE_SESSION": 7,
+      "COMMIT_SESSION": 8,
+      "ABORT_SESSION": 9,
+      "POLY_BEGIN": 32,
+      "POLY_WRITE_CHUNK": 33,
+      "POLY_EXECUTE": 34,
+      "POLY_READ_CHUNK": 35,
+      "POLY_RETIRE": 36,
+      "LOAD_TELEMETRY": 48,
+      "ENCRYPT_AND_SEND": 49,
+      "GET_RX_STATUS": 64,
+      "READ_AUTH_RESULT": 65,
+      "ACK_AUTH_RESULT": 66,
+      "CLEAR_DIAGNOSTIC_COUNTERS": 67
+    },
+    "target_id": {
+      "PRIMER1": 1,
+      "PRIMER2": 2
+    },
+    "session_state": {
+      "BOOT": 0,
+      "SELF_TEST_REQUIRED": 1,
+      "SELF_TEST_RUNNING": 2,
+      "READY_NO_SESSION": 3,
+      "SESSION_STAGED": 4,
+      "COMMITTED_BLOCKED": 5,
+      "ACTIVE": 6,
+      "ZEROIZE_BUSY": 7,
+      "FAULT_LOCKED": 8
+    },
+    "operation_state": {
+      "IDLE": 0,
+      "LOAD_INPUT": 1,
+      "READY_TO_EXECUTE": 2,
+      "EXECUTING": 3,
+      "RESULT_READY": 4
+    },
+    "transaction_state": {
+      "NONE": 0,
+      "ACCEPTED": 1,
+      "RUNNING": 2,
+      "SUCCEEDED": 3,
+      "FAILED": 4,
+      "ZEROIZED": 5,
+      "OUTCOME_UNKNOWN": 6
+    },
+    "rx_state": {
+      "HUNT_SYNC": 0,
+      "RECEIVE_BODY": 1,
+      "VALIDATE": 2,
+      "VERIFY_TAG": 3,
+      "RESULT_PENDING": 4
+    },
+    "capability_bits": {
+      "SELF_TEST": 1,
+      "ZEROIZE": 2,
+      "TRANSACTION_RECONCILIATION": 4,
+      "SESSION_STAGE_COMMIT": 8,
+      "NTT": 16,
+      "INTT": 32,
+      "BASEMUL": 64,
+      "ASCON_ENCRYPT": 128,
+      "UART_TX": 256,
+      "ASCON_DECRYPT": 512,
+      "REPLAY_FILTER": 1024,
+      "AUTH_RESULT_BUFFER": 2048,
+      "DIAGNOSTICS": 4096
+    },
+    "pending_flags": {
+      "RESPONSE_MAILBOX": 1,
+      "SIDE_EFFECT_RESULT": 2,
+      "AUTHENTICATED_RESULT": 4
+    },
+    "secure_flags": {
+      "SELF_TEST_PASS": 1,
+      "SESSION_STAGED": 2,
+      "SECURE_ENABLE": 4,
+      "ZEROIZE_BUSY": 8,
+      "FAULT_LOCKED": 16
+    },
+    "test_profile": {
+      "QUICK": 0,
+      "FULL": 1,
+      "KAT": 2,
+      "DIAGNOSTIC": 3
+    },
+    "test_mask": {
+      "PROTOCOL": 1,
+      "MEMORY": 2,
+      "NTT": 4,
+      "INTT": 8,
+      "BASEMUL": 16,
+      "ASCON": 32,
+      "UART": 64,
+      "SESSION": 128,
+      "ZEROIZE": 256,
+      "HEARTBEAT": 512
+    },
+    "zeroize_scope": {
+      "ACTIVE_SESSION": 1,
+      "STAGED_SESSION": 2,
+      "POLYNOMIAL_BUFFERS": 4,
+      "TELEMETRY_OR_AUTH_RESULT": 8,
+      "TRANSACTION_STATE": 16,
+      "DIAGNOSTIC_TRANSIENT": 32,
+      "ALL": 255
+    },
+    "diagnostic_counter_mask": {
+      "TRANSPORT": 1,
+      "CRC": 2,
+      "BAD_COMMAND": 4,
+      "TRANSACTION_CONFLICT": 8,
+      "BAD_TAG": 16,
+      "REPLAY_OR_STALE": 32,
+      "FRAME_ERROR": 64,
+      "RESULT_PENDING_DROP": 128,
+      "HEARTBEAT_OR_FAULT": 256,
+      "SELF_TEST": 512,
+      "ALL": 4294967295
+    }
+  },
+  "common": {
+    "flags": {
+      "RESPONSE": 1,
+      "ERROR": 2,
+      "MORE": 4,
+      "EVENT": 8
+    },
+    "error_codes": {
+      "OK": 0,
+      "BAD_MAGIC": 257,
+      "BAD_VERSION": 258,
+      "BAD_LENGTH": 259,
+      "BAD_CRC": 260,
+      "BAD_FLAGS": 261,
+      "BAD_COMMAND": 513,
+      "BAD_STATE": 514,
+      "BUSY": 515,
+      "RESULT_PENDING": 516,
+      "TRANSACTION_CONFLICT": 517,
+      "OUTCOME_UNKNOWN_TARGET_RESET": 518,
+      "BAD_CHUNK_INDEX": 769,
+      "CHUNK_CONFLICT": 770,
+      "INCOMPLETE_INPUT": 771,
+      "RESULT_NOT_READY": 772,
+      "SELF_TEST_FAILED": 773,
+      "MLKEM_SHARED_SECRET_MISMATCH": 774,
+      "SESSION_ID_COLLISION": 1025,
+      "BAD_SESSION": 1026,
+      "ZEROIZED": 1027,
+      "REPLAY": 1281,
+      "STALE_SEQUENCE": 1282,
+      "BAD_TAG": 1283,
+      "MALFORMED_FRAME": 1284,
+      "FRAME_TIMEOUT": 1285,
+      "RESULT_PENDING_DROP": 1286,
+      "AUTH_THRESHOLD": 1537,
+      "COMMIT_REJECTED": 1538,
+      "SESSION_COMMIT_FAILED": 1539,
+      "HEARTBEAT_TIMEOUT": 1540,
+      "FAULT_LOCKED": 1541,
+      "INTERNAL_FAULT": 1793,
+      "NOT_SUPPORTED": 1794
+    }
+  }
+}

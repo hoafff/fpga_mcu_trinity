@@ -1,0 +1,26 @@
+name: portable-protocol
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Repository and registry checks
+        run: |
+          python ai_context/scripts/check_repository_layout.py
+          python ai_context/scripts/check_protocol_registry.py
+          python ai_context/scripts/check_candidate_hashes.py
+      - name: Python protocol tests
+        env:
+          PYTHONPATH: pc_host/src
+        run: python -m unittest discover -s pc_host/tests -v
+      - name: Portable C protocol tests
+        run: make -C sn32/tests/portable test
