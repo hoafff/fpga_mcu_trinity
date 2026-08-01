@@ -100,8 +100,11 @@ def crc16(data:bytes)->int:
 def checks()->None:
     assert crc16(b'123456789')==0x29B1
     packet=bytes.fromhex('A501010000010000'); assert crc16(packet)==0x3598
-    kat=ascon_encrypt(bytes(16),bytes(16),bytes(24),bytes(24))
-    assert kat.hex()=='e6896dfde9c67fb12505040a2b87c401917a1a93c02cae64e85fd9296fe784086cc5665283819e4b'
+    # Official NIST SP 800-232 Ascon-AEAD128 KAT, Count 817.
+    key=bytes(range(0x00,0x10)); nonce=bytes(range(0x10,0x20))
+    pt=bytes(range(0x20,0x38)); ad=bytes(range(0x30,0x48))
+    kat=ascon_encrypt(key,nonce,ad,pt)
+    assert kat.hex()=='9d29f9d52adf9470af4cbce0a4481ac7fcb1b32976469892dfebaf445205ec9b019d022c7042ae59'
     rng=random.Random(0x5031)
     directed=[[0]*256,[1]*256,[i%Q for i in range(256)],[3328]*256]
     for a in directed+[ [rng.randrange(Q) for _ in range(256)] for _ in range(100) ]:
@@ -114,7 +117,7 @@ def checks()->None:
     frame=b'\xA5\x5A'+ad+bytes(24)+bytes(16)
     assert len(frame)==66 and frame[:2]==b'\xA5\x5A'
     print('PASS crc16_ccitt_false')
-    print('PASS ascon_aead128_zero_kat')
+    print('PASS ascon_aead128_official_count817_kat')
     print('PASS ntt_intt_directed_plus_100_random')
     print('PASS basemul_pipeline_100_random')
     print('PASS uart_frame_layout_66_bytes')
