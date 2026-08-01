@@ -1,0 +1,19 @@
+<?xml version="1" encoding="UTF-8"?>
+<!DOCTYPE gowin-fpga-project>
+<Project>
+    <Template>FPGA</Template>
+    <Version>5</Version>
+    <Device name="GW2A-18" pn="GW2A-LV18PG256C8/I7">gw2a18-002</Device>
+    <FileList>
+        <File path="../rtl/common/trinity_spi_pkg.sv" type="file.verilog" enable="1"/>
+        <File path="../rtl/crypto/mlkem_poly_accel.sv" type="file.verilog" enable="1"/>
+        <File path="../rtl/crypto/ascon_aead128_encrypt.sv" type="file.verilog" enable="1"/>
+        <File path="../rtl/io/spi_packet_endpoint.sv" type="file.verilog" enable="1"/>
+        <File path="../rtl/io/uart_tx_byte.sv" type="file.verilog" enable="1"/>
+        <File path="../rtl/io/uart_frame_tx.sv" type="file.verilog" enable="1"/>
+        <File path="../rtl/core/primer1_command_core.sv" type="file.verilog" enable="1"/>
+        <File path="../rtl/primer1_top.sv" type="file.verilog" enable="1"/>
+        <File path="../constraints/primer1.cst" type="file.cst" enable="1"/>
+        <File path="../constraints/primer1.sdc" type="file.sdc" enable="1"/>
+    </FileList>
+</Project>
