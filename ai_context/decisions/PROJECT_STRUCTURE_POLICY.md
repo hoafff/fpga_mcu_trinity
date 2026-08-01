@@ -2,7 +2,7 @@
 
 ## 1. Root layout
 
-Root chỉ được chứa:
+Allowed root entries:
 
 ```text
 pc_host/
@@ -11,55 +11,63 @@ primer1/
 primer2/
 tiny1p5/
 ai_context/
+.github/          # optional; workflows only
 README.md
 .gitignore
 LICENSE
 ```
 
-Không tạo các root legacy như `docs/`, `rtl/`, `targets/`, `tb/`, `software/`,
-`constraints/`, `scripts/` hoặc `tools/`.
+`.github/` may contain only `workflows/` and repository metadata required for
+portable CI. Do not create legacy roots such as `docs/`, `rtl/`, `targets/`,
+`tb/`, `software/`, `constraints/`, `scripts/` or `tools/`.
 
-## 2. Phân tách deployment và context
+## 2. Deployment vs context
 
-- Code/project trực tiếp build hoặc nạp cho target phải nằm trong target tương ứng.
-- Mọi nội dung không trực tiếp tham gia deployment build phải nằm trong
-  `ai_context/`: kiến trúc, quyết định, tài liệu, golden model, testbench, test,
-  evidence, build guide và migration records.
-- Target không được phụ thuộc `ai_context/` để build hoặc nạp.
-- Target có thể được đánh dấu partial, nhưng không được ghi sai là buildable.
+- Code/project directly built or programmed for a target belongs in that target.
+- Architecture, decisions, ICDs, golden model, testbench, tests, evidence, build
+  guides, toolchain lock, status and migration records belong in `ai_context/`.
+- Target builds must not depend on `ai_context/`.
+- Partial targets must not be described as buildable.
 
 ## 3. Active project memory
 
-- `ai_context/README_AI.md` là entrypoint bắt buộc cho AI/nhân sự mới.
-- `ai_context/architecture/` chỉ chứa architecture baseline hiện hành đã duyệt.
-- `ai_context/decisions/` chỉ chứa Decision Register hiện hành và policy quản trị.
-- `ai_context/status/` phản ánh source/test/build/hardware truth hiện tại.
-- Một quyết định chỉ có một bản có thẩm quyền; tài liệu phụ phải dẫn chiếu ID.
+- Entry point: `ai_context/README_AI.md`.
+- Active architecture: `ai_context/architecture/`.
+- Active decisions: `ai_context/decisions/`.
+- Interfaces: `ai_context/interfaces/`.
+- Status/open items: `ai_context/status/`.
+- Toolchain lock: `ai_context/toolchains/`.
+- One authoritative decision per subject; secondary docs reference its ID.
 
-## 4. Legacy and migration isolation
+## 4. Legacy isolation
 
-- File legacy/candidate cần bảo toàn hash phải nằm dưới `ai_context/migration/`.
-- Nội dung dưới `migration/` và `evidence/` không có thẩm quyền định nghĩa kiến trúc.
-- Không để tài liệu legacy có tên/đường dẫn giống active architecture hoặc active
-  decision register.
-- Git history giữ provenance; không cần giữ một baseline cũ trong vùng active.
+Legacy/candidate docs required for provenance remain under
+`ai_context/migration/` and have no architectural authority. Git history is kept;
+probe commits are historical connectivity probes, not active source.
 
-## 5. Evidence and generated artifacts
+## 5. Evidence/artifacts
 
-- Không commit `.fs`, `.hex`, `.axf`, build cache hoặc generated report vào source
-  tree của `main`.
-- Acceptance binary/report được lưu ở GitHub Release hoặc artifact archive cùng
-  tool version, commit SHA và SHA-256.
-- Status phải phân biệt `TESTED`, `BUILD-PENDING` và `PHYSICAL-PENDING`.
+- Do not commit `.fs`, `.hex`, `.axf`, build cache or generated vendor report to
+  the `main` source tree.
+- Acceptance binaries/reports go to GitHub Release/artifact archive with tool
+  versions, commit SHA and SHA-256.
+- Status must distinguish `TESTED`, `BUILD-PENDING`, `PHYSICAL-PENDING`.
 
-## 6. Candidate preservation
+## 6. Portable CI exception
 
-- 29 file P0-J19-001 phải tiếp tục hash-verifiable.
-- Di chuyển file candidate được phép nếu cập nhật đồng thời FILE_MAP và hash
-  manifest mà không thay đổi byte content.
+`.github/workflows/` may run only portable checks:
 
-## 7. Current exception
+- Python tests;
+- repository layout and candidate hash checks;
+- GCC reference tests;
+- Icarus/Verilog simulation;
+- format/static checks.
 
-`sn32/` hiện là source-only partial integration slice cho P0.10/P0.11 và không
-phải firmware deployment hoàn chỉnh. Exception này không miễn yêu cầu target phải
-tự chứa trước khi được coi là buildable.
+CI must not claim Gowin synthesis/P&R/timing, Keil exact-target build or hardware
+PASS. When the first workflow is added, update `check_repository_layout.py` in the
+same commit so policy and checker agree.
+
+## 7. Candidate preservation
+
+The 29 P0-J19-001 files remain hash-verifiable. Relocation requires simultaneous
+FILE_MAP and hash-manifest updates without changing byte content.

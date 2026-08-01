@@ -1,26 +1,30 @@
 # Implementation Status
 
-## Architecture and requirements
+## Documentation and gates
 
 | Item | Status | Note |
 |---|---|---|
-| System Specification v0.3 | `CONFIRMED` | Approved baseline; A-018 overrides storage paths only |
-| Decision Register v0.3 | `CONFIRMED` | Q01–Q100, amendments and open items |
-| Full-system implementation | `OPEN` | Blocked by O-001, O-003, O-004, O-005, O-006 |
-| Secure-demo claim | `OPEN` | Additionally blocked by O-002 |
+| System Specification v0.4 | `CONFIRMED` | approved D01–D60 consolidated; final consistency review required before source |
+| Decision Register v0.4 | `CONFIRMED` | records closures and remaining items |
+| SPI ICD v0.1 | `ASSUMED` | header confirmed; derived payload/error details O-013 |
+| PC↔SN32 ICD v0.1 | `ASSUMED` | frame/registry confirmed; derived payload/event details O-014 |
+| ML-KEM Backend Spec v0.1 | `ASSUMED` | exact pin/API confirmed; BaseMul/error mapping O-015 |
+| Toolchain lock | `OPEN` | O-012 |
+| Full integrated source | `OPEN` | do not start until owner review + O-012/O-013/O-014/O-015 closure |
+| DEMO_SECURE | `OPEN` | O-002; API must return NOT_SUPPORTED |
 | Final wiring/constraints | `PHYSICAL-PENDING` | O-008 |
-| Exact resource/timing result | `BUILD-PENDING` | O-009 |
+| Exact resource/timing/hardware | `BUILD-PENDING` | O-009 |
 
 ## Target truth
 
-| Target/gate | Source | Test | Exact build | Hardware |
+| Target | Source | Portable/source test | Exact build | Hardware |
 |---|---|---|---|---|
-| PC host | `NOT IMPLEMENTED` | `NOT STARTED` | `NOT STARTED` | — |
-| SN32 full firmware | `NOT IMPLEMENTED` | `NOT STARTED` | `NOT STARTED` | `PHYSICAL-PENDING` |
-| SN32 P0.10 guard slice | `MIGRATED` | `TESTED — INHERITED SOURCE-ONLY` | `NOT STARTED` | `PHYSICAL-PENDING` |
-| Primer #1 | `NOT IMPLEMENTED` | `NOT STARTED` | `NOT STARTED` | `PHYSICAL-PENDING` |
-| Primer #2 | `NOT IMPLEMENTED` | `NOT STARTED` | `NOT STARTED` | `PHYSICAL-PENDING` |
-| Tiny 1P5 supervisor candidate | `MIGRATED / SELF-CONTAINED SOURCE` | `TESTED — INHERITED SOURCE-ONLY` | `BUILD-PENDING` | `PHYSICAL-PENDING` |
-| P0-J19-001 migration | `COMPLETE` | `29 FILE HASH CHECK AVAILABLE` | — | `PHYSICAL-PENDING` |
+| PC host | `OPEN` | `OPEN` | — | — |
+| SN32 full firmware | `OPEN` | `OPEN` | `OPEN` | `PHYSICAL-PENDING` |
+| SN32 P0.10 guard slice | `TESTED` | inherited source-only | `OPEN` | `PHYSICAL-PENDING` |
+| Primer #1 | `OPEN` | `OPEN` | `BUILD-PENDING` | `PHYSICAL-PENDING` |
+| Primer #2 | `OPEN` | `OPEN` | `BUILD-PENDING` | `PHYSICAL-PENDING` |
+| Tiny supervisor candidate | `TESTED` | inherited source-only | `BUILD-PENDING` | `PHYSICAL-PENDING` |
+| P0-J19-001 migration | `TESTED` | 29-file hash checker available | — | `PHYSICAL-PENDING` |
 
-Inherited evidence chỉ áp dụng cho exact accepted candidate content và đúng scope đã nêu. Di chuyển file không tạo exact-device hoặc hardware PASS.
+No code target was modified by the v0.4 documentation update.
