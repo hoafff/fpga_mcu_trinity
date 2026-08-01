@@ -1,0 +1,62 @@
+name: gate3-mlkem
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gate3-mlkem.yml
+      - ai_context/scripts/vendor_mlkem_native.py
+      - sn32/third_party/mlkem-native/VENDOR.lock
+      - sn32/include/trinity_mlkem.h
+      - sn32/include/trinity_mlkem_backend.h
+      - sn32/src/trinity_mlkem.c
+      - sn32/src/trinity_mlkem_backend.c
+      - sn32/tests/mlkem_gate3/**
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gate3-mlkem-main
+  cancel-in-progress: false
+
+jobs:
+  vendor-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Import pinned portable source and run upstream KAT
+        run: |
+          python ai_context/scripts/vendor_mlkem_native.py --verify-upstream-kat
+          mv sn32/third_party/mlkem-native/README.md \
+             sn32/third_party/mlkem-native/VENDOR_NOTES.txt
+      - name: Gate 3 portable wrapper tests
+        run: make -C sn32/tests/mlkem_gate3 clean test
+      - name: Existing portable regression
+        run: |
+          python ai_context/scripts/check_repository_layout.py
+          python ai_context/scripts/check_project_memory_detail.py
+          python ai_context/scripts/check_protocol_registry.py
+          python ai_context/scripts/check_candidate_hashes.py
+          PYTHONPATH=pc_host/src python -m unittest discover -s pc_host/tests -v
+          make -C sn32/tests/portable clean test
+      - name: Whitespace check
+        run: git diff --check
+      - name: Commit deterministic vendor output
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sn32/third_party/mlkem-native
+          if git diff --cached --quiet; then
+            echo "Vendor tree already current"
+          else
+            git commit -m "vendor: pin mlkem-native v1.0.0 for Gate 3"
+            git push origin HEAD:main
+          fi

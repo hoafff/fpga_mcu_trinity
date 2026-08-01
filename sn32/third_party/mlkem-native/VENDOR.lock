@@ -1,0 +1,5 @@
+# Immutable Gate 3 upstream pin
+repository=https://github.com/pq-code-package/mlkem-native
+tag=v1.0.0
+commit=048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
+archive_sha256=PENDING_FIRST_IMPORT
