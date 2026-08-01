@@ -28,7 +28,13 @@ module mlkem_poly_accel (
   logic a_we0, a_we1, b_we0, b_we1;
   logic signed [15:0] a_din0, a_din1, b_din0, b_din1;
   logic signed [15:0] a_q0, a_q1, b_q0, b_q1;
-  logic read_slot_d;
+  logic read_prefetch_active;
+  logic read_prefetch_slot;
+  logic read_select_q1;
+  logic read_start_hold;
+  logic [7:0] read_expected_addr;
+  logic [7:0] read_next_addr;
+  logic read_restart;
 
   always_ff @(posedge clk_i) begin
     if (a_we0) poly_a[a_addr0] <= a_din0;
@@ -39,8 +45,6 @@ module mlkem_poly_accel (
     a_q1 <= poly_a[a_addr1];
     b_q0 <= poly_b[b_addr0];
     b_q1 <= poly_b[b_addr1];
-    if (!busy_o && !zeroize_busy_o)
-      read_slot_d <= read_slot_i;
   end
 
   typedef enum logic [4:0] {
@@ -134,6 +138,12 @@ module mlkem_poly_accel (
     end
   endfunction
 
+  always_comb begin
+    read_restart = !read_prefetch_active ||
+                   (read_slot_i != read_prefetch_slot) ||
+                   (read_addr_i != read_expected_addr);
+  end
+
   logic signed [15:0] ntt_t;
   logic signed [15:0] intt_sum, intt_diff;
   logic signed [15:0] bm_r0, bm_r1;
@@ -161,6 +171,30 @@ module mlkem_poly_accel (
             b_addr0 = load_addr_i; b_we0 = 1'b1; b_din0 = $signed(load_data_i);
           end else begin
             a_addr0 = load_addr_i; a_we0 = 1'b1; a_din0 = $signed(load_data_i);
+          end
+        end else if (read_restart) begin
+          if (read_slot_i) begin
+            b_addr0 = read_addr_i;
+            b_addr1 = read_addr_i + 1'b1;
+          end else begin
+            a_addr0 = read_addr_i;
+            a_addr1 = read_addr_i + 1'b1;
+          end
+        end else if (read_prefetch_slot) begin
+          if (read_select_q1) begin
+            b_addr0 = read_next_addr - 1'b1;
+            b_addr1 = read_next_addr;
+          end else begin
+            b_addr0 = read_next_addr;
+            b_addr1 = read_next_addr - 1'b1;
+          end
+        end else begin
+          if (read_select_q1) begin
+            a_addr0 = read_next_addr - 1'b1;
+            a_addr1 = read_next_addr;
+          end else begin
+            a_addr0 = read_next_addr;
+            a_addr1 = read_next_addr - 1'b1;
           end
         end
       end
@@ -215,7 +249,12 @@ module mlkem_poly_accel (
     endcase
   end
 
-  always_comb read_data_o = canonical(read_slot_d ? b_q0 : a_q0);
+  always_comb begin
+    if (read_prefetch_slot)
+      read_data_o = canonical(read_select_q1 ? b_q1 : b_q0);
+    else
+      read_data_o = canonical(read_select_q1 ? a_q1 : a_q0);
+  end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
@@ -228,9 +267,35 @@ module mlkem_poly_accel (
       len_reg <= '0; start_reg <= '0; j_reg <= '0; k_reg <= '0;
       scale_index <= '0; bm_index <= '0; zero_index <= '0;
       zeta_reg <= '0;
+      read_prefetch_active <= 1'b0;
+      read_prefetch_slot <= 1'b0;
+      read_select_q1 <= 1'b0;
+      read_start_hold <= 1'b0;
+      read_expected_addr <= 8'd0;
+      read_next_addr <= 8'd0;
     end else begin
       done_o <= 1'b0;
       zeroize_done_o <= 1'b0;
+
+      if (state != P_IDLE || load_we_i || start_i || zeroize_i) begin
+        read_prefetch_active <= 1'b0;
+      end else if (read_restart) begin
+        read_prefetch_active <= 1'b1;
+        read_prefetch_slot <= read_slot_i;
+        read_select_q1 <= 1'b0;
+        read_start_hold <= 1'b1;
+        read_expected_addr <= read_addr_i;
+        read_next_addr <= read_addr_i + 2;
+      end else begin
+        read_select_q1 <= ~read_select_q1;
+        read_next_addr <= read_next_addr + 1'b1;
+        if (read_start_hold) begin
+          read_start_hold <= 1'b0;
+          read_expected_addr <= read_expected_addr + 1'b1;
+        end else begin
+          read_expected_addr <= read_expected_addr + 1'b1;
+        end
+      end
 
       if (zeroize_i && state != P_ZEROIZE) begin
         state <= P_ZEROIZE;
