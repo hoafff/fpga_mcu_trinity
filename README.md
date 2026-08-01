@@ -17,6 +17,10 @@ Current milestone:
 - Gate 1 PC protocol/common types implemented;
 - Gate 2 SPI protocol/common types implemented;
 - portable Python/C tests and registry consistency checks provided;
-- SN32 S0 exact-target Keil project added from a hardware-proven donor;
-- SN32 S0 exact ArmClang build, AXF/HEX/MAP and hardware evidence remain pending;
-- no Gowin, Keil, timing or hardware PASS is claimed for Trinity.
+- SN32 S0 exact-target project structure, compile/link, AXF/HEX/MAP generation
+  and memory layout validated with the authoritative local Keil environment;
+- S0 has zero Trinity-owned source warnings and one narrowly accepted SONiX DFP
+  1.0.1 warning in `system_SN32F400.c`;
+- SN32 hardware programming and execution remain untested;
+- S1 and later milestones are not started;
+- no Gowin, timing, integrated hardware or full-deployment PASS is claimed.

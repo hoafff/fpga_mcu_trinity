@@ -13,7 +13,7 @@
         <TargetCommonOption>
           <Device>SN32F407F</Device>
           <Vendor>SONiX</Vendor>
-          <PackID>SONiX.SN32F4_DFP.1.1.1</PackID>
+          <PackID>SONiX.SN32F4_DFP.1.0.1</PackID>
           <PackURL>https://liveupdate.sonix.com.tw/sonix/develop_tool/MCU/DFP/</PackURL>
           <Cpu>IRAM(0x20000000,0x2000) IROM(0x00000000,0x7FFC) CPUTYPE("Cortex-M0") CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
@@ -325,12 +325,12 @@
   <RTE>
     <apis/>
     <components>
-      <component Cclass="CMSIS" Cgroup="CORE" Cvendor="ARM" Cversion="6.2.0" condition="ARMv6_7_8-M Device" ymlID="CMSIS:CORE">
-        <package name="CMSIS" schemaVersion="1.7.53" url="https://www.keil.com/pack/" vendor="ARM" version="6.3.0"/>
+      <component Cclass="CMSIS" Cgroup="CORE" Cvendor="ARM" Cversion="6.1.1" condition="ARMv6_7_8-M Device" ymlID="CMSIS:CORE">
+        <package name="CMSIS" schemaVersion="1.7.53" url="https://www.keil.com/pack/" vendor="ARM" version="6.2.0"/>
         <targetInfos><targetInfo name="trinity_sn32f407"/></targetInfos>
       </component>
       <component Cclass="Device" Cgroup="Startup" Cvendor="SONiX" Cversion="1.0.1" condition="SN32F40 CMSIS Device" ymlID="Device:Startup">
-        <package name="SN32F4_DFP" schemaVersion="1.0" url="https://liveupdate.sonix.com.tw/sonix/develop_tool/MCU/DFP/" vendor="SONiX" version="1.1.1"/>
+        <package name="SN32F4_DFP" schemaVersion="1.0" url="https://liveupdate.sonix.com.tw/sonix/develop_tool/MCU/DFP/" vendor="SONiX" version="1.0.1"/>
         <targetInfos><targetInfo name="trinity_sn32f407"/></targetInfos>
       </component>
     </components>
@@ -338,13 +338,13 @@
       <file attr="config" category="sourceAsm" condition="Compiler ARM" name="Device\Source\ARM\startup_SN32F400.s" version="1.0.3">
         <instance index="0">RTE\Device\SN32F407F\startup_SN32F400.s</instance>
         <component Cclass="Device" Cgroup="Startup" Cvendor="SONiX" Cversion="1.0.1" condition="SN32F40 CMSIS Device"/>
-        <package name="SN32F4_DFP" schemaVersion="1.0" url="https://liveupdate.sonix.com.tw/sonix/develop_tool/MCU/DFP/" vendor="SONiX" version="1.1.1"/>
+        <package name="SN32F4_DFP" schemaVersion="1.0" url="https://liveupdate.sonix.com.tw/sonix/develop_tool/MCU/DFP/" vendor="SONiX" version="1.0.1"/>
         <targetInfos><targetInfo name="trinity_sn32f407"/></targetInfos>
       </file>
       <file attr="config" category="sourceC" name="Device\Source\system_SN32F400.c" version="1.0.1">
         <instance index="0">RTE\Device\SN32F407F\system_SN32F400.c</instance>
         <component Cclass="Device" Cgroup="Startup" Cvendor="SONiX" Cversion="1.0.1" condition="SN32F40 CMSIS Device"/>
-        <package name="SN32F4_DFP" schemaVersion="1.0" url="https://liveupdate.sonix.com.tw/sonix/develop_tool/MCU/DFP/" vendor="SONiX" version="1.1.1"/>
+        <package name="SN32F4_DFP" schemaVersion="1.0" url="https://liveupdate.sonix.com.tw/sonix/develop_tool/MCU/DFP/" vendor="SONiX" version="1.0.1"/>
         <targetInfos><targetInfo name="trinity_sn32f407"/></targetInfos>
       </file>
     </files>

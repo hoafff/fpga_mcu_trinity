@@ -1,10 +1,10 @@
-schema_version=1
+schema_version=2
 project=trinity_sn32f407
 scope=S0_CLEAN_EXACT_TARGET_KEIL_PROJECT
 
 [repository_identity]
 trinity_repository=hoafff/fpga_mcu_trinity
-pre_change_commit=420c995eb6b64a327ec176b444139f5572da566d
+pre_change_commit=bbe00bd6909848b86ec06c0335c837d02874c3b4
 post_change_commit=SELF
 post_change_note=The commit containing this file; a Git commit cannot embed its own SHA without changing that SHA.
 known_good_donor_repository=hoafff/MCU_dong_ho_so
@@ -24,9 +24,9 @@ irom_size=0x7FFC
 keil_uvision=5.43.1
 compiler=ArmClang_6.24
 compiler_family=ARM_Compiler_6
-dfp=SONiX.SN32F4_DFP.1.1.1
-cmsis_package=ARM.CMSIS.6.3.0
-cmsis_core_component=6.2.0
+dfp=SONiX.SN32F4_DFP.1.0.1
+cmsis_package=ARM.CMSIS.6.2.0
+cmsis_core_component=6.1.1
 startup_component=SONiX_Device_Startup_1.0.1
 startup_instance=RTE/Device/SN32F407F/startup_SN32F400.s
 startup_file_version=1.0.3
@@ -38,21 +38,61 @@ heap_bytes=0x0
 linker_memory_source=Keil_Target_Options_auto_scatter
 
 [committed_project_files]
-sn32/keil/trinity_sn32f407.uvprojx=written_new_from_reviewed_donor_metadata
-sn32/keil/SOURCES.lock=written_new
-sn32/keil/README_BUILD.md=written_new
-sn32/config/trinity_build_config.h=written_new
-sn32/src/app/trinity_main.c=written_new
-sn32/tests/s0/check_s0_project.py=written_new
+sn32/keil/trinity_sn32f407.uvprojx=updated_for_validated_local_pack_baseline
+sn32/keil/SOURCES.lock=updated
+sn32/keil/README_BUILD.md=updated
+sn32/config/trinity_build_config.h=unchanged
+sn32/src/app/trinity_main.c=unchanged
+sn32/tests/s0/check_s0_project.py=updated
+ai_context/evidence/sn32/S0_KEIL_BUILD_EVIDENCE_2026-08-01.md=written_sanitized
 
 [compiled_application_source]
 sn32/src/app/trinity_main.c=Trinity_v0.4_new_source
 
 [compiled_pack_sources_generated_by_keil]
-RTE/Device/SN32F407F/startup_SN32F400.s=SONiX.SN32F4_DFP.1.1.1
-RTE/Device/SN32F407F/system_SN32F400.c=SONiX.SN32F4_DFP.1.1.1
-SN32F400.h=SONiX.SN32F4_DFP.1.1.1_Device_Include
-CMSIS_Core_Include=ARM.CMSIS.6.3.0
+RTE/Device/SN32F407F/startup_SN32F400.s=SONiX.SN32F4_DFP.1.0.1
+RTE/Device/SN32F407F/system_SN32F400.c=SONiX.SN32F4_DFP.1.0.1
+SN32F400.h=SONiX.SN32F4_DFP.1.0.1_Device_Include
+CMSIS_Core_Include=ARM.CMSIS.6.2.0_CORE_6.1.1
+
+[known_warning_waiver]
+waiver_id=KNOWN_ACCEPTED_VENDOR_WARNING_SN32_DFP_1_0_1_AHB_PRESCALER
+classification=KNOWN_ACCEPTED_VENDOR_WARNING
+maximum_total_warnings=1
+required_total_errors=0
+required_trinity_owned_source_warnings=0
+warning_file=RTE/Device/SN32F407F/system_SN32F400.c
+warning_pack=SONiX.SN32F4_DFP_1.0.1
+warning_cause=possible_uninitialized_use_of_AHB_prescaler
+generic_vendor_warning_waiver=false
+vendor_source_patch_allowed=false
+warning_suppression_allowed=false
+
+[validated_build_evidence]
+evidence_file=ai_context/evidence/sn32/S0_KEIL_BUILD_EVIDENCE_2026-08-01.md
+raw_build_log_sha256=0dad9662ca13aaf78d2cfa07cc52f7ff8ef8cfddb96be6e546ac6d8c6817d6bf
+raw_map_sha256=0dfe9c7bf6aeb0e2fa0b287f7f5f1671e869c7a0cbf26ac7b7063947c4d5e121
+total_errors=0
+total_warnings=1
+trinity_owned_source_warnings=0
+accepted_vendor_warnings=1
+program_code_bytes=1240
+program_ro_data_bytes=208
+program_rw_data_bytes=0
+program_zi_data_bytes=616
+map_total_ro_bytes=1448
+map_total_rw_bytes=616
+hex_generated=true
+axf_generated=true
+map_generated=true
+hardware_programming=NOT_TESTED
+hardware_execution=NOT_TESTED
+
+[historical_donor_baseline_not_active]
+donor_cmsis_package=ARM.CMSIS.6.3.0
+donor_cmsis_core_component=6.2.0
+donor_dfp=SONiX.SN32F4_DFP.1.1.1
+classification=HISTORICAL_PROVENANCE_NOT_TRINITY_DEPENDENCY
 
 [reviewed_donor_files]
 hhhh.uvprojx=blob_ebad003f158dadf146d86afb91d49b32d21bdb99
@@ -72,7 +112,7 @@ include/systick.h=blob_c1e096c3efa77aca80c3deb54cc7a90a74277ef9
 
 [reviewed_hardware_sources]
 407-20260726T034611Z-1-001/407/Circuit_407/32F407 EVK V1.0.pdf=path_verified_at_hardware_documents_commit
-407-20260726T034611Z-1-001/407/Install Package/Pack/SONiX.SN32F4_DFP.1.1.1.pack=path_verified_at_hardware_documents_commit
+407-20260726T034611Z-1-001/407/Install Package/Pack/SONiX.SN32F4_DFP.1.1.1.pack=historical_donor_source_not_active_dependency
 407-20260726T034611Z-1-001/407/SN32F400_CMSIS_Firmware_Library_V1.5R (2)/SN32F400_CMSIS_Firmware_Library_V1.5R/CMSIS Firmware Library_V1.4/ClockSwitch/PFPA.c=blob_822e15d8f3f1e5bbd60dbddd82b231b964525d8b
 
 [explicitly_excluded_from_build]
@@ -95,10 +135,15 @@ TRINITY_ENABLE_TINY_SESSION_COMMIT=0
 TRINITY_ENABLE_DEMO_SECURE=0
 
 [verification_scope]
-project_xml=static_checked
-portable_s0_checker=run_before_commit
-armclang_build=NOT_RUN_IN_WEB_ENVIRONMENT
-axf=NOT_GENERATED_IN_WEB_ENVIRONMENT
-hex=NOT_GENERATED_IN_WEB_ENVIRONMENT
-map=NOT_GENERATED_IN_WEB_ENVIRONMENT
-hardware=NOT_TESTED_BY_THIS_COMMIT
+project_xml=PASS
+portable_s0_checker=RUN_BEFORE_COMMIT
+armclang_build=PASS
+axf=GENERATED
+hex=GENERATED
+map=GENERATED
+memory_layout=PASS
+trinity_owned_source_warnings=PASS_0
+known_vendor_warning=ACCEPTED_1_EXACT_WAIVER_ONLY
+hardware_programming=NOT_TESTED
+hardware_execution=NOT_TESTED
+s1_plus=NOT_STARTED

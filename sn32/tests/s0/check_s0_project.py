@@ -11,7 +11,12 @@ PROJECT = ROOT / "sn32/keil/trinity_sn32f407.uvprojx"
 CONFIG = ROOT / "sn32/config/trinity_build_config.h"
 MAIN = ROOT / "sn32/src/app/trinity_main.c"
 MANIFEST = ROOT / "sn32/keil/SOURCES.lock"
-README = ROOT / "sn32/keil/README_BUILD.md"
+BUILD_README = ROOT / "sn32/keil/README_BUILD.md"
+TARGET = ROOT / "sn32/target.toml"
+TOOLCHAIN = ROOT / "ai_context/toolchains/TOOLCHAIN_LOCK.md"
+STATUS = ROOT / "ai_context/status/IMPLEMENTATION_STATUS.md"
+ROOT_README = ROOT / "README.md"
+EVIDENCE = ROOT / "ai_context/evidence/sn32/S0_KEIL_BUILD_EVIDENCE_2026-08-01.md"
 
 errors: list[str] = []
 
@@ -26,7 +31,11 @@ def text(root: ET.Element, path: str) -> str:
     return "" if node is None or node.text is None else node.text.strip()
 
 
-for path in (PROJECT, CONFIG, MAIN, MANIFEST, README):
+required_files = (
+    PROJECT, CONFIG, MAIN, MANIFEST, BUILD_README, TARGET,
+    TOOLCHAIN, STATUS, ROOT_README, EVIDENCE,
+)
+for path in required_files:
     require(path.is_file(), f"missing S0 file: {path.relative_to(ROOT)}")
 
 if PROJECT.is_file():
@@ -39,7 +48,7 @@ if PROJECT.is_file():
     require(text(project_root, ".//TargetName") == "trinity_sn32f407", "wrong target name")
     require(text(project_root, ".//Device") == "SN32F407F", "wrong device")
     require(text(project_root, ".//Vendor") == "SONiX", "wrong vendor")
-    require(text(project_root, ".//PackID") == "SONiX.SN32F4_DFP.1.1.1", "wrong DFP")
+    require(text(project_root, ".//PackID") == "SONiX.SN32F4_DFP.1.0.1", "wrong DFP")
     require(text(project_root, ".//pCCUsed") == "6240000::V6.24::ARMCLANG", "wrong ArmClang lock")
     require(text(project_root, ".//uAC6") == "1", "ARM Compiler 6 not enabled")
 
@@ -71,12 +80,22 @@ if PROJECT.is_file():
     require(r"RTE\Device\SN32F407F\startup_SN32F400.s" in instances, "startup RTE instance missing")
     require(r"RTE\Device\SN32F407F\system_SN32F400.c" in instances, "system RTE instance missing")
 
-    packages = {(node.get("vendor"), node.get("name"), node.get("version")) for node in project_root.findall(".//RTE//package")}
-    require(("ARM", "CMSIS", "6.3.0") in packages, "CMSIS 6.3.0 package missing")
-    require(("SONiX", "SN32F4_DFP", "1.1.1") in packages, "SONiX DFP 1.1.1 package missing")
+    components = {
+        (node.get("Cvendor"), node.get("Cclass"), node.get("Cgroup"), node.get("Cversion"))
+        for node in project_root.findall(".//RTE/components/component")
+    }
+    require(("ARM", "CMSIS", "CORE", "6.1.1") in components, "CMSIS CORE 6.1.1 component missing")
+
+    packages = {
+        (node.get("vendor"), node.get("name"), node.get("version"))
+        for node in project_root.findall(".//RTE//package")
+    }
+    require(("ARM", "CMSIS", "6.2.0") in packages, "CMSIS 6.2.0 package missing")
+    require(("SONiX", "SN32F4_DFP", "1.0.1") in packages, "SONiX DFP 1.0.1 package missing")
 
     project_text = PROJECT.read_text(encoding="utf-8")
-    require(re.search(r"(?:^|[>\"'])\s*[A-Za-z]:[\\/]", project_text, re.MULTILINE) is None, "absolute Windows path in project")
+    require(re.search(r"(?:^|[>\"'])\s*[A-Za-z]:[\\/]", project_text, re.MULTILINE) is None,
+            "absolute Windows path in project")
     require("uvguix" not in project_text.lower(), "uvguix reference in project")
 
 if CONFIG.is_file():
@@ -105,15 +124,71 @@ if MAIN.is_file():
 if MANIFEST.is_file():
     manifest_text = MANIFEST.read_text(encoding="utf-8")
     for required in (
-        "pre_change_commit=420c995eb6b64a327ec176b444139f5572da566d",
-        "known_good_donor_commit=d4412745f30f518f1c7a128cc494fa2678b4926c",
-        "hardware_documents_commit=0d78b6a4bdfa2732ca000851b08be13fb9294a6d",
+        "pre_change_commit=bbe00bd6909848b86ec06c0335c837d02874c3b4",
         "post_change_commit=SELF",
+        "dfp=SONiX.SN32F4_DFP.1.0.1",
+        "cmsis_package=ARM.CMSIS.6.2.0",
+        "cmsis_core_component=6.1.1",
+        "waiver_id=KNOWN_ACCEPTED_VENDOR_WARNING_SN32_DFP_1_0_1_AHB_PRESCALER",
+        "warning_file=RTE/Device/SN32F407F/system_SN32F400.c",
+        "warning_pack=SONiX.SN32F4_DFP_1.0.1",
+        "warning_cause=possible_uninitialized_use_of_AHB_prescaler",
+        "maximum_total_warnings=1",
+        "required_total_errors=0",
+        "required_trinity_owned_source_warnings=0",
+        "generic_vendor_warning_waiver=false",
+        "vendor_source_patch_allowed=false",
+        "warning_suppression_allowed=false",
         "fpst_sn32f407_main.c=legacy_FPST_not_Trinity_v0.4",
         "fpst_sn32f407_dual_main.c=legacy_P1_to_MCU_to_P2_payload_relay",
+        "classification=HISTORICAL_PROVENANCE_NOT_TRINITY_DEPENDENCY",
     ):
         require(required in manifest_text, f"manifest entry missing: {required}")
-    require(re.search(r"(?:^|[>\"'])\s*[A-Za-z]:[\\/]", manifest_text, re.MULTILINE) is None, "absolute Windows path in manifest")
+    require(re.search(r"(?:^|[>\"'])\s*[A-Za-z]:[\\/]", manifest_text, re.MULTILINE) is None,
+            "absolute Windows path in manifest")
+
+if EVIDENCE.is_file():
+    evidence_text = EVIDENCE.read_text(encoding="utf-8")
+    for required in (
+        "Target device:    SN32F407F",
+        "Keil µVision:     5.43.1",
+        "Compiler:         ArmClang 6.24 / ARM Compiler 6",
+        "ARM CMSIS pack:   6.2.0",
+        "CMSIS CORE:       6.1.1",
+        "SONiX SN32F4 DFP: 1.0.1",
+        "Total errors:                    0",
+        "Trinity-owned source warnings:   0",
+        "Accepted vendor warnings:        1",
+        "KNOWN_ACCEPTED_VENDOR_WARNING_SN32_DFP_1_0_1_AHB_PRESCALER",
+        "RTE/Device/SN32F407F/system_SN32F400.c",
+        "possible uninitialized use of AHB_prescaler",
+        "Hardware programming:             NOT TESTED",
+        "Hardware execution:               NOT TESTED",
+        "S1+:                              NOT STARTED",
+    ):
+        require(required in evidence_text, f"sanitized evidence entry missing: {required}")
+    for forbidden in ("License Information:", "LIC=", "E:\\", "D:\\"):
+        require(forbidden not in evidence_text, f"private/raw evidence leaked: {forbidden}")
+
+# Active dependency documents must use the validated local baseline. Historical
+# donor versions are allowed only in explicit provenance sections of TOOLCHAIN
+# and SOURCES.lock.
+active_docs = (PROJECT, BUILD_README, TARGET, STATUS, ROOT_README)
+for path in active_docs:
+    if not path.is_file():
+        continue
+    value = path.read_text(encoding="utf-8")
+    require("ARM.CMSIS.6.3.0" not in value, f"active document requires old CMSIS pack: {path.relative_to(ROOT)}")
+    require("SONiX.SN32F4_DFP.1.1.1" not in value, f"active document requires old DFP: {path.relative_to(ROOT)}")
+    require("0 Error(s), 0 Warning(s)" not in value, f"obsolete zero-warning acceptance: {path.relative_to(ROOT)}")
+    require("zero-warning" not in value.lower(), f"obsolete zero-warning claim: {path.relative_to(ROOT)}")
+
+if TOOLCHAIN.is_file():
+    toolchain_text = TOOLCHAIN.read_text(encoding="utf-8")
+    require("package `6.2.0`, CORE component `6.1.1`" in toolchain_text, "toolchain baseline CMSIS mismatch")
+    require("`SONiX.SN32F4_DFP 1.0.1`" in toolchain_text, "toolchain baseline DFP mismatch")
+    require("Historical donor baseline — not a Trinity dependency" in toolchain_text,
+            "old donor versions are not clearly historical")
 
 for path in ROOT.rglob("*.uvguix.*"):
     errors.append(f"forbidden user project file: {path.relative_to(ROOT)}")
@@ -123,6 +198,7 @@ if errors:
         print(f"ERROR: {error}", file=sys.stderr)
     raise SystemExit(1)
 
-print("PASS: S0 Keil XML, exact target, RTE packs, source manifest and feature guards")
-print("PASS: one Trinity main; legacy FPST main files excluded")
-print("PASS: no absolute Windows paths or uvguix user metadata")
+print("PASS: S0 XML locks SN32F407F, ArmClang 6.24, CMSIS 6.2.0/CORE 6.1.1 and DFP 1.0.1")
+print("PASS: one Trinity application entry; legacy mains and all S1 features remain excluded")
+print("PASS: memory/output options, source manifest, sanitized evidence and exact warning-waiver contract are consistent")
+print("NOTE: static checks do not replace the authoritative ArmClang build log")
