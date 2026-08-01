@@ -55,3 +55,7 @@ ai_context/evidence/generated/
 *.pem
 *.key
 secrets/
+
+sn32/keil/*.uvoptx
+sn32/keil/*.uvguix
+sn32/keil/*.uvguix.*
