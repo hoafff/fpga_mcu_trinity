@@ -1,3 +1,11 @@
+# Authoritative reproducible build flow for Primer #2.
+# The GUI stores synthesis process settings under generated impl/ state, so a
+# clean exact-device build must recreate that state from this source-controlled
+# script instead of inheriting a local Verilog 2001 process configuration.
+if {[file exists impl]} {
+    file delete -force impl
+}
+
 set_device -name GW2A-18C GW2A-LV18PG256C8/I7
 add_file ../rtl/common/trinity_spi_pkg.sv
 add_file ../rtl/crypto/ascon_aead128_decrypt.sv
