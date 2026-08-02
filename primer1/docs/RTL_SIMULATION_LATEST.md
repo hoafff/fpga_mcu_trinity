@@ -1,8 +1,8 @@
 # Primer #1 RTL simulation evidence — latest main run
 
-- Source commit: `aeb29399eed2a6a109b2d49e3d014fb681549cc1`
-- Workflow run: `30742264840`
-- Generated UTC: `2026-08-02T09:41:50.121828+00:00`
+- Source commit: `8f08cd8db5e9251cd97ab3cc79b59070e3a044ee`
+- Workflow run: `30742410119`
+- Generated UTC: `2026-08-02T09:46:13.621316+00:00`
 - Verification status: **FAIL**
 - Exit code: `1`
 
@@ -66,14 +66,14 @@ PASS basic_structural_checks
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:304: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
@@ -85,14 +85,14 @@ PASS basic_structural_checks
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:304: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 
 === COMPILE tb_mlkem_poly_accel ===
 === RUN tb_mlkem_poly_accel ===
