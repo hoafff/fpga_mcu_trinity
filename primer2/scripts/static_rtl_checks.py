@@ -74,14 +74,24 @@ def main()->int:
         "candidate_sequence != last_accepted_sequence + 1'b1",
         "auth_result_plaintext <= decrypt_plaintext",
         "decrypt_abort <= 1'b1",
+        "fault_o = fault_latched | (session_state == SESSION_FAULT_LOCKED)",
+        "!(fault_latched | (session_state == SESSION_FAULT_LOCKED))",
     )
     for fragment in required_core_fragments:
         if fragment not in core:errors.append(f'missing fail-closed core invariant: {fragment}')
+    rx_assignment=re.search(r'rx_accept_enable_o\s*=\s*(.*?);',core,flags=re.S)
+    if not rx_assignment:
+        errors.append('rx_accept_enable_o assignment not found')
+    elif 'fault_o' in rx_assignment.group(1):
+        errors.append('rx_accept_enable_o must not read combinational output fault_o')
+    if core.find('fault_o = fault_latched | (session_state == SESSION_FAULT_LOCKED)') > core.find('rx_accept_enable_o ='):
+        errors.append('fault_o must be assigned before receive-enable derivation')
     for secret in ("k0 <= '0", "k1 <= '0", "ad_reg <= '0", "ct_reg <= '0",
                    "tag_reg <= '0", "plaintext_o <= '0"):
         if decrypt.count(secret) < 2:
             errors.append(f'Ascon secret scrub is not present on reset/abort: {secret}')
-    if "((x3 ^ k0) == tag_reg[63:0])" not in decrypt or        "((x4 ^ k1) == tag_reg[127:64])" not in decrypt:
+    if "((x3 ^ k0) == tag_reg[63:0])" not in decrypt or \
+       "((x4 ^ k1) == tag_reg[127:64])" not in decrypt:
         errors.append('full 128-bit Ascon tag comparison not found')
     if "RX_HUNT_SYNC" not in receiver or "RX_RECEIVE_BODY" not in receiver:
         errors.append('UART receiver sync/body separation not found')
@@ -94,6 +104,8 @@ def main()->int:
     sdc=(ROOT/'constraints/primer2.sdc').read_text()
     cst=(ROOT/'constraints/primer2.cst').read_text()
     required_tcl_fragments=(
+        'if {[file exists impl]}',
+        'file delete -force impl',
         'set_device -name GW2A-18C GW2A-LV18PG256C8/I7',
         'set_option -top_module primer2_top',
         'set_option -verilog_std sysv2017',
