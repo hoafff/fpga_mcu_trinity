@@ -1,8 +1,8 @@
 # Primer #1 RTL simulation evidence — latest main run
 
-- Source commit: `a58dbdd83597ab2de6a3fbe3539af7743359c94e`
-- Workflow run: `30742059333`
-- Generated UTC: `2026-08-02T09:35:29.240002+00:00`
+- Source commit: `a9b3a232b21697c9eae0fd3bda200819ee10be6c`
+- Workflow run: `30742140727`
+- Generated UTC: `2026-08-02T09:38:00.460141+00:00`
 - Verification status: **FAIL**
 - Exit code: `1`
 
@@ -135,8 +135,8 @@ PASS uart_frame_serializer_order_and_gap
 === RUN tb_primer1_top ===
 PASS primer1_top_idle_and_miso_high_z
 PASS primer1_top_heartbeat_integration
-FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_top.sv:49: top fatal synchronizer/fail-closed path mismatch
-       Time: 155000  Scope: tb_primer1_top
+FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_top.sv:50: top fatal synchronizer/fail-closed path mismatch
+       Time: 166000  Scope: tb_primer1_top
 
 RTL VERIFICATION FAIL
 FAIL tb_primer1_command_core: compile
