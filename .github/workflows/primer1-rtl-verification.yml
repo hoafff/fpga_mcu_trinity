@@ -1,0 +1,26 @@
+name: Primer1 RTL Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'primer1/**'
+      - '.github/workflows/primer1-rtl-verification.yml'
+  workflow_dispatch:
+
+jobs:
+  rtl-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog
+        run: sudo apt-get update && sudo apt-get install -y iverilog
+      - name: Reference checks
+        run: python3 primer1/scripts/reference_checks.py
+      - name: Static checks
+        run: python3 primer1/scripts/static_check.py
+      - name: RTL simulations
+        run: python3 primer1/tb/run.py
+      - name: Diff whitespace guard
+        run: git diff --check HEAD^
