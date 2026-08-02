@@ -1,6 +1,6 @@
 name: Primer2 Verified Source Bootstrap
 
-# bootstrap-trigger: 2
+# bootstrap-trigger: 3
 on:
   push:
     branches: [main]
