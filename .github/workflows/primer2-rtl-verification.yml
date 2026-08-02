@@ -71,7 +71,7 @@ jobs:
           test "$rc" -eq 0
 
       - name: Publish regression evidence
-        if: always() && github.event_name == 'issues'
+        if: always()
         shell: bash
         run: |
           rc="$(cat /tmp/primer2-rtl-exit-code 2>/dev/null || echo 99)"
