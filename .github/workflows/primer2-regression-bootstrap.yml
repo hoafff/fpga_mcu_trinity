@@ -1,6 +1,6 @@
 name: Primer2 One-Shot Regression Recorder
 
-# trigger: 1
+# trigger: 2
 on:
   push:
     branches: [main]
