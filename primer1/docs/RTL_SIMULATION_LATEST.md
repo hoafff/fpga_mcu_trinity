@@ -1,8 +1,8 @@
 # Primer #1 RTL simulation evidence — latest main run
 
-- Source commit: `38f90f4d724a0434ea1d347b78b69ae3acdf1ce8`
-- Workflow run: `30742485683`
-- Generated UTC: `2026-08-02T09:48:37.534218+00:00`
+- Source commit: `2768948cd407265de077016accf195fece97ed21`
+- Workflow run: `30742525407`
+- Generated UTC: `2026-08-02T09:49:49.418726+00:00`
 - Verification status: **PASS**
 - Exit code: `0`
 
