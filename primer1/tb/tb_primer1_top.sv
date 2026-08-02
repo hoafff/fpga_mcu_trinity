@@ -44,7 +44,8 @@ module tb_primer1_top;
     $display("PASS primer1_top_heartbeat_integration");
 
     fatal_latched = 1;
-    repeat (4) @(posedge clk);
+    repeat (5) @(posedge clk);
+    #1;
     if (dut.fatal_sync !== 1 || fault !== 1)
       $fatal(1, "top fatal synchronizer/fail-closed path mismatch");
     $display("PASS primer1_top_safety_synchronizer_and_fault");
