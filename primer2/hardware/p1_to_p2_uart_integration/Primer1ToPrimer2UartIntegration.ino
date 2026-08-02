@@ -206,7 +206,7 @@ uint16_t readBe16(const uint8_t *p) {
 uint32_t readBe32(const uint8_t *p) {
   return (static_cast<uint32_t>(p[0]) << 24) |
          (static_cast<uint32_t>(p[1]) << 16) |
-         (static_ccast<uint32_t>(p[2]) << 8) |
+         (static_cast<uint32_t>(p[2]) << 8) |
          static_cast<uint32_t>(p[3]);
 }
 
@@ -461,5 +461,6 @@ bool transactExpectedError(
                 device.name, expectedError, actualError);
   return actualError == expectedError;
 }
+
 
 #include "P1P2Control.hpp"
