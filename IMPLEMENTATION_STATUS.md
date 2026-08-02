@@ -5,26 +5,27 @@ Status date: 2026-08-02
 | Target | Source | Portable checks | Exact-device build | Bitstream | Hardware |
 |---|---|---|---|---|---|
 | Primer #1 | Qualified/locked | PASS at qualified source | PASS in its qualification record | Generated in qualification | Scoped hardware qualification recorded |
-| Primer #2 | Deployment source complete | Static/reference PASS | NOT RUN: Gowin unavailable here | Not generated | Pending physical test |
+| Primer #2 | Deployment source complete; fault/config fix committed | Rerun required on current source | Pre-fix build passed with EX2664 and is superseded | Pre-fix generated; current source requires new `.fs` | Pending physical test |
 | SN32 / Tiny / PC | Unchanged by this change | See their target records | Unchanged | Unchanged | Unchanged |
 
 ## Primer #2 gate detail
 
 ```text
-implementation_status = DEPLOYMENT_SOURCE_COMPLETE
-deployment_buildable   = true
-reference/static       = PASS
-RTL simulation         = NOT RUN (iverilog/vvp unavailable)
-exact-device build     = NOT RUN (Gowin unavailable)
-bitstream_generated    = false
-hardware_qualified     = false
-next_gate              = PRIMER2_RTL_SIMULATION_AND_EXACT_DEVICE_BUILD
+implementation_status   = DEPLOYMENT_SOURCE_COMPLETE_REBUILD_REQUIRED
+deployment_buildable    = true
+pre-fix exact build     = synthesis/PnR/timing/bitstream PASS with EX2664 warning
+pre-fix timing          = 27 MHz PASS; setup +18.124 ns; hold +0.307 ns
+current reference/static= RERUN REQUIRED
+current RTL simulation  = RERUN REQUIRED (nine benches)
+current exact build     = CLEAN REBUILD REQUIRED
+current bitstream       = not accepted
+hardware_qualified      = false
 ```
 
-`deployment_buildable = true` means the synthesizable RTL hierarchy, exact-device
-Gowin project, constraints and build script are present. It is not an exact-device
-PASS claim. Utilization, WNS, TNS and `.fs` identity remain unavailable until the
-vendor build is executed successfully.
+The pre-fix reports are recorded in
+`primer2/docs/EXACT_DEVICE_BUILD_AUDIT_2026-08-02.md`. They validate the submitted
+local build but do not bind a Git commit or `.fs` SHA-256, and they predate the
+`fault_o` correction and clean SystemVerilog 2017 flow.
 
 The protected Primer #1 RTL/test/script/constraint/project paths are not modified
-by the Primer #2 implementation commit.
+by this Primer #2 correction.
