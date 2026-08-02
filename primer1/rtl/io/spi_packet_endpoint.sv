@@ -12,6 +12,7 @@ module spi_packet_endpoint (
     output logic [15:0]  request_txid_o,
     output logic [15:0]  request_payload_length_o,
     output logic [527:0] request_payload_o,
+    output logic [31:0]  request_fingerprint_o,
 
     output logic         transport_error_valid_o,
     output logic [7:0]   transport_error_command_o,
@@ -51,15 +52,38 @@ module spi_packet_endpoint (
   logic [15:0] parse_payload_length;
   logic [6:0] parse_index;
   logic [15:0] parse_crc;
+  logic [31:0] parse_fingerprint;
 
   typedef enum logic [2:0] {BUILD_IDLE, BUILD_DATA, BUILD_CRC_HI, BUILD_CRC_LO} build_state_e;
   build_state_e build_state;
   logic [7:0] build_command, build_flags;
   logic [15:0] build_txid, build_payload_length;
-  logic [527:0] build_payload;
+  logic [527:0] build_payload_shift;
   logic [6:0] build_index;
   logic [15:0] build_crc;
   logic [15:0] mailbox_length;
+
+  function automatic logic [31:0] crc32c_update_byte(
+      input logic [31:0] crc_in,
+      input logic [7:0] data
+  );
+    logic [31:0] c;
+    integer bit_index;
+    begin
+      c = crc_in ^ {24'd0, data};
+      for (bit_index = 0; bit_index < 8; bit_index = bit_index + 1)
+        c = c[0] ? ((c >> 1) ^ 32'h82F63B78) : (c >> 1);
+      crc32c_update_byte = c;
+    end
+  endfunction
+
+  function automatic logic fingerprint_byte_selected(input logic [6:0] index);
+    begin
+      fingerprint_byte_selected = (index == 7'd2) || (index == 7'd3) ||
+                                  (index == 7'd6) || (index == 7'd7) ||
+                                  (index >= 7'd8);
+    end
+  endfunction
 
   function automatic logic [7:0] response_data_byte(input logic [6:0] index);
     begin
@@ -72,12 +96,14 @@ module spi_packet_endpoint (
         7'd5: response_data_byte = build_txid[7:0];
         7'd6: response_data_byte = build_payload_length[15:8];
         7'd7: response_data_byte = build_payload_length[7:0];
-        default: response_data_byte = build_payload[8*(index-8) +: 8];
+        default: response_data_byte = build_payload_shift[7:0];
       endcase
     end
   endfunction
 
   wire [15:0] parse_crc_next = crc16_update_byte(parse_crc, rx_mem[parse_index]);
+  wire [31:0] parse_fingerprint_next = fingerprint_byte_selected(parse_index) ?
+      crc32c_update_byte(parse_fingerprint, rx_mem[parse_index]) : parse_fingerprint;
   wire [15:0] build_crc_next = crc16_update_byte(build_crc, response_data_byte(build_index));
 
   assign response_ready_o = (build_state == BUILD_IDLE) && !mailbox_pending_o;
@@ -95,13 +121,14 @@ module spi_packet_endpoint (
       rx_mode <= 1'b0; tx_mode <= 1'b0;
       transaction_byte_count <= 0;
       parse_state <= PARSE_IDLE; parse_payload_length <= 0;
-      parse_index <= 0; parse_crc <= 16'hFFFF;
+      parse_index <= 0; parse_crc <= 16'hFFFF; parse_fingerprint <= 32'hFFFFFFFF;
       request_valid_o <= 1'b0; request_command_o <= 0; request_flags_o <= 0;
       request_txid_o <= 0; request_payload_length_o <= 0; request_payload_o <= 0;
+      request_fingerprint_o <= 32'd0;
       transport_error_valid_o <= 1'b0; transport_error_command_o <= 0;
       transport_error_txid_o <= 0; transport_error_code_o <= 0;
       build_state <= BUILD_IDLE; build_command <= 0; build_flags <= 0;
-      build_txid <= 0; build_payload_length <= 0; build_payload <= 0;
+      build_txid <= 0; build_payload_length <= 0; build_payload_shift <= 0;
       build_index <= 0; build_crc <= 16'hFFFF;
       mailbox_pending_o <= 1'b0; mailbox_length <= 0;
     end else begin
@@ -206,6 +233,7 @@ module spi_packet_endpoint (
             parse_payload_length <= {rx_mem[6],rx_mem[7]};
             parse_index <= 0;
             parse_crc <= 16'hFFFF;
+            parse_fingerprint <= 32'hFFFFFFFF;
             parse_state <= PARSE_CRC;
           end
         end
@@ -216,6 +244,7 @@ module spi_packet_endpoint (
               request_flags_o <= rx_mem[3];
               request_txid_o <= {rx_mem[4],rx_mem[5]};
               request_payload_length_o <= parse_payload_length;
+              request_fingerprint_o <= ~parse_fingerprint_next;
               request_payload_o <= '0;
               for (pi = 0; pi < SPI_MAX_PAYLOAD; pi = pi + 1)
                 if (pi < parse_payload_length)
@@ -230,6 +259,7 @@ module spi_packet_endpoint (
             parse_state <= PARSE_IDLE;
           end else begin
             parse_crc <= parse_crc_next;
+            parse_fingerprint <= parse_fingerprint_next;
             parse_index <= parse_index + 1'b1;
           end
         end
@@ -243,7 +273,7 @@ module spi_packet_endpoint (
             build_flags <= response_flags_i;
             build_txid <= response_txid_i;
             build_payload_length <= response_payload_length_i;
-            build_payload <= response_payload_i;
+            build_payload_shift <= response_payload_i;
             build_index <= 0;
             build_crc <= 16'hFFFF;
             build_state <= BUILD_DATA;
@@ -252,6 +282,8 @@ module spi_packet_endpoint (
         BUILD_DATA: begin
           tx_mem[build_index] <= response_data_byte(build_index);
           build_crc <= build_crc_next;
+          if (build_index >= 7'd8)
+            build_payload_shift <= {8'd0, build_payload_shift[527:8]};
           if (build_index == (7 + build_payload_length)) begin
             build_state <= BUILD_CRC_HI;
           end else begin
@@ -264,7 +296,7 @@ module spi_packet_endpoint (
         end
         BUILD_CRC_LO: begin
           tx_mem[9+build_payload_length] <= build_crc[7:0];
-          mailbox_length <= 10 + build_payload_length;
+          mailbox_length <= build_payload_length + 16'd10;
           mailbox_pending_o <= 1'b1;
           build_state <= BUILD_IDLE;
         end

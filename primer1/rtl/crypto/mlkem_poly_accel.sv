@@ -19,8 +19,8 @@ module mlkem_poly_accel (
 );
   localparam integer Q = 3329;
 
-  // Two 256x16 true-dual-port memories. The arithmetic FSM only presents two
-  // addresses and two writes per bank, matching Gowin BSRAM port capability.
+  // Two 256x16 true-dual-port memories. All arithmetic is scheduled around
+  // these two ports so Gowin can keep both polynomials in BSRAM.
   (* ram_style = "block", syn_ramstyle = "block_ram" *) logic signed [15:0] poly_a [0:255];
   (* ram_style = "block", syn_ramstyle = "block_ram" *) logic signed [15:0] poly_b [0:255];
 
@@ -28,13 +28,6 @@ module mlkem_poly_accel (
   logic a_we0, a_we1, b_we0, b_we1;
   logic signed [15:0] a_din0, a_din1, b_din0, b_din1;
   logic signed [15:0] a_q0, a_q1, b_q0, b_q1;
-  logic read_prefetch_active;
-  logic read_prefetch_slot;
-  logic read_select_q1;
-  logic read_start_hold;
-  logic [7:0] read_expected_addr;
-  logic [7:0] read_next_addr;
-  logic read_restart;
 
   always_ff @(posedge clk_i) begin
     if (a_we0) poly_a[a_addr0] <= a_din0;
@@ -47,19 +40,58 @@ module mlkem_poly_accel (
     b_q1 <= poly_b[b_addr1];
   end
 
-  typedef enum logic [4:0] {
-    P_IDLE,
-    P_NTT_GROUP, P_NTT_READ, P_NTT_WRITE,
-    P_INTT_GROUP, P_INTT_READ, P_INTT_WRITE,
-    P_SCALE_READ, P_SCALE_WRITE,
-    P_BM_READ0, P_BM_WRITE0, P_BM_READ1, P_BM_WRITE1,
-    P_ZEROIZE, P_DONE
-  } pstate_e;
-  pstate_e state;
+  // One Montgomery multiplier/reducer is shared by NTT, INTT, scaling and all
+  // seven BaseMul sub-operations. This is intentionally iterative to preserve
+  // functionality while creating a large LUT margin on GW2A-LV18.
+  logic signed [15:0] mul_lhs, mul_rhs;
+  logic signed [31:0] mul_product;
+  logic signed [15:0] mul_result;
 
-  logic [7:0] len_reg, k_reg, scale_index, bm_index, zero_index;
-  logic [8:0] start_reg, j_reg;
-  logic signed [15:0] zeta_reg;
+  function automatic logic signed [15:0] montgomery_reduce(
+      input logic signed [31:0] value
+  );
+    logic signed [31:0] qinv_product;
+    logic signed [15:0] qinv_low;
+    logic signed [31:0] reduced;
+    begin
+      qinv_product = $signed(value[15:0]) * -16'sd3327;
+      qinv_low = qinv_product[15:0];
+      reduced = (value - ($signed(qinv_low) * 32'sd3329)) >>> 16;
+      montgomery_reduce = reduced[15:0];
+    end
+  endfunction
+
+  always_comb begin
+    mul_product = $signed(mul_lhs) * $signed(mul_rhs);
+    mul_result = montgomery_reduce(mul_product);
+  end
+
+  function automatic logic signed [15:0] barrett_reduce(
+      input logic signed [16:0] value
+  );
+    logic signed [31:0] extended_value;
+    logic signed [31:0] quotient;
+    logic signed [31:0] reduced;
+    begin
+      extended_value = {{15{value[16]}}, value};
+      quotient = ((32'sd20159 * extended_value) + 32'sd33554432) >>> 26;
+      reduced = extended_value - (quotient * 32'sd3329);
+      barrett_reduce = reduced[15:0];
+    end
+  endfunction
+
+  function automatic logic [15:0] canonical(input logic signed [17:0] value);
+    integer v;
+    integer ci;
+    begin
+      v = value;
+      for (ci = 0; ci < 8; ci = ci + 1) begin
+        if (v < 0) v = v + Q;
+        if (v >= Q) v = v - Q;
+      end
+      canonical = v[15:0];
+    end
+  endfunction
 
   function automatic logic signed [15:0] zeta(input logic [7:0] index);
     begin
@@ -100,43 +132,32 @@ module mlkem_poly_accel (
     end
   endfunction
 
-  function automatic logic signed [15:0] montgomery_reduce(input logic signed [31:0] a);
-    logic signed [15:0] t;
-    logic signed [31:0] u;
-    begin
-      t = $signed(a[15:0]) * -16'sd3327;
-      u = (a - $signed(t) * 32'sd3329) >>> 16;
-      montgomery_reduce = u[15:0];
-    end
-  endfunction
+  typedef enum logic [5:0] {
+    P_IDLE,
+    P_NTT_GROUP, P_NTT_READ, P_NTT_MUL, P_NTT_WRITE,
+    P_INTT_GROUP, P_INTT_READ, P_INTT_MUL, P_INTT_WRITE,
+    P_SCALE_READ, P_SCALE_MUL, P_SCALE_WRITE,
+    P_BM0_READ, P_BM0_M0, P_BM0_M1, P_BM0_M2, P_BM0_M3, P_BM0_M4,
+    P_BM0_M5, P_BM0_M6, P_BM0_WRITE,
+    P_BM1_READ, P_BM1_M0, P_BM1_M1, P_BM1_M2, P_BM1_M3, P_BM1_M4,
+    P_BM1_M5, P_BM1_M6, P_BM1_WRITE,
+    P_ZEROIZE, P_DONE
+  } pstate_e;
+  pstate_e state;
 
-  function automatic logic signed [15:0] fqmul(
-      input logic signed [15:0] a,
-      input logic signed [15:0] b
-  );
-    fqmul = montgomery_reduce($signed(a) * $signed(b));
-  endfunction
+  logic [7:0] len_reg, k_reg, scale_index, bm_index, zero_index;
+  logic [8:0] start_reg, j_reg;
+  logic signed [15:0] zeta_reg;
+  logic signed [15:0] hold0, hold1, hold2, hold3, hold4, hold5, hold6;
+  logic signed [16:0] intt_sum_full, intt_diff_full, bm_sum0_full, bm_sum1_full;
 
-  function automatic logic signed [15:0] barrett_reduce(input logic signed [16:0] a);
-    logic signed [31:0] t;
-    begin
-      t = ((32'sd20159 * $signed(a)) + 32'sd33554432) >>> 26;
-      barrett_reduce = $signed(a) - t * 32'sd3329;
-    end
-  endfunction
-
-  function automatic logic [15:0] canonical(input logic signed [17:0] value);
-    integer v;
-    integer ci;
-    begin
-      v = value;
-      for (ci = 0; ci < 8; ci = ci + 1) begin
-        if (v < 0) v = v + Q;
-        if (v >= Q) v = v - Q;
-      end
-      canonical = v[15:0];
-    end
-  endfunction
+  logic read_prefetch_active;
+  logic read_prefetch_slot;
+  logic read_select_q1;
+  logic read_start_hold;
+  logic [7:0] read_expected_addr;
+  logic [7:0] read_next_addr;
+  logic read_restart;
 
   always_comb begin
     read_restart = !read_prefetch_active ||
@@ -144,16 +165,27 @@ module mlkem_poly_accel (
                    (read_addr_i != read_expected_addr);
   end
 
-  logic signed [15:0] ntt_t;
-  logic signed [15:0] intt_sum, intt_diff;
-  logic signed [15:0] bm_r0, bm_r1;
-
   always_comb begin
-    ntt_t = fqmul(zeta_reg, a_q1);
-    intt_sum = barrett_reduce($signed(a_q0) + $signed(a_q1));
-    intt_diff = fqmul(zeta_reg, $signed(a_q1) - $signed(a_q0));
-    bm_r0 = fqmul(fqmul(a_q1,b_q1),zeta_reg) + fqmul(a_q0,b_q0);
-    bm_r1 = fqmul(a_q0,b_q1) + fqmul(a_q1,b_q0);
+    intt_sum_full = $signed(a_q0) + $signed(a_q1);
+    intt_diff_full = $signed(a_q1) - $signed(a_q0);
+    bm_sum0_full = $signed(hold1) + $signed(hold2);
+    bm_sum1_full = $signed(hold3) + $signed(hold4);
+
+    mul_lhs = 16'sd0;
+    mul_rhs = 16'sd0;
+    case (state)
+      P_NTT_MUL: begin mul_lhs = zeta_reg; mul_rhs = a_q1; end
+      P_INTT_MUL: begin mul_lhs = zeta_reg; mul_rhs = intt_diff_full[15:0]; end
+      P_SCALE_MUL: begin mul_lhs = a_q0; mul_rhs = 16'sd512; end
+      P_BM0_M0, P_BM1_M0: begin mul_lhs = a_q1; mul_rhs = b_q1; end
+      P_BM0_M1, P_BM1_M1: begin mul_lhs = hold0; mul_rhs = zeta_reg; end
+      P_BM0_M2, P_BM1_M2: begin mul_lhs = a_q0; mul_rhs = b_q0; end
+      P_BM0_M3, P_BM1_M3: begin mul_lhs = a_q0; mul_rhs = b_q1; end
+      P_BM0_M4, P_BM1_M4: begin mul_lhs = a_q1; mul_rhs = b_q0; end
+      P_BM0_M5, P_BM1_M5: begin mul_lhs = bm_sum0_full[15:0]; mul_rhs = 16'sd1353; end
+      P_BM0_M6, P_BM1_M6: begin mul_lhs = bm_sum1_full[15:0]; mul_rhs = 16'sd1353; end
+      default: begin end
+    endcase
   end
 
   always_comb begin
@@ -162,7 +194,7 @@ module mlkem_poly_accel (
     b_addr0 = read_addr_i;
     b_addr1 = 8'd0;
     a_we0 = 1'b0; a_we1 = 1'b0; b_we0 = 1'b0; b_we1 = 1'b0;
-    a_din0 = '0; a_din1 = '0; b_din0 = '0; b_din1 = '0;
+    a_din0 = 16'sd0; a_din1 = 16'sd0; b_din0 = 16'sd0; b_din1 = 16'sd0;
 
     case (state)
       P_IDLE: begin
@@ -175,75 +207,81 @@ module mlkem_poly_accel (
         end else if (read_restart) begin
           if (read_slot_i) begin
             b_addr0 = read_addr_i;
-            b_addr1 = read_addr_i + 1'b1;
+            b_addr1 = read_addr_i + 8'd1;
           end else begin
             a_addr0 = read_addr_i;
-            a_addr1 = read_addr_i + 1'b1;
+            a_addr1 = read_addr_i + 8'd1;
           end
         end else if (read_prefetch_slot) begin
           if (read_select_q1) begin
-            b_addr0 = read_next_addr - 1'b1;
+            b_addr0 = read_next_addr - 8'd1;
             b_addr1 = read_next_addr;
           end else begin
             b_addr0 = read_next_addr;
-            b_addr1 = read_next_addr - 1'b1;
+            b_addr1 = read_next_addr - 8'd1;
           end
         end else begin
           if (read_select_q1) begin
-            a_addr0 = read_next_addr - 1'b1;
+            a_addr0 = read_next_addr - 8'd1;
             a_addr1 = read_next_addr;
           end else begin
             a_addr0 = read_next_addr;
-            a_addr1 = read_next_addr - 1'b1;
+            a_addr1 = read_next_addr - 8'd1;
           end
         end
       end
-      P_NTT_READ, P_NTT_WRITE, P_INTT_READ, P_INTT_WRITE: begin
+
+      P_NTT_READ, P_NTT_MUL, P_NTT_WRITE,
+      P_INTT_READ, P_INTT_MUL, P_INTT_WRITE: begin
         a_addr0 = j_reg[7:0];
         a_addr1 = j_reg[7:0] + len_reg;
         if (state == P_NTT_WRITE) begin
           a_we0 = 1'b1; a_we1 = 1'b1;
-          a_din0 = a_q0 + ntt_t;
-          a_din1 = a_q0 - ntt_t;
+          a_din0 = $signed(a_q0) + $signed(hold0);
+          a_din1 = $signed(a_q0) - $signed(hold0);
         end else if (state == P_INTT_WRITE) begin
           a_we0 = 1'b1; a_we1 = 1'b1;
-          a_din0 = intt_sum;
-          a_din1 = intt_diff;
+          a_din0 = barrett_reduce(intt_sum_full);
+          a_din1 = hold0;
         end
       end
-      P_SCALE_READ, P_SCALE_WRITE: begin
+
+      P_SCALE_READ, P_SCALE_MUL, P_SCALE_WRITE: begin
         a_addr0 = scale_index;
         if (state == P_SCALE_WRITE) begin
           a_we0 = 1'b1;
-          a_din0 = fqmul(a_q0,16'sd512);
+          a_din0 = hold0;
         end
       end
-      P_BM_READ0, P_BM_WRITE0: begin
-        a_addr0 = {bm_index[5:0],2'b00};
-        a_addr1 = {bm_index[5:0],2'b00} + 1'b1;
-        b_addr0 = {bm_index[5:0],2'b00};
-        b_addr1 = {bm_index[5:0],2'b00} + 1'b1;
-        if (state == P_BM_WRITE0) begin
+
+      P_BM0_READ, P_BM0_M0, P_BM0_M1, P_BM0_M2, P_BM0_M3, P_BM0_M4,
+      P_BM0_M5, P_BM0_M6, P_BM0_WRITE: begin
+        a_addr0 = {bm_index[5:0], 2'b00};
+        a_addr1 = {bm_index[5:0], 2'b00} + 8'd1;
+        b_addr0 = {bm_index[5:0], 2'b00};
+        b_addr1 = {bm_index[5:0], 2'b00} + 8'd1;
+        if (state == P_BM0_WRITE) begin
           a_we0 = 1'b1; a_we1 = 1'b1;
-          a_din0 = fqmul(bm_r0,16'sd1353);
-          a_din1 = fqmul(bm_r1,16'sd1353);
+          a_din0 = hold5; a_din1 = hold6;
         end
       end
-      P_BM_READ1, P_BM_WRITE1: begin
-        a_addr0 = {bm_index[5:0],2'b00} + 2;
-        a_addr1 = {bm_index[5:0],2'b00} + 3;
-        b_addr0 = {bm_index[5:0],2'b00} + 2;
-        b_addr1 = {bm_index[5:0],2'b00} + 3;
-        if (state == P_BM_WRITE1) begin
+
+      P_BM1_READ, P_BM1_M0, P_BM1_M1, P_BM1_M2, P_BM1_M3, P_BM1_M4,
+      P_BM1_M5, P_BM1_M6, P_BM1_WRITE: begin
+        a_addr0 = {bm_index[5:0], 2'b00} + 8'd2;
+        a_addr1 = {bm_index[5:0], 2'b00} + 8'd3;
+        b_addr0 = {bm_index[5:0], 2'b00} + 8'd2;
+        b_addr1 = {bm_index[5:0], 2'b00} + 8'd3;
+        if (state == P_BM1_WRITE) begin
           a_we0 = 1'b1; a_we1 = 1'b1;
-          a_din0 = fqmul(bm_r0,16'sd1353);
-          a_din1 = fqmul(bm_r1,16'sd1353);
+          a_din0 = hold5; a_din1 = hold6;
         end
       end
+
       P_ZEROIZE: begin
         a_addr0 = zero_index; b_addr0 = zero_index;
         a_we0 = 1'b1; b_we0 = 1'b1;
-        a_din0 = '0; b_din0 = '0;
+        a_din0 = 16'sd0; b_din0 = 16'sd0;
       end
       default: begin end
     endcase
@@ -264,9 +302,11 @@ module mlkem_poly_accel (
       error_o <= 1'b0;
       zeroize_busy_o <= 1'b0;
       zeroize_done_o <= 1'b0;
-      len_reg <= '0; start_reg <= '0; j_reg <= '0; k_reg <= '0;
-      scale_index <= '0; bm_index <= '0; zero_index <= '0;
-      zeta_reg <= '0;
+      len_reg <= 8'd0; start_reg <= 9'd0; j_reg <= 9'd0; k_reg <= 8'd0;
+      scale_index <= 8'd0; bm_index <= 8'd0; zero_index <= 8'd0;
+      zeta_reg <= 16'sd0;
+      hold0 <= 16'sd0; hold1 <= 16'sd0; hold2 <= 16'sd0;
+      hold3 <= 16'sd0; hold4 <= 16'sd0; hold5 <= 16'sd0; hold6 <= 16'sd0;
       read_prefetch_active <= 1'b0;
       read_prefetch_slot <= 1'b0;
       read_select_q1 <= 1'b0;
@@ -285,16 +325,12 @@ module mlkem_poly_accel (
         read_select_q1 <= 1'b0;
         read_start_hold <= 1'b1;
         read_expected_addr <= read_addr_i;
-        read_next_addr <= read_addr_i + 2;
+        read_next_addr <= read_addr_i + 8'd2;
       end else begin
         read_select_q1 <= ~read_select_q1;
-        read_next_addr <= read_next_addr + 1'b1;
-        if (read_start_hold) begin
-          read_start_hold <= 1'b0;
-          read_expected_addr <= read_expected_addr + 1'b1;
-        end else begin
-          read_expected_addr <= read_expected_addr + 1'b1;
-        end
+        read_next_addr <= read_next_addr + 8'd1;
+        read_expected_addr <= read_expected_addr + 8'd1;
+        if (read_start_hold) read_start_hold <= 1'b0;
       end
 
       if (zeroize_i && state != P_ZEROIZE) begin
@@ -312,10 +348,10 @@ module mlkem_poly_accel (
               busy_o <= 1'b1;
               error_o <= 1'b0;
               case (operation_i)
-                2'd1: begin len_reg<=8'd128; start_reg<=0; k_reg<=1; state<=P_NTT_GROUP; end
-                2'd2: begin len_reg<=8'd2; start_reg<=0; k_reg<=8'd127; state<=P_INTT_GROUP; end
-                2'd3: begin bm_index<=0; state<=P_BM_READ0; end
-                default: begin error_o<=1'b1; state<=P_DONE; end
+                2'd1: begin len_reg <= 8'd128; start_reg <= 9'd0; k_reg <= 8'd1; state <= P_NTT_GROUP; end
+                2'd2: begin len_reg <= 8'd2; start_reg <= 9'd0; k_reg <= 8'd127; state <= P_INTT_GROUP; end
+                2'd3: begin bm_index <= 8'd0; state <= P_BM0_READ; end
+                default: begin error_o <= 1'b1; state <= P_DONE; end
               endcase
             end
           end
@@ -323,59 +359,77 @@ module mlkem_poly_accel (
           P_NTT_GROUP: begin
             if (start_reg >= 9'd256) begin
               if (len_reg == 8'd2) state <= P_DONE;
-              else begin len_reg <= len_reg >> 1; start_reg <= 0; end
+              else begin len_reg <= len_reg >> 1; start_reg <= 9'd0; end
             end else begin
               zeta_reg <= zeta(k_reg);
-              k_reg <= k_reg + 1'b1;
+              k_reg <= k_reg + 8'd1;
               j_reg <= start_reg;
               state <= P_NTT_READ;
             end
           end
-          P_NTT_READ: state <= P_NTT_WRITE;
+          P_NTT_READ: state <= P_NTT_MUL;
+          P_NTT_MUL: begin hold0 <= mul_result; state <= P_NTT_WRITE; end
           P_NTT_WRITE: begin
-            if (j_reg == start_reg + len_reg - 1'b1) begin
-              start_reg <= start_reg + ({1'b0,len_reg} << 1);
+            if (j_reg == start_reg + len_reg - 9'd1) begin
+              start_reg <= start_reg + ({1'b0, len_reg} << 1);
               state <= P_NTT_GROUP;
             end else begin
-              j_reg <= j_reg + 1'b1;
+              j_reg <= j_reg + 9'd1;
               state <= P_NTT_READ;
             end
           end
 
           P_INTT_GROUP: begin
             if (start_reg >= 9'd256) begin
-              if (len_reg == 8'd128) begin scale_index<=0; state<=P_SCALE_READ; end
-              else begin len_reg<=len_reg<<1; start_reg<=0; end
+              if (len_reg == 8'd128) begin scale_index <= 8'd0; state <= P_SCALE_READ; end
+              else begin len_reg <= len_reg << 1; start_reg <= 9'd0; end
             end else begin
               zeta_reg <= zeta(k_reg);
-              k_reg <= k_reg - 1'b1;
+              k_reg <= k_reg - 8'd1;
               j_reg <= start_reg;
               state <= P_INTT_READ;
             end
           end
-          P_INTT_READ: state <= P_INTT_WRITE;
+          P_INTT_READ: state <= P_INTT_MUL;
+          P_INTT_MUL: begin hold0 <= mul_result; state <= P_INTT_WRITE; end
           P_INTT_WRITE: begin
-            if (j_reg == start_reg + len_reg - 1'b1) begin
-              start_reg <= start_reg + ({1'b0,len_reg} << 1);
+            if (j_reg == start_reg + len_reg - 9'd1) begin
+              start_reg <= start_reg + ({1'b0, len_reg} << 1);
               state <= P_INTT_GROUP;
             end else begin
-              j_reg <= j_reg + 1'b1;
+              j_reg <= j_reg + 9'd1;
               state <= P_INTT_READ;
             end
           end
 
-          P_SCALE_READ: state <= P_SCALE_WRITE;
+          P_SCALE_READ: state <= P_SCALE_MUL;
+          P_SCALE_MUL: begin hold0 <= mul_result; state <= P_SCALE_WRITE; end
           P_SCALE_WRITE: begin
             if (scale_index == 8'd255) state <= P_DONE;
-            else begin scale_index <= scale_index + 1'b1; state <= P_SCALE_READ; end
+            else begin scale_index <= scale_index + 8'd1; state <= P_SCALE_READ; end
           end
 
-          P_BM_READ0: begin zeta_reg <= zeta(8'd64 + bm_index); state <= P_BM_WRITE0; end
-          P_BM_WRITE0: state <= P_BM_READ1;
-          P_BM_READ1: begin zeta_reg <= -zeta(8'd64 + bm_index); state <= P_BM_WRITE1; end
-          P_BM_WRITE1: begin
+          P_BM0_READ: begin zeta_reg <= zeta(8'd64 + bm_index); state <= P_BM0_M0; end
+          P_BM0_M0: begin hold0 <= mul_result; state <= P_BM0_M1; end
+          P_BM0_M1: begin hold1 <= mul_result; state <= P_BM0_M2; end
+          P_BM0_M2: begin hold2 <= mul_result; state <= P_BM0_M3; end
+          P_BM0_M3: begin hold3 <= mul_result; state <= P_BM0_M4; end
+          P_BM0_M4: begin hold4 <= mul_result; state <= P_BM0_M5; end
+          P_BM0_M5: begin hold5 <= mul_result; state <= P_BM0_M6; end
+          P_BM0_M6: begin hold6 <= mul_result; state <= P_BM0_WRITE; end
+          P_BM0_WRITE: state <= P_BM1_READ;
+
+          P_BM1_READ: begin zeta_reg <= -zeta(8'd64 + bm_index); state <= P_BM1_M0; end
+          P_BM1_M0: begin hold0 <= mul_result; state <= P_BM1_M1; end
+          P_BM1_M1: begin hold1 <= mul_result; state <= P_BM1_M2; end
+          P_BM1_M2: begin hold2 <= mul_result; state <= P_BM1_M3; end
+          P_BM1_M3: begin hold3 <= mul_result; state <= P_BM1_M4; end
+          P_BM1_M4: begin hold4 <= mul_result; state <= P_BM1_M5; end
+          P_BM1_M5: begin hold5 <= mul_result; state <= P_BM1_M6; end
+          P_BM1_M6: begin hold6 <= mul_result; state <= P_BM1_WRITE; end
+          P_BM1_WRITE: begin
             if (bm_index == 8'd63) state <= P_DONE;
-            else begin bm_index <= bm_index + 1'b1; state <= P_BM_READ0; end
+            else begin bm_index <= bm_index + 8'd1; state <= P_BM0_READ; end
           end
 
           P_ZEROIZE: begin
@@ -383,7 +437,7 @@ module mlkem_poly_accel (
               zeroize_busy_o <= 1'b0;
               zeroize_done_o <= 1'b1;
               state <= P_IDLE;
-            end else zero_index <= zero_index + 1'b1;
+            end else zero_index <= zero_index + 8'd1;
           end
 
           P_DONE: begin

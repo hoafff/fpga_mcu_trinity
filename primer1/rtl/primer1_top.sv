@@ -34,6 +34,7 @@ module primer1_top (
   logic [7:0] request_command, request_flags;
   logic [15:0] request_txid, request_payload_length;
   logic [527:0] request_payload;
+  logic [31:0] request_fingerprint;
   logic transport_error_valid;
   logic [7:0] transport_error_command;
   logic [15:0] transport_error_txid, transport_error_code;
@@ -56,6 +57,7 @@ module primer1_top (
     .request_valid_o(request_valid), .request_command_o(request_command),
     .request_flags_o(request_flags), .request_txid_o(request_txid),
     .request_payload_length_o(request_payload_length), .request_payload_o(request_payload),
+    .request_fingerprint_o(request_fingerprint),
     .transport_error_valid_o(transport_error_valid),
     .transport_error_command_o(transport_error_command),
     .transport_error_txid_o(transport_error_txid),
@@ -73,6 +75,7 @@ module primer1_top (
     .request_valid_i(request_valid), .request_command_i(request_command),
     .request_flags_i(request_flags), .request_txid_i(request_txid),
     .request_payload_length_i(request_payload_length), .request_payload_i(request_payload),
+    .request_fingerprint_i(request_fingerprint),
     .transport_error_valid_i(transport_error_valid),
     .transport_error_command_i(transport_error_command),
     .transport_error_txid_i(transport_error_txid),

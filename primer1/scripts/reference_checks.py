@@ -97,9 +97,99 @@ def crc16(data:bytes)->int:
         for _ in range(8): c=((c<<1)^0x1021)&0xFFFF if c&0x8000 else (c<<1)&0xFFFF
     return c
 
+def crc32c(data: bytes) -> int:
+    c = 0xFFFFFFFF
+    for b in data:
+        c ^= b
+        for _ in range(8):
+            c = ((c >> 1) ^ 0x82F63B78) if (c & 1) else (c >> 1)
+    return (~c) & 0xFFFFFFFF
+
+
+def spi_packet(command: int, txid: int, payload: bytes = b"", flags: int = 0) -> bytes:
+    assert 0 <= len(payload) <= 66
+    header = bytes([0xA5, 0x01, command, flags]) + txid.to_bytes(2, "big") + len(payload).to_bytes(2, "big")
+    body = header + payload
+    return body + crc16(body).to_bytes(2, "big")
+
+def parse_spi(packet: bytes) -> tuple[int, int, bytes]:
+    assert 10 <= len(packet) <= 76
+    assert packet[0:2] == b"\xA5\x01"
+    assert packet[3] & 0xF0 == 0
+    length = int.from_bytes(packet[6:8], "big")
+    assert len(packet) == 10 + length
+    assert crc16(packet[:-2]) == int.from_bytes(packet[-2:], "big")
+    return packet[2], int.from_bytes(packet[4:6], "big"), packet[8:-2]
+
+class SessionModel:
+    READY = 3
+    STAGED = 4
+    BLOCKED = 5
+    ACTIVE = 6
+    ZEROIZE = 7
+
+    def __init__(self) -> None:
+        self.state = self.READY
+        self.staged: tuple[int, bytes, bytes] | None = None
+        self.active: tuple[int, bytes, bytes] | None = None
+        self.sequence = 1
+        self.telemetry = b""
+
+    def stage(self, sid: int, key: bytes, prefix: bytes) -> None:
+        assert len(key) == 16 and len(prefix) == 8
+        context = (sid, key, prefix)
+        if self.staged is not None and self.staged[0] == sid:
+            assert self.staged == context
+            return
+        assert self.active is None or self.active[0] != sid
+        self.staged = context
+        self.state = self.STAGED
+
+    def commit(self, sid: int) -> None:
+        assert self.staged is not None and self.staged[0] == sid
+        self.active = self.staged
+        self.staged = None
+        self.sequence = 1
+        self.state = self.BLOCKED
+
+    def apply_secure_enable(self, enabled: bool) -> None:
+        if self.state == self.BLOCKED and enabled:
+            self.state = self.ACTIVE
+        elif self.state == self.ACTIVE and not enabled:
+            self.zeroize()
+
+    def load(self, plaintext: bytes) -> None:
+        assert self.state == self.ACTIVE and len(plaintext) == 24
+        self.telemetry = plaintext
+
+    def send_complete(self) -> None:
+        assert self.state == self.ACTIVE and len(self.telemetry) == 24
+        self.sequence += 1
+        self.telemetry = b""
+
+    def zeroize(self) -> None:
+        self.state = self.ZEROIZE
+        self.staged = None
+        self.active = None
+        self.telemetry = b""
+        self.sequence = 1
+
 def checks()->None:
     assert crc16(b'123456789')==0x29B1
     packet=bytes.fromhex('A501010000010000'); assert crc16(packet)==0x3598
+    # SPI packet, malformed CRC rejection, and retained-transaction fingerprint contract.
+    wire=spi_packet(0x21,0x1234,bytes(range(66)))
+    assert len(wire)==76
+    command,txid,payload=parse_spi(wire)
+    assert command==0x21 and txid==0x1234 and payload==bytes(range(66))
+    corrupt=bytearray(wire);corrupt[10]^=1
+    try:
+        parse_spi(bytes(corrupt))
+        raise AssertionError('corrupt SPI CRC accepted')
+    except AssertionError:
+        pass
+    fp_input=bytes.fromhex('21000042')+bytes(range(66))
+    assert crc32c(fp_input)==0xFA65660B
     # Official NIST SP 800-232 Ascon-AEAD128 KAT, Count 817.
     key=bytes(range(0x00,0x10)); nonce=bytes(range(0x10,0x20))
     pt=bytes(range(0x20,0x38)); ad=bytes(range(0x30,0x48))
@@ -116,10 +206,21 @@ def checks()->None:
     ad=bytes([1,2,0,3])+bytes.fromhex('01020304')+bytes.fromhex('0000000000000001')+bytes.fromhex('00180007')+bytes(4)
     frame=b'\xA5\x5A'+ad+bytes(24)+bytes(16)
     assert len(frame)==66 and frame[:2]==b'\xA5\x5A'
+    # Session/commit/sequence/zeroize reference-state contract.
+    sm=SessionModel();key=bytes(range(16));prefix=bytes(range(8));sid=0x01020304
+    sm.stage(sid,key,prefix);sm.stage(sid,key,prefix)
+    sm.commit(sid);assert sm.state==SessionModel.BLOCKED and sm.sequence==1
+    sm.apply_secure_enable(True);sm.load(bytes(24));sm.send_complete()
+    assert sm.state==SessionModel.ACTIVE and sm.sequence==2 and sm.telemetry==b''
+    sm.apply_secure_enable(False)
+    assert sm.state==SessionModel.ZEROIZE and sm.active is None and sm.staged is None and sm.sequence==1
     print('PASS crc16_ccitt_false')
+    print('PASS spi_packet_crc_success_and_failure')
+    print('PASS crc32c_transaction_fingerprint')
     print('PASS ascon_aead128_official_count817_kat')
     print('PASS ntt_intt_directed_plus_100_random')
     print('PASS basemul_pipeline_100_random')
     print('PASS uart_frame_layout_66_bytes')
+    print('PASS session_commit_sequence_zeroize_reference_model')
 
 if __name__=='__main__': checks()
