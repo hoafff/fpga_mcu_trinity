@@ -19,8 +19,10 @@ module mlkem_poly_accel (
 );
   localparam integer Q = 3329;
 
-  // Two 256x16 true-dual-port memories. All arithmetic is scheduled around
-  // these two ports so Gowin can keep both polynomials in BSRAM.
+  // Two 256x16 true-dual-port memories. Each port uses Gowin's normal/no-change
+  // write template: during a write the corresponding output register holds its
+  // previous value. The arithmetic FSM separates read and write phases, so no
+  // NTT/INTT/BaseMul result depends on read-during-write collision behaviour.
   (* ram_style = "block", syn_ramstyle = "block_ram" *) logic signed [15:0] poly_a [0:255];
   (* ram_style = "block", syn_ramstyle = "block_ram" *) logic signed [15:0] poly_b [0:255];
 
@@ -29,15 +31,28 @@ module mlkem_poly_accel (
   logic signed [15:0] a_din0, a_din1, b_din0, b_din1;
   logic signed [15:0] a_q0, a_q1, b_q0, b_q1;
 
+  // The explicit if/else form is the supported DPB normal-write template for
+  // GW2A-18C. It prevents inference of read-before-write (WRITE_MODE=2'b10).
   always_ff @(posedge clk_i) begin
-    if (a_we0) poly_a[a_addr0] <= a_din0;
-    if (a_we1) poly_a[a_addr1] <= a_din1;
-    if (b_we0) poly_b[b_addr0] <= b_din0;
-    if (b_we1) poly_b[b_addr1] <= b_din1;
-    a_q0 <= poly_a[a_addr0];
-    a_q1 <= poly_a[a_addr1];
-    b_q0 <= poly_b[b_addr0];
-    b_q1 <= poly_b[b_addr1];
+    if (a_we0)
+      poly_a[a_addr0] <= a_din0;
+    else
+      a_q0 <= poly_a[a_addr0];
+
+    if (a_we1)
+      poly_a[a_addr1] <= a_din1;
+    else
+      a_q1 <= poly_a[a_addr1];
+
+    if (b_we0)
+      poly_b[b_addr0] <= b_din0;
+    else
+      b_q0 <= poly_b[b_addr0];
+
+    if (b_we1)
+      poly_b[b_addr1] <= b_din1;
+    else
+      b_q1 <= poly_b[b_addr1];
   end
 
   // One Montgomery multiplier/reducer is shared by NTT, INTT, scaling and all
@@ -154,7 +169,6 @@ module mlkem_poly_accel (
   logic read_prefetch_active;
   logic read_prefetch_slot;
   logic read_select_q1;
-  logic read_start_hold;
   logic [7:0] read_expected_addr;
   logic [7:0] read_next_addr;
   logic read_restart;
@@ -310,7 +324,6 @@ module mlkem_poly_accel (
       read_prefetch_active <= 1'b0;
       read_prefetch_slot <= 1'b0;
       read_select_q1 <= 1'b0;
-      read_start_hold <= 1'b0;
       read_expected_addr <= 8'd0;
       read_next_addr <= 8'd0;
     end else begin
@@ -323,14 +336,12 @@ module mlkem_poly_accel (
         read_prefetch_active <= 1'b1;
         read_prefetch_slot <= read_slot_i;
         read_select_q1 <= 1'b0;
-        read_start_hold <= 1'b1;
         read_expected_addr <= read_addr_i;
         read_next_addr <= read_addr_i + 8'd2;
       end else begin
         read_select_q1 <= ~read_select_q1;
         read_next_addr <= read_next_addr + 8'd1;
         read_expected_addr <= read_expected_addr + 8'd1;
-        if (read_start_hold) read_start_hold <= 1'b0;
       end
 
       if (zeroize_i && state != P_ZEROIZE) begin

@@ -81,9 +81,34 @@ assert 'device_database_id = "gw2a18c-011"' in target
 accel = (root / "rtl/crypto/mlkem_poly_accel.sv").read_text()
 assert accel.count("mul_result = montgomery_reduce") == 1, "modular multiplier is not shared"
 assert "P_NTT_MUL" in accel and "P_INTT_MUL" in accel and "P_BM0_M6" in accel
-assert "poly_a [0:255]" in accel and "poly_b [0:255]" in accel
+assert accel.count("poly_a [0:255]") == 1 and accel.count("poly_b [0:255]") == 1
 assert "ram_style = \"block\"" in accel
 assert "function automatic logic signed [15:0] fqmul" not in accel, "parallel fqmul datapaths remain"
+
+# GW2A-18C does not support DPB read-before-write mode (WRITE_MODE=2'b10).
+# Each inferred DPB port must hold its output register during a write, matching
+# normal/no-change mode, and the arithmetic FSM must keep separate read/write phases.
+for write_enable, memory, address, output in [
+    ("a_we0", "poly_a", "a_addr0", "a_q0"),
+    ("a_we1", "poly_a", "a_addr1", "a_q1"),
+    ("b_we0", "poly_b", "b_addr0", "b_q0"),
+    ("b_we1", "poly_b", "b_addr1", "b_q1"),
+]:
+    pattern = (
+        rf"if\s*\({write_enable}\)\s*"
+        rf"{memory}\[{address}\]\s*<=\s*[^;]+;\s*"
+        rf"else\s*{output}\s*<=\s*{memory}\[{address}\];"
+    )
+    assert re.search(pattern, accel, re.S), f"unsupported DPB write template on {write_enable}"
+assert "read_start_hold" not in accel, "dead prefetch control returned"
+for read_state, write_state in [
+    ("P_NTT_READ", "P_NTT_WRITE"),
+    ("P_INTT_READ", "P_INTT_WRITE"),
+    ("P_SCALE_READ", "P_SCALE_WRITE"),
+    ("P_BM0_READ", "P_BM0_WRITE"),
+    ("P_BM1_READ", "P_BM1_WRITE"),
+]:
+    assert read_state in accel and write_state in accel, f"missing separated RAM phases: {read_state}/{write_state}"
 
 ascon = (root / "rtl/crypto/ascon_aead128_encrypt.sv").read_text()
 assert "round_index" in ascon and "ascon_round(x0, x1, x2, x3, x4" in ascon
@@ -120,5 +145,7 @@ print("PASS mandatory_blocks_present")
 print("PASS exact_device_identity")
 print("PASS canonical_systemverilog_config")
 print("PASS shared_iterative_resource_architecture")
+print("PASS gowin_dpb_normal_write_template")
+print("PASS no_read_during_write_dependency_guard")
 print("PASS explicit_width_and_slice_guards")
 print("PASS basic_structural_checks")
