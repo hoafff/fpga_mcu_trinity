@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$GwSh,
 
-    [string]$Python = "python",
+    [string]$Python = "py",
+
+    [string[]]$PythonArgs = @("-3"),
 
     [string]$EvidenceDir = ""
 )
@@ -42,9 +44,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Unable to resolve Git HEAD"
 }
 
-& $Python (Join-Path $primer2Root "scripts\static_rtl_checks.py")
+& $Python @PythonArgs (Join-Path $primer2Root "scripts\static_rtl_checks.py")
 if ($LASTEXITCODE -ne 0) { throw "Primer #2 static RTL checks failed" }
-& $Python (Join-Path $primer2Root "scripts\reference_checks.py")
+& $Python @PythonArgs (Join-Path $primer2Root "scripts\reference_checks.py")
 if ($LASTEXITCODE -ne 0) { throw "Primer #2 reference checks failed" }
 
 $buildExitCode = 99
@@ -73,7 +75,7 @@ if (Test-Path -LiteralPath $implDir -PathType Container) {
 $patterns = @(
     "WNS", "TNS", "setup", "hold", "utilization", "resource",
     "unconstrained", "unrouted", "multiple driver", "latch", "inferred clock",
-    "timing met", "timing violation", "ERROR", "WARNING"
+    "timing met", "timing violation", "ERROR", "WARN", "WARNING", "EX2664"
 )
 $reportExtract = @()
 foreach ($report in $reportFiles) {
@@ -85,13 +87,22 @@ foreach ($report in $reportFiles) {
 }
 $reportExtract | Set-Content -Encoding UTF8 -LiteralPath $reportExtractPath
 
+$warningMatches = @()
+$ex2664Matches = @()
+if (Test-Path -LiteralPath $buildLog -PathType Leaf) {
+    $warningMatches = @(Select-String -LiteralPath $buildLog -Pattern "WARN" -SimpleMatch -ErrorAction SilentlyContinue)
+    $ex2664Matches = @(Select-String -LiteralPath $buildLog -Pattern "EX2664" -SimpleMatch -ErrorAction SilentlyContinue)
+}
+$ex2664Present = $ex2664Matches.Count -gt 0
+
 $gitStatus = & git -C $repoRoot status --short
 $gitStatusRc = $LASTEXITCODE
 $workingDiffCheck = & git -C $repoRoot diff --check 2>&1
 $workingDiffCheckRc = $LASTEXITCODE
 $committedDiffCheck = & git -C $repoRoot diff --check `
     36822a09c234f509adfa5dace6aa05e4bbd40d54..HEAD -- `
-    primer2 .github/workflows/primer2-rtl-verification.yml 2>&1
+    primer2 .github/workflows/portable-protocol.yml `
+    .github/workflows/primer2-rtl-verification.yml 2>&1
 $committedDiffCheckRc = $LASTEXITCODE
 $primer1Guard = & git -C $repoRoot diff --exit-code `
     c8135b5304c0318c7ec24787484dc8a4c4aa0278..HEAD -- `
@@ -106,6 +117,8 @@ $primer1GuardRc = $LASTEXITCODE
     "working_diff_check_rc=$workingDiffCheckRc",
     "committed_diff_check_rc=$committedDiffCheckRc",
     "primer1_protected_path_guard_rc=$primer1GuardRc",
+    "synthesis_warning_count=$($warningMatches.Count)",
+    "ex2664_present=$ex2664Present",
     "",
     "git_status:",
     ($gitStatus -join [Environment]::NewLine),
@@ -129,11 +142,15 @@ $summary = @(
     "clock_hz=27000000",
     "top=primer2_top",
     "gw_sh=$GwSh",
+    "python=$Python",
+    "python_args=$($PythonArgs -join ' ')",
     "build_exit_code=$buildExitCode",
     "bitstream_present=$bitstreamPresent",
     "bitstream_path=$bitstream",
     "bitstream_sha256=$bitstreamSha256",
     "report_file_count=$($reportFiles.Count)",
+    "synthesis_warning_count=$($warningMatches.Count)",
+    "ex2664_present=$ex2664Present",
     "working_diff_check_rc=$workingDiffCheckRc",
     "committed_diff_check_rc=$committedDiffCheckRc",
     "primer1_protected_path_guard_rc=$primer1GuardRc",
@@ -150,6 +167,9 @@ if ($buildExitCode -ne 0) {
 if (-not $bitstreamPresent) {
     throw "Gowin returned success but trinity_primer2.fs was not found"
 }
+if ($ex2664Present) {
+    throw "Gowin EX2664 is still present after the fault-output fix. See $buildLog"
+}
 if ($workingDiffCheckRc -ne 0 -or $committedDiffCheckRc -ne 0) {
     throw "git diff --check failed. See $gitGuardPath"
 }
@@ -157,4 +177,4 @@ if ($primer1GuardRc -ne 0) {
     throw "Protected Primer #1 implementation paths differ from qualified source"
 }
 
-Write-Host "BUILD ARTIFACT GENERATED. Review report-extract.txt before claiming timing PASS."
+Write-Host "BUILD CANDIDATE GENERATED. Review timing, resource, clock-routing and warning evidence before acceptance."
