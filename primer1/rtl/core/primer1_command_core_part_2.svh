@@ -25,6 +25,9 @@ telemetry_plaintext <= 0; telemetry_request_image <= 0;
 retained_valid <= 1'b0; retained_txid <= 0; retained_command <= 0;
 retained_fingerprint <= 0; retained_state <= TXN_NONE; retained_code <= 0;
 retained_data_length <= 0; retained_data <= 0;
+retained_commit_pending <= 1'b0;
+retained_completion_kind <= RETAIN_COMMIT_SUCCESS_EMPTY;
+retained_completion_data <= 0;
 poly_operation <= 0; poly_mask_a <= 0; poly_mask_b <= 0;
 chunk_valid_a <= 0; chunk_valid_b <= 0;
 for (ci=0; ci<8; ci=ci+1) begin
@@ -43,7 +46,8 @@ heartbeat_counter <= 0; heartbeat_o <= 1'b0;
 chunk_word_index <= 0; saved_chunk_slot <= 0; saved_chunk_index <= 0;
 saved_chunk_fingerprint <= 0; saved_chunk_data <= 0; saved_chunk_invalid <= 1'b0;
 read_word_index <= 0; saved_read_slot <= 0; saved_read_chunk <= 0;
-read_response_data <= 0; selftest_index <= 0;
+read_response_data <= 0; read_response_emit_pending <= 1'b0;
+selftest_index <= 0; selftest_scan_phase <= 0; poly_read_sample <= 0;
 zeroize_from_command <= 1'b0; zeroize_due_to_fault <= 1'b0;
 zeroize_memory_done <= 1'b0;
 crypto_ad_snapshot <= 0;
@@ -54,6 +58,44 @@ poly_start <= 1'b0;
 poly_zeroize <= 1'b0;
 ascon_start <= 1'b0;
 uart_start <= 1'b0;
+// Commit the wide retained bank from a registered one-bit pulse. This runs in
+// parallel with request dispatch, so a one-cycle SPI request_valid pulse is
+// never dropped merely because a completion became visible in this cycle.
+if (retained_commit_pending) begin
+retained_commit_pending <= 1'b0;
+active_transaction_id <= 0;
+retained_state <= TXN_SUCCEEDED;
+retained_code <= ERR_OK;
+retained_data_length <= 0;
+retained_data <= '0;
+case (retained_completion_kind)
+RETAIN_COMMIT_INTERNAL_FAULT: begin
+retained_state <= TXN_FAILED;
+retained_code <= ERR_INTERNAL_FAULT;
+last_error <= ERR_INTERNAL_FAULT;
+end
+RETAIN_COMMIT_ZEROIZED: begin
+retained_state <= TXN_ZEROIZED;
+retained_code <= ERR_ZEROIZED;
+last_error <= ERR_ZEROIZED;
+end
+RETAIN_COMMIT_SELFTEST_FAILED: begin
+retained_state <= TXN_FAILED;
+retained_code <= ERR_SELF_TEST_FAILED;
+last_error <= ERR_SELF_TEST_FAILED;
+end
+RETAIN_COMMIT_SELFTEST_SUCCESS: begin
+retained_data_length <= 16'd2;
+retained_data[7:0] <= 8'h01;
+retained_data[15:8] <= 8'h3E;
+end
+RETAIN_COMMIT_UART_SUCCESS: begin
+retained_data_length <= 16'd14;
+retained_data <= retained_completion_data;
+end
+default: begin end
+endcase
+end
 if (heartbeat_counter == HEARTBEAT_CYCLES-1) begin
 heartbeat_counter <= 0;
 heartbeat_o <= ~heartbeat_o;
@@ -78,6 +120,8 @@ staged_valid <= 1'b0; active_valid <= 1'b0;
 telemetry_loaded <= 1'b0; telemetry_plaintext <= 0;
 sequence_number <= 64'd1;
 retained_valid <= 1'b0;
+retained_commit_pending <= 1'b0;
+read_response_emit_pending <= 1'b0;
 poly_zeroize <= 1'b1;
 core_state <= C_ZEROIZE_WAIT;
 end else begin

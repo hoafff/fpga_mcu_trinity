@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from check_sdc import validate_sdc
+from check_timing_arch import validate as validate_timing_arch
 
 root = Path(__file__).resolve().parents[1]
 required = [line.strip() for line in (root / "sources.f").read_text().splitlines() if line.strip()]
@@ -59,6 +60,10 @@ for rel in ["constraints/primer1.cst", "constraints/primer1.sdc"]:
 # the 27 MHz clock and limits exceptions to asynchronous input -> first-stage
 # synchronizer arcs instead of cutting all paths to all registers.
 validate_sdc(root / "constraints/primer1.sdc")
+
+# Guard the architectural timing break between DPB reads, self-test decisions
+# and the wide retained-result register bank.
+validate_timing_arch(root)
 
 top_text = (root / "rtl/primer1_top.sv").read_text()
 spi_text = (root / "rtl/io/spi_packet_endpoint.sv").read_text()
@@ -172,6 +177,11 @@ print("PASS gowin_sdc_syntax_guard")
 print("PASS sys_clk_27m_constraint")
 print("PASS async_inputs_to_first_stage_only")
 print("PASS synchronizer_structure_matches_sdc")
+print("PASS retained_commit_registered_enable")
+print("PASS poly_read_output_pipeline")
+print("PASS retained_protocol_completion_mapping")
+print("PASS retained_commit_does_not_drop_spi_request")
+print("PASS no_timing_exception_masking")
 print("PASS shared_iterative_resource_architecture")
 print("PASS gowin_dpb_normal_write_template")
 print("PASS no_read_during_write_dependency_guard")

@@ -15,10 +15,26 @@ logic saved_read_slot;
 logic [2:0] saved_read_chunk;
 logic [527:0] read_response_data;
 logic [7:0] selftest_index;
+logic [1:0] selftest_scan_phase;
+logic [15:0] poly_read_sample;
+logic read_response_emit_pending;
 logic zeroize_from_command;
 logic zeroize_due_to_fault;
 logic zeroize_memory_done;
 logic [191:0] crypto_ad_snapshot;
+
+typedef enum logic [2:0] {
+RETAIN_COMMIT_SUCCESS_EMPTY,
+RETAIN_COMMIT_INTERNAL_FAULT,
+RETAIN_COMMIT_ZEROIZED,
+RETAIN_COMMIT_SELFTEST_FAILED,
+RETAIN_COMMIT_SELFTEST_SUCCESS,
+RETAIN_COMMIT_UART_SUCCESS
+} retained_completion_e;
+retained_completion_e retained_completion_kind;
+logic retained_commit_pending;
+logic [127:0] retained_completion_data;
+
 function automatic logic [7:0] pbyte(input logic [527:0] p, input integer idx);
 pbyte = p[8*idx +: 8];
 endfunction
@@ -86,6 +102,11 @@ retained_data <= '0;
 active_transaction_id <= txid;
 end
 endtask
+
+// Completion is deliberately split into two cycles. The event-detection cycle
+// records only a compact completion kind; C_IDLE commits the wide retained
+// payload on the following cycle from retained_commit_pending. This prevents
+// RAM/read-result logic from becoming the clock-enable cone of retained_data.
 task automatic complete_retained(
 input transaction_state_e final_state,
 input logic [15:0] code,
@@ -93,12 +114,20 @@ input logic [15:0] length,
 input logic [127:0] data
 );
 begin
-retained_state <= final_state;
-retained_code <= code;
-retained_data_length <= length;
-retained_data <= data;
-active_transaction_id <= 0;
-if (code != ERR_OK) last_error <= code;
+if (final_state == TXN_ZEROIZED && code == ERR_ZEROIZED)
+retained_completion_kind <= RETAIN_COMMIT_ZEROIZED;
+else if (final_state == TXN_FAILED && code == ERR_SELF_TEST_FAILED)
+retained_completion_kind <= RETAIN_COMMIT_SELFTEST_FAILED;
+else if (final_state == TXN_FAILED)
+retained_completion_kind <= RETAIN_COMMIT_INTERNAL_FAULT;
+else if (length == 16'd14) begin
+retained_completion_kind <= RETAIN_COMMIT_UART_SUCCESS;
+retained_completion_data <= data;
+end else if (length == 16'd2)
+retained_completion_kind <= RETAIN_COMMIT_SELFTEST_SUCCESS;
+else
+retained_completion_kind <= RETAIN_COMMIT_SUCCESS_EMPTY;
+retained_commit_pending <= 1'b1;
 end
 endtask
 logic [191:0] constructed_ad;
