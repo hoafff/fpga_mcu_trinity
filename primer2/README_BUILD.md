@@ -42,6 +42,27 @@ Generate Bitstream. Review timing, utilization, unconstrained paths, latches,
 multiple drivers, inferred clocks and unrouted nets before accepting the build.
 Generated `impl/`, reports and `.fs` remain excluded by repository policy.
 
+## Control-plane dependency for the P1-to-P2 hardware test
+
+Primer #2 is intentionally fail-closed. A programmed board does not accept the
+UART payload merely because `uart_rx_i` is connected. Before a frame can be
+accepted, a controller must:
+
+1. run Primer #2 GET_INFO/GET_STATUS and self-test;
+2. stage byte-identical session ID, Ascon key and nonce prefix in both Primers;
+3. commit both Primers while `secure_enable_i` is low;
+4. confirm that both report `COMMITTED_BLOCKED`;
+5. issue the Tiny session-commit toggle so Tiny raises `secure_enable_i`;
+6. confirm that both Primers enter `ACTIVE` before Primer #1 sends sequence 1.
+
+The current SN32 deployment target is P1 bring-up only and does not yet perform
+this P2 session choreography. Therefore the P1-to-P2 hardware gate requires a
+scope-limited control-plane bring-up harness before SN32 full integration. That
+harness may implement only the commands above plus result read/ACK and error
+reporting; it is not permission to bypass self-test, hard-code an active session,
+force `secure_enable_i`, remove replay checks or weaken any fail-closed path in
+Primer #2 RTL.
+
 ## Hardware gate
 
 A successful vendor build is not hardware qualification. Load
