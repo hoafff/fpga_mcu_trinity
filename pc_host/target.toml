@@ -1,9 +1,11 @@
 schema_version = 1
 target = "pc_host"
 kind = "python-application"
-role = "UART session control, deterministic test input, telemetry, reconciliation and result display"
+role = "UART control client for SN32, P1 bring-up, transaction reconciliation and result display"
 runtime = "Python >=3.11; exact installed runtime captured in acceptance evidence"
-implementation_status = "SOURCE_PARTIAL_PROTOCOL_COMMON"
-deployment_buildable = false
-self_contained = false
-portable_tests = "PASS_PENDING_COMMIT_EVIDENCE"
+implementation_status = "P1_CONTROL_PLANE_BRINGUP_CLI_IMPLEMENTED_RUNTIME_PENDING"
+deployment_buildable = true
+self_contained = true
+portable_tests = "P1_BRINGUP_FAKE_SERIAL_PASS_PENDING_COMMIT"
+entrypoint = "python -m trinity_host.cli"
+bringup_command = "python -m trinity_host.cli --port COMx p1-bringup"

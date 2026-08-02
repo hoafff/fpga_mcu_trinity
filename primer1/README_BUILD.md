@@ -2,81 +2,74 @@
 
 ## Locked target
 
-- Device part: `GW2A-LV18PG256C8/I7`
-- Gowin database identity: `GW2A-18C` / `gw2a18c-011`
-- Device version: C; package: PBGA256; speed: C8/I7
-- Clock: 27 MHz on `sys_clk_i`
-- Top: `primer1_top`
-- Tool: Gowin EDA `V1.9.11.03 Education x64`
-- GUI project: `gowin/trinity_primer1.gprj`
-- Batch project: run `gw_sh run.tcl` from `primer1/gowin/`
+- Device: `GW2A-LV18PG256C8/I7`, database `GW2A-18C/gw2a18c-011`.
+- Device version C, PBGA256, C8/I7.
+- Clock/top: 27 MHz, `primer1_top`.
+- Tool: Gowin EDA `V1.9.11.03 Education x64`.
+- Project: `gowin/trinity_primer1.gprj`.
 
-The canonical project keeps all file paths relative. SystemVerilog 2017 is locked
-in both `gowin/impl/project_process_config.json` and
-`gowin/impl/trinity_primer1_process_config.json`; `run.tcl` also locks
-`sysv2017` for batch builds.
+The canonical project uses relative paths and SystemVerilog 2017. Mandatory
+NTT, INTT, BaseMul, Ascon-AEAD128, SPI, UART, retained transactions, session,
+zeroize, heartbeat and fail-closed safety logic are implemented; none is stubbed.
 
-## Implemented source scope
+## Exact-device build candidate evidence
 
-The target is self-contained under `primer1/` and implements:
+Commit `927aa99e2e2ee732f95686fde165e9755e31f43a` was built for the exact device:
 
-- SPI Mode-0, MSB-first request/response endpoint with CRC16/CCITT-FALSE;
-- high-impedance MISO while deselected and active-low level IRQ;
-- GET_INFO/GET_STATUS, retained transaction reconciliation and all Primer #1 commands;
-- two 256x16 polynomial memories intended for Gowin BSRAM inference;
-- iterative ML-KEM-512 NTT, INTT and BaseMul;
-- NIST SP 800-232 Ascon-AEAD128 encrypt-only, fixed AD=24 B and plaintext=24 B;
-- direct 66-byte UART frame `A5 5A || AD || ciphertext || tag` at 115200 8N1;
-- staged/active session state, sequence and fail-closed Tiny safety controls;
-- sequential zeroization, heartbeat, fault latch and primitive self-test flow.
+```text
+Synthesis:                    PASS
+Place and route:              PASS
+Bitstream generation:         PASS
+Clock constraint:             27.000 MHz
+Actual Fmax:                  27.009 MHz
+Worst setup slack:            +0.012 ns
+Setup violated endpoints:     0
+Hold violated endpoints:      0
+Setup/Hold TNS:               0.000 / 0.000 ns
+Logic/Register/CLS:           75% / 57% / 90%
+BSRAM:                        2 DPB
+DSP:                          1 MULT18X18
+LW clock:                     8/8 = 100%
+```
 
-No mandatory block is stubbed, bypassed or removed for fitting.
+Classification: **exact-device build candidate PASS with critical margin risk**.
+The timing margin is only `+0.012 ns`; CLS is 90% and LW clock use is 100%.
+Any RTL, constraint, tool-option or placement change requires a complete rerun.
 
-## Resource architecture after exact-synthesis feedback
+## Standalone basic hardware bring-up evidence
 
-The first exact-device synthesis parsed and mapped the complete design but failed
-with `22693 / 20736` logic. The source is now restructured without changing the
-wire protocol or mandatory functions:
+The generated `trinity_primer1.fs` was loaded with Gowin Programmer using
+`SRAM Program`. With `fatal_latched_i=0`, `secure_enable_i=0` and
+`zeroize_ni=1`, an ESP32-C3 digital monitor measured:
 
-- one Montgomery multiplier/reducer is time-shared by NTT, INTT, scaling and BaseMul;
-- NTT and INTT share the same two-port BSRAM access datapath;
-- BaseMul is decomposed into sequential micro-operations instead of parallel `fqmul` trees;
-- request CRC32C fingerprints are accumulated byte-by-byte during the existing SPI parse;
-- polynomial coefficient validation and chunk extraction are sequential;
-- SPI response payload and UART frame serialization use shift registers instead of wide variable-index muxes;
-- Ascon remains one-round iterative; no rounds are unrolled across cycles.
+```text
+JTAG SRAM program:            PASS
+Bitstream execution:          PASS
+heartbeat_o:                  PASS, approximately 5.0 Hz
+fault_o:                      PASS, logic 0
+irq_no idle:                  PASS, logic 1
+uart_tx_o idle:               PASS, logic 1
+```
 
-Exact resource fit and timing remain pending a new Gowin run.
+Classification: **Primer #1 standalone basic hardware bring-up PASS**.
+This does not prove SPI, control-plane framing, self-test, polynomial arithmetic,
+Ascon, payload UART, session, zeroize or integrated-system behavior.
 
-## Polynomial interface contract
+Because SRAM Program is volatile, power cycling Primer #1 requires reloading
+`gowin/impl/pnr/trinity_primer1.fs` before resetting/running the SN32 controller.
 
-SPI coefficients are canonical unsigned little-endian values `0..3328`.
+## Next acceptance gate
 
-- NTT input: standard domain, normal order.
-- NTT output: standard-domain residues, upstream bit-reversed order.
-- INTT input: standard-domain residues, upstream bit-reversed order.
-- INTT output: standard domain, normal order, with `INTT(NTT(a)) = a mod q`.
-- BaseMul input/output: standard-domain residues in the same bit-reversed NTT order.
+The next gate is strictly:
 
-Internally the zeta table is Montgomery encoded. BaseMul and INTT results are
-converted at the hardware interface boundary so Montgomery scaling is not
-exposed over SPI.
+```text
+PC -> SN32 PING
+SN32 -> P1 GET_INFO
+SN32 -> P1 GET_STATUS
+SN32 -> P1 RUN_SELF_TEST
+SN32 -> P1 GET_TXN_RESULT
+SN32 -> P1 RETIRE_TXN_RESULT
+```
 
-## Current evidence state
-
-- SystemVerilog parse/RTL compilation/top recognition: PASS on the previous exact run.
-- Previous resource fit: FAIL (`22693` used vs `20736` available).
-- Optimized source static/reference checks: PASS.
-- Optimized RTL simulation: NOT EXECUTED in the current environment.
-- Optimized exact-device synthesis/place-and-route/timing/bitstream: PENDING RERUN.
-
-## Build and evidence to preserve
-
-Open `gowin/trinity_primer1.gprj`, then run Synthesis and Place & Route. Preserve:
-
-1. complete synthesis log and hierarchy/resource report;
-2. place-and-route log and report;
-3. timing report including unconstrained paths;
-4. utilization report (LUT, DFF, BSRAM, DSP, PLL);
-5. pin report;
-6. all warnings/errors and generated `.fs` status.
+Do not start session, encryption, Primer #2 or Tiny integration until this gate
+passes on hardware.

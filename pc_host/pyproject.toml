@@ -4,10 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trinity-host"
-version = "0.1.0"
-description = "FPGA MCU Trinity PC protocol and host common types"
+version = "0.2.0"
+description = "FPGA MCU Trinity PC protocol and P1 hardware bring-up CLI"
 requires-python = ">=3.11"
 dependencies = ["pyserial>=3.5"]
+
+[project.scripts]
+trinity-host = "trinity_host.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
