@@ -28,6 +28,12 @@ The runner requires Python 3.11+, `iverilog` and `vvp`. It executes the
 byte-exact Primer #1-compatible Ascon reference checks and every self-checking
 SystemVerilog testbench listed in `primer2/tb/run.py`.
 
+The same gate is available in GitHub Actions. Open **Actions**, select
+**portable-protocol**, choose **Run workflow**, select branch `main`, and run it.
+Accept the RTL gate only when both jobs are green; the `primer2-rtl` job installs
+Icarus Verilog, runs all eight benches, checks whitespace, and guards the
+qualified Primer #1 implementation paths.
+
 ## Exact-device build
 
 From a Gowin shell whose `gw_sh` belongs to V1.9.11.03 Education:
