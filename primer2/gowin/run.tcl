@@ -9,8 +9,8 @@ add_file ../rtl/primer2_top.sv
 add_file ../constraints/primer2.cst
 add_file ../constraints/primer2.sdc
 set_option -top_module primer2_top
-set_option -include_path ../rtl/core
 set_option -verilog_std sysv2017
+set_option -include_path {../rtl/core}
 set_option -resource_sharing 1
 set_option -replicate_resources 0
 set_option -output_base_name trinity_primer2

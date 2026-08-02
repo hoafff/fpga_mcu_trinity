@@ -85,6 +85,37 @@ def main()->int:
         errors.append('full 128-bit Ascon tag comparison not found')
     if "RX_HUNT_SYNC" not in receiver or "RX_RECEIVE_BODY" not in receiver:
         errors.append('UART receiver sync/body separation not found')
+
+    # Exact-device project contract. These checks do not claim a vendor build;
+    # they prevent the committed deployment project from silently drifting away
+    # from the qualified Primer #1 device/tool conventions.
+    gowin_tcl=(ROOT/'gowin/run.tcl').read_text()
+    gowin_project=(ROOT/'gowin/trinity_primer2.gprj').read_text()
+    sdc=(ROOT/'constraints/primer2.sdc').read_text()
+    cst=(ROOT/'constraints/primer2.cst').read_text()
+    required_tcl_fragments=(
+        'set_device -name GW2A-18C GW2A-LV18PG256C8/I7',
+        'set_option -top_module primer2_top',
+        'set_option -verilog_std sysv2017',
+        'set_option -include_path {../rtl/core}',
+        'set_option -output_base_name trinity_primer2',
+        'run all',
+    )
+    for fragment in required_tcl_fragments:
+        if fragment not in gowin_tcl:
+            errors.append(f'missing Gowin deployment option: {fragment}')
+    for fragment in ('name="GW2A-18C"', 'pn="GW2A-LV18PG256C8/I7"',
+                     '>gw2a18c-011</Device>', 'primer2_top.sv',
+                     'primer2.cst', 'primer2.sdc'):
+        if fragment not in gowin_project:
+            errors.append(f'missing exact-device project fragment: {fragment}')
+    if 'create_clock -name sys_clk_27m -period 37.037' not in sdc:
+        errors.append('27 MHz primary clock constraint missing')
+    for port in ('sys_clk_i','rst_ni','spi_sck_i','spi_mosi_i','spi_miso_o',
+                 'spi_cs_ni','irq_no','uart_rx_i','fault_o','fatal_latched_i',
+                 'secure_enable_i','zeroize_ni','heartbeat_o'):
+        if f'IO_LOC "{port}"' not in cst:
+            errors.append(f'missing CST location for {port}')
     if errors:
         print('STATIC RTL CHECK FAIL');print('\n'.join(errors));return 1
     print(f'STATIC RTL CHECK PASS ({len(SV)} files)');return 0
