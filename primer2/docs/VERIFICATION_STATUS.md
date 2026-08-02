@@ -35,15 +35,16 @@ A55A010212341122334400000000000000010018334400000000
 3. `tb_uart_frame_receiver`
 4. `tb_spi_packet_endpoint`
 5. `tb_primer2_command_core`
-6. `tb_primer2_top`
+6. `tb_bad_tag_threshold`
+7. `tb_primer2_top`
 
 The suite covers successful decrypt/read/ACK, retained transaction behavior,
 SPI CRC rejection, UART timeout/framing/truncation/sync-in-body behavior,
 wrong AD type, sequence zero, replay, stale/forward-gap sequence, tag failure,
-result-pending protection, abort/zeroize during decrypt, secure-enable loss,
-fatal latch, and reset/fail-closed behavior. It also checks that the Ascon
-working registers are scrubbed after the authenticated result has been copied
-to the retained result buffer.
+three-consecutive-bad-tag fault/zeroize threshold, result-pending protection,
+abort/zeroize during decrypt, secure-enable loss, fatal latch, and reset/fail-
+closed behavior. It also checks that the Ascon working registers are scrubbed
+after the authenticated result has been copied to the retained result buffer.
 
 ## Open gates
 

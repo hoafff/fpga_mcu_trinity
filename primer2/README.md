@@ -71,7 +71,7 @@ Completed in the execution environment:
 
 Not executed here because the required tools are absent:
 
-- six self-checking SystemVerilog simulations (`iverilog`/`vvp` unavailable);
+- seven self-checking SystemVerilog simulations (`iverilog`/`vvp` unavailable);
 - Gowin synthesis, place-and-route, STA and `.fs` generation;
 - physical SRAM programming and P1-to-P2 hardware qualification.
 
