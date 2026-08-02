@@ -1,8 +1,8 @@
 # Primer #1 RTL simulation evidence — latest main run
 
-- Source commit: `a9b3a232b21697c9eae0fd3bda200819ee10be6c`
-- Workflow run: `30742140727`
-- Generated UTC: `2026-08-02T09:38:00.460141+00:00`
+- Source commit: `bdfeb6fb794c53e83cf5540fc9d9bf5f5c00f485`
+- Workflow run: `30742169826`
+- Generated UTC: `2026-08-02T09:38:59.594614+00:00`
 - Verification status: **FAIL**
 - Exit code: `1`
 
@@ -55,7 +55,6 @@ PASS basic_structural_checks
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:304: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_command_core.sv:127: error: This assignment requires an explicit cast.
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
@@ -75,7 +74,6 @@ PASS basic_structural_checks
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:136: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
-1 error(s) during elaboration.
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
@@ -130,6 +128,19 @@ PASS uart_frame_serializer_order_and_gap
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_uart_frame_tx.sv:73: $finish called at 1405000 (1ps)
 
 === COMPILE tb_primer1_command_core ===
+=== RUN tb_primer1_command_core ===
+FAIL busy_get_status_not_lost
+FAIL busy_get_txn_result_not_lost
+FAIL run_self_test_honors_test_mask: state=3 len=2 data=3e01
+FAIL zeroize_partial_scope_rejected: flags=01 code=0000 expected=0702
+PASS zeroize_all_accepted
+FAIL abort_session_wrong_id_rejected: flags=01 code=0000 expected=0402
+FAIL abort_session_wrong_id_preserves_context
+PASS abort_session_matching_id_succeeds
+FAIL poly_begin_rejects_unretired_result: flags=01 code=0000 expected=0204
+FAIL poly_begin_preserves_result_ready
+FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_command_core.sv:337: primer1_command_core findings failures=8
+       Time: 103846000  Scope: tb_primer1_command_core
 
 === COMPILE tb_primer1_top ===
 === RUN tb_primer1_top ===
@@ -139,7 +150,7 @@ FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1
        Time: 166000  Scope: tb_primer1_top
 
 RTL VERIFICATION FAIL
-FAIL tb_primer1_command_core: compile
+FAIL tb_primer1_command_core: simulation
 FAIL tb_primer1_top: simulation
 
 ===== DIFF_CHECK =====
