@@ -50,6 +50,7 @@ work/
 
 # Generated evidence and secrets
 ai_context/evidence/generated/
+primer2/local_evidence/
 .env
 .env.*
 *.pem

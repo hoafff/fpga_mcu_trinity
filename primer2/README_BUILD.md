@@ -37,6 +37,21 @@ cd primer2/gowin
 gw_sh run.tcl
 ```
 
+For a Windows build that also captures qualification evidence:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File primer2/scripts/run_exact_device_build.ps1 `
+  -GwSh "C:\path\to\Gowin\IDE\bin\gw_sh.exe"
+```
+
+The PowerShell runner executes the portable static/reference checks, invokes the
+exact-device Gowin script, verifies that `trinity_primer2.fs` exists, computes
+its SHA-256, extracts utilization/timing/warning lines, records `git status`,
+checks committed and working-tree whitespace, and guards the qualified Primer #1
+implementation paths. It writes a timestamped directory below
+`primer2/local_evidence/`; that local evidence directory is intentionally
+ignored by Git.
+
 Or open `trinity_primer2.gprj` in Gowin EDA and run Synthesis, Place & Route and
 Generate Bitstream. Review timing, utilization, unconstrained paths, latches,
 multiple drivers, inferred clocks and unrouted nets before accepting the build.
