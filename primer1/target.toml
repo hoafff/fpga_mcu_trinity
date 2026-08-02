@@ -8,13 +8,24 @@ device_database_id = "gw2a18c-011"
 clock_hz = 27000000
 toolchain = "Gowin EDA V1.9.11.03 Education x64"
 top = "primer1_top"
-implementation_status = "EXACT_DEVICE_BUILD_CANDIDATE_AND_STANDALONE_BASIC_BRINGUP_PASS"
+implementation_status = "RTL_VERIFICATION_PASS_EXACT_DEVICE_REBUILD_REQUIRED"
 deployment_buildable = true
 self_contained = true
-exact_target_build = "PASS_COMMIT_927AA99_FMAX_27_009MHZ_WNS_PLUS_0_012NS"
-standalone_basic_hardware_bringup = "PASS_JTAG_SRAM_HEARTBEAT_FAULT_IRQ_UART_IDLE"
+
+baseline_hardware_commit = "927aa99e2e2ee732f95686fde165e9755e31f43a"
+baseline_bitstream = "primer1/gowin/impl/pnr/trinity_primer1.fs"
+baseline_exact_target_build = "PASS_FMAX_27_009MHZ_WNS_PLUS_0_012NS"
+baseline_standalone_basic_hardware_bringup = "PASS_JTAG_SRAM_HEARTBEAT_FAULT_IRQ_UART_IDLE"
+baseline_hardware_qualified = false
+
+current_rtl_source_commit = "38f90f4d724a0434ea1d347b78b69ae3acdf1ce8"
+current_verification_gate_commit = "8c3ef5ab8c3b8433992996f3c3d6a2424f01355c"
+current_rtl_verification = "PASS_REFERENCE_STATIC_COMMAND_ARCH_AND_SEVEN_IVERILOG_TESTBENCHES"
+current_exact_target_build = "PENDING_INVALIDATED_BY_RTL_CHANGE"
+current_bitstream = "NOT_GENERATED"
 hardware_qualified = false
-risk_timing_margin = "CRITICAL_WNS_PLUS_0_012NS"
-risk_cls_utilization = "90_PERCENT"
-risk_lw_clock_utilization = "100_PERCENT"
-next_gate = "SN32_TO_PRIMER1_SPI_CONTROL_PLANE_AND_RETAINED_SELF_TEST"
+
+baseline_risk_timing_margin = "CRITICAL_WNS_PLUS_0_012NS"
+baseline_risk_cls_utilization = "90_PERCENT"
+baseline_risk_lw_clock_utilization = "100_PERCENT"
+next_gate = "PRIMER1_CURRENT_RTL_EXACT_DEVICE_REBUILD_AND_STA_27MHZ"
