@@ -1,0 +1,7 @@
+`include "primer2_command_core_part00.svh"
+`include "primer2_command_core_part01.svh"
+`include "primer2_command_core_part02.svh"
+`include "primer2_command_core_part03.svh"
+`include "primer2_command_core_part04.svh"
+`include "primer2_command_core_part05.svh"
+`include "primer2_command_core_part06.svh"

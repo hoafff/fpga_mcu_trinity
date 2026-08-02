@@ -1,0 +1,27 @@
+// Trinity Primer #2 logical pin plan v0.1. Physical qualification remains pending.
+IO_LOC "sys_clk_i" H11;
+IO_PORT "sys_clk_i" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "rst_ni" A5;
+IO_PORT "rst_ni" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+IO_LOC "spi_sck_i" P16;
+IO_PORT "spi_sck_i" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "spi_mosi_i" P15;
+IO_PORT "spi_mosi_i" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "spi_miso_o" T15;
+IO_PORT "spi_miso_o" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "spi_cs_ni" R14;
+IO_PORT "spi_cs_ni" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+IO_LOC "irq_no" T14;
+IO_PORT "irq_no" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "uart_rx_i" R13;
+IO_PORT "uart_rx_i" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "fault_o" T13;
+IO_PORT "fault_o" IO_TYPE=LVCMOS33 DRIVE=8;
+IO_LOC "fatal_latched_i" R12;
+IO_PORT "fatal_latched_i" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "secure_enable_i" T12;
+IO_PORT "secure_enable_i" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "zeroize_ni" R11;
+IO_PORT "zeroize_ni" IO_TYPE=LVCMOS33 PULL_MODE=NONE;
+IO_LOC "heartbeat_o" T11;
+IO_PORT "heartbeat_o" IO_TYPE=LVCMOS33 DRIVE=8;

@@ -11,16 +11,22 @@ SN32/P1/P2 -> Tiny supervisor
 
 Start with `ai_context/README_AI.md`.
 
-Current milestone:
+## Current implementation milestone
 
-- architecture and implementation contracts v0.4 approved;
-- Gate 1 PC protocol/common types implemented;
-- Gate 2 SPI protocol/common types implemented;
-- portable Python/C tests and registry consistency checks provided;
-- SN32 S0 exact-target project structure, compile/link, AXF/HEX/MAP generation
-  and memory layout validated with the authoritative local Keil environment;
-- S0 has zero Trinity-owned source warnings and one narrowly accepted SONiX DFP
-  1.0.1 warning in `system_SN32F400.c`;
-- SN32 hardware programming and execution remain untested;
-- S1 and later milestones are not started;
-- no Gowin, timing, integrated hardware or full-deployment PASS is claimed.
+- architecture and implementation contracts v0.4 remain the system baseline;
+- common PC/SN32/SPI protocol foundations are present;
+- Primer #1 qualified source is locked at
+  `c8135b5304c0318c7ec24787484dc8a4c4aa0278`, with qualification documentation
+  at `36822a09c234f509adfa5dace6aa05e4bbd40d54`;
+- Primer #2 now contains a self-contained deployment source target for the
+  66-byte P1 UART frame, session lifecycle, replay/continuity checks,
+  Ascon-AEAD128 authenticated receive, retained result, SPI reconciliation,
+  zeroize and safety interfaces;
+- Primer #2 portable static/reference checks PASS;
+- Primer #2 SystemVerilog simulation is not yet executed because `iverilog` and
+  `vvp` are unavailable in the current execution environment;
+- Primer #2 Gowin synthesis, P&R, STA, `.fs` generation and physical hardware
+  qualification remain OPEN;
+- no integrated P1-to-P2 hardware PASS is claimed.
+
+See `IMPLEMENTATION_STATUS.md` and `primer2/README.md` for the evidence boundary.
