@@ -1,0 +1,37 @@
+name: Primer2 RTL Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'primer2/rtl/**'
+      - 'primer2/tb/**'
+      - 'primer2/scripts/**'
+      - 'primer2/sources.f'
+      - 'primer2/constraints/**'
+      - 'primer2/gowin/**'
+      - '.github/workflows/primer2-rtl-verification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rtl-simulation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Icarus Verilog
+        run: sudo apt-get update && sudo apt-get install -y iverilog
+      - name: Run Primer2 reference, static and RTL regression
+        run: python3 primer2/tb/run.py
+      - name: Check Primer2 diff whitespace
+        run: git diff --check 36822a09c234f509adfa5dace6aa05e4bbd40d54..HEAD -- primer2 .github/workflows/primer2-rtl-verification.yml
+      - name: Guard qualified Primer1 implementation
+        run: |
+          git diff --exit-code c8135b5304c0318c7ec24787484dc8a4c4aa0278..HEAD -- \
+            primer1/rtl primer1/tb primer1/scripts primer1/constraints \
+            primer1/gowin/trinity_primer1.gprj
