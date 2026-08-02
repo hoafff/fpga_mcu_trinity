@@ -61,15 +61,16 @@ For a Windows build that also captures qualification evidence:
 ```powershell
 powershell -ExecutionPolicy Bypass -File primer2/scripts/run_exact_device_build.ps1 `
   -GwSh "C:\path\to\Gowin\IDE\bin\gw_sh.exe" `
-  -Python "py -3"
+  -Python "py" -PythonArgs @("-3")
 ```
 
 The PowerShell runner executes the portable static/reference checks, invokes the
 clean exact-device Gowin script, verifies that `trinity_primer2.fs` exists,
 computes its SHA-256, extracts utilization/timing/warning lines, records
 `git status`, checks committed and working-tree whitespace, and guards the
-qualified Primer #1 implementation paths. It writes a timestamped directory
-below `primer2/local_evidence/`; that local evidence directory is intentionally
+qualified Primer #1 implementation paths. It also rejects the build candidate
+if Gowin warning `EX2664` remains. It writes a timestamped directory below
+`primer2/local_evidence/`; that local evidence directory is intentionally
 ignored by Git.
 
 After this batch flow has regenerated local process state, the project may be
