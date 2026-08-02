@@ -1,6 +1,6 @@
 name: Primer2 Verified Source Bootstrap
 
-# bootstrap-trigger: 1
+# bootstrap-trigger: 2
 on:
   push:
     branches: [main]
@@ -21,16 +21,21 @@ jobs:
           fetch-depth: 0
 
       - name: Install Icarus Verilog
-        run: sudo apt-get update && sudo apt-get install -y iverilog
+        shell: bash
+        run: |
+          set -o pipefail
+          (sudo apt-get update && sudo apt-get install -y iverilog) 2>&1 | tee -a /tmp/primer2-bootstrap.log
 
       - name: Materialize Primer2 source package
         shell: bash
         env:
           PAYLOAD_SHA256: 8744a96cb32abdee9b300da9dc4a0cdb57891579c964d1800a5da34e8638f01e
         run: |
-          cat .github/primer2-bootstrap/payload.* | base64 --decode > /tmp/primer2-source.tar.gz
-          echo "$PAYLOAD_SHA256  /tmp/primer2-source.tar.gz" | sha256sum --check --strict
-          python3 - <<'PY'
+          set -o pipefail
+          {
+            cat .github/primer2-bootstrap/payload.* | base64 --decode > /tmp/primer2-source.tar.gz
+            echo "$PAYLOAD_SHA256  /tmp/primer2-source.tar.gz" | sha256sum --check --strict
+            python3 - <<'PY'
           from pathlib import Path
           import tarfile
 
@@ -41,28 +46,56 @@ jobs:
                       raise SystemExit(f'unsafe archive path: {member.name}')
               archive.extractall(Path.cwd())
           PY
-          mkdir -p primer2/rtl/io
-          cp primer1/rtl/io/spi_packet_endpoint.sv primer2/rtl/io/spi_packet_endpoint.sv
-          chmod +x primer2/tb/run.py primer2/scripts/reference_checks.py primer2/scripts/static_rtl_checks.py
+            mkdir -p primer2/rtl/io
+            cp primer1/rtl/io/spi_packet_endpoint.sv primer2/rtl/io/spi_packet_endpoint.sv
+            chmod +x primer2/tb/run.py primer2/scripts/reference_checks.py primer2/scripts/static_rtl_checks.py
+          } 2>&1 | tee -a /tmp/primer2-bootstrap.log
 
       - name: Run full Primer2 RTL regression
-        run: python3 primer2/tb/run.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 primer2/tb/run.py 2>&1 | tee -a /tmp/primer2-bootstrap.log
 
       - name: Validate diff and protected Primer1 boundary
         shell: bash
         run: |
-          git diff --check
-          git diff --exit-code c8135b5304c0318c7ec24787484dc8a4c4aa0278..HEAD -- \
-            primer1/rtl primer1/tb primer1/scripts primer1/constraints \
-            primer1/gowin/trinity_primer1.gprj
-          test "$(git diff --name-only | grep '^primer1/' || true)" = ""
+          set -o pipefail
+          {
+            git diff --check
+            git diff --exit-code c8135b5304c0318c7ec24787484dc8a4c4aa0278..HEAD -- \
+              primer1/rtl primer1/tb primer1/scripts primer1/constraints \
+              primer1/gowin/trinity_primer1.gprj
+            test "$(git diff --name-only | grep '^primer1/' || true)" = ""
+          } 2>&1 | tee -a /tmp/primer2-bootstrap.log
 
       - name: Commit verified Primer2 source to main
         shell: bash
         run: |
+          set -o pipefail
+          {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add primer2
+            git diff --cached --check
+            git commit -m "feat(primer2): implement authenticated receive deployment target"
+            git push origin HEAD:main
+          } 2>&1 | tee -a /tmp/primer2-bootstrap.log
+
+      - name: Preserve failure log
+        if: failure()
+        shell: bash
+        run: |
+          git reset --hard HEAD
+          git clean -fd primer2
+          mkdir -p .github/primer2-bootstrap
+          {
+            echo "Primer2 bootstrap failure for $GITHUB_SHA"
+            echo
+            cat /tmp/primer2-bootstrap.log 2>/dev/null || echo "No bootstrap log was produced."
+          } > .github/primer2-bootstrap/FAILURE.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add primer2
-          git diff --cached --check
-          git commit -m "feat(primer2): implement authenticated receive deployment target"
+          git add .github/primer2-bootstrap/FAILURE.log
+          git commit -m "ci(primer2): record bootstrap failure"
           git push origin HEAD:main
