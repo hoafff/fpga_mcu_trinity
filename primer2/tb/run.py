@@ -17,7 +17,7 @@ def main()->int:
     if not shutil.which('iverilog') or not shutil.which('vvp'):
         print('ERROR: iverilog and vvp are required',file=sys.stderr);return 2
     sources=[root/line.strip() for line in (root/'sources.f').read_text().splitlines() if line.strip()]
-    tops=['tb_ascon_aead128_decrypt','tb_uart_rx_byte','tb_uart_frame_receiver','tb_spi_packet_endpoint','tb_primer2_command_core','tb_bad_tag_threshold','tb_reset_states','tb_primer2_top']
+    tops=['tb_ascon_aead128_decrypt','tb_uart_rx_byte','tb_uart_frame_receiver','tb_spi_packet_endpoint','tb_primer2_command_core','tb_bad_tag_threshold','tb_fault_output','tb_reset_states','tb_primer2_top']
     failures=[]
     with tempfile.TemporaryDirectory(prefix='primer2-rtl-') as td:
       for top in tops:
