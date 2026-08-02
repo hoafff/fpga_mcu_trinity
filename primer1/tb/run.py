@@ -120,7 +120,6 @@ def main() -> int:
     generate_vectors(root)
 
     sources = [repo / line.strip() for line in (root / "sources.f").read_text().splitlines() if line.strip()]
-    suite = root / "tb/primer1_rtl_verification_suite.sv"
     tops = [
         "tb_mlkem_poly_accel",
         "tb_ascon_aead128_encrypt",
@@ -139,7 +138,7 @@ def main() -> int:
             compile_cmd = [
                 "iverilog", "-g2012", "-Wall", "-Wno-timescale",
                 "-I", str(root / "rtl/core"), "-s", top, "-o", str(output),
-                *(str(path) for path in sources), str(suite),
+                *(str(path) for path in sources), str(root / "tb" / f"{top}.sv"),
             ]
             print(f"\n=== COMPILE {top} ===")
             compiled = subprocess.run(compile_cmd, cwd=repo, text=True, capture_output=True)
