@@ -34,14 +34,8 @@ module tb_primer1_top;
     rst_n = 1;
 
     // zeroize_meta/zeroize_sync intentionally reset asserted for fail-safe
-    // startup. Wait for the resulting two-RAM scrub before testing later paths.
-    timeout = 0;
-    while (dut.u_core.session_state == SESSION_ZEROIZE_BUSY && timeout < 400) begin
-      @(posedge clk);
-      #1;
-      timeout = timeout + 1;
-    end
-    repeat (4) begin @(posedge clk); #1; end
+    // startup. Allow the delayed synchronized assertion and full 256-word scrub.
+    repeat (300) begin @(posedge clk); #1; end
     if (dut.u_core.session_state == SESSION_ZEROIZE_BUSY)
       $fatal(1, "top startup zeroize did not complete");
 
