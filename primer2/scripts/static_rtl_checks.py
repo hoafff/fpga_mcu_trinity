@@ -65,6 +65,16 @@ def main()->int:
     for port in ('heartbeat_o','fault_o','irq_no','secure_enable_i','zeroize_ni','fatal_latched_i','uart_rx_i'):
         if port not in top:errors.append(f'missing safety/deployment port {port}')
 
+    # Only the 27 MHz system clock may be used as a positive-edge RTL clock.
+    # SPI/UART and promoted data/control nets must remain synchronized data, not
+    # inferred or generated clock domains.
+    allowed_posedge_clocks={'clk_i','sys_clk_i'}
+    for path in SV:
+        clean=strip(read_expanded(path))
+        for clock_name in re.findall(r'\bposedge\s+([A-Za-z_][A-Za-z0-9_]*)',clean):
+            if clock_name not in allowed_posedge_clocks:
+                errors.append(f'{path}: unexpected positive-edge clock {clock_name}')
+
     core=read_expanded(ROOT/'rtl/core/primer2_command_core.sv')
     decrypt=(ROOT/'rtl/crypto/ascon_aead128_decrypt.sv').read_text()
     receiver=(ROOT/'rtl/io/uart_frame_receiver.sv').read_text()
