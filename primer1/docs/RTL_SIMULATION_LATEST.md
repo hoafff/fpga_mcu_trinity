@@ -1,8 +1,8 @@
 # Primer #1 RTL simulation evidence — latest main run
 
-- Source commit: `915b912e39fbb08a767d6a479f00b515f1a87ddd`
-- Workflow run: `30742449183`
-- Generated UTC: `2026-08-02T09:47:30.204903+00:00`
+- Source commit: `18c7725efd70b282b547578c2e99bfd28d951d55`
+- Workflow run: `30742466874`
+- Generated UTC: `2026-08-02T09:47:56.888210+00:00`
 - Verification status: **FAIL**
 - Exit code: `1`
 
@@ -44,295 +44,113 @@ PASS explicit_width_and_slice_guards
 PASS basic_structural_checks
 
 ===== RTL_SIMULATIONS =====
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:7: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:10: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:7: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:10: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:7: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:10: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:7: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:10: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:7: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:10: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:7: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:10: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:1: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:2: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:3: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:4: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:5: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:6: error: Incomprehensible case expression.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:7: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_3.svh:10: error: Incomprehensible case expression.
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:304: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:304: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:79: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:182: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:205: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/crypto/mlkem_poly_accel.sv:304: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/rtl/core/primer1_command_core_part_1.svh:218: sorry: constant selects in always_* processes are not currently supported (all bits will be included).
 
 === COMPILE tb_mlkem_poly_accel ===
+=== RUN tb_mlkem_poly_accel ===
+PASS ntt_nonzero_vector
+PASS intt_nonzero_vector
+PASS basemul_nonzero_vector
+PASS mlkem_zeroize_both_dpb
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_mlkem_poly_accel.sv:160: $finish called at 88795000 (1ps)
 
 === COMPILE tb_ascon_aead128_encrypt ===
+=== RUN tb_ascon_aead128_encrypt ===
+PASS ascon_official_count817_kat
+PASS ascon_nonzero_differential_vector
+PASS ascon_abort_zeroizes_state
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_ascon_aead128_encrypt.sv:108: $finish called at 1275000 (1ps)
 
 === COMPILE tb_spi_packet_endpoint ===
+=== RUN tb_spi_packet_endpoint ===
+PASS spi_mode0_max_payload_request
+PASS spi_bad_crc_rejected
+PASS spi_response_mailbox_build
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_spi_packet_endpoint.sv:159: $finish called at 57265000 (1ps)
 
 === COMPILE tb_uart_tx_byte ===
+=== RUN tb_uart_tx_byte ===
+PASS uart_byte_8n1_lsb_first
+PASS uart_byte_abort_idle
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_uart_tx_byte.sv:70: $finish called at 555000 (1ps)
 
 === COMPILE tb_uart_frame_tx ===
+=== RUN tb_uart_frame_tx ===
+PASS uart_frame_serializer_order_and_gap
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_uart_frame_tx.sv:73: $finish called at 1405000 (1ps)
 
 === COMPILE tb_primer1_command_core ===
+=== RUN tb_primer1_command_core ===
+PASS busy_get_status_not_lost
+PASS busy_get_txn_result_not_lost
+FAIL run_self_test_honors_test_mask: state=3 len=2 data=3e01
+PASS zeroize_partial_scope_rejected
+PASS zeroize_all_accepted
+PASS abort_session_wrong_id_rejected
+PASS abort_session_wrong_id_preserves_context
+PASS abort_session_matching_id_succeeds
+PASS poly_begin_rejects_unretired_result
+PASS poly_begin_preserves_result_ready
+FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_command_core.sv:337: primer1_command_core findings failures=1
+       Time: 102646000  Scope: tb_primer1_command_core
 
 === COMPILE tb_primer1_top ===
+=== RUN tb_primer1_top ===
+PASS primer1_top_idle_and_miso_high_z
+PASS primer1_top_heartbeat_integration
+PASS primer1_top_safety_synchronizer_and_fault
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_top.sv:65: $finish called at 3086000 (1ps)
 
 RTL VERIFICATION FAIL
-FAIL tb_mlkem_poly_accel: compile
-FAIL tb_ascon_aead128_encrypt: compile
-FAIL tb_spi_packet_endpoint: compile
-FAIL tb_uart_tx_byte: compile
-FAIL tb_uart_frame_tx: compile
-FAIL tb_primer1_command_core: compile
-FAIL tb_primer1_top: compile
+FAIL tb_primer1_command_core: simulation
 
 ===== DIFF_CHECK =====
 verification_exit_code=1
