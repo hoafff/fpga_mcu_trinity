@@ -47,7 +47,8 @@ chunk_word_index <= 0; saved_chunk_slot <= 0; saved_chunk_index <= 0;
 saved_chunk_fingerprint <= 0; saved_chunk_data <= 0; saved_chunk_invalid <= 1'b0;
 read_word_index <= 0; saved_read_slot <= 0; saved_read_chunk <= 0;
 read_response_data <= 0; read_response_emit_pending <= 1'b0;
-selftest_index <= 0; selftest_scan_phase <= 0; poly_read_sample <= 0;
+selftest_index <= 0; selftest_scan_phase <= 0; selftest_requested_mask <= 0;
+poly_read_sample <= 0;
 zeroize_from_command <= 1'b0; zeroize_due_to_fault <= 1'b0;
 zeroize_memory_done <= 1'b0;
 crypto_ad_snapshot <= 0;
@@ -86,8 +87,7 @@ last_error <= ERR_SELF_TEST_FAILED;
 end
 RETAIN_COMMIT_SELFTEST_SUCCESS: begin
 retained_data_length <= 16'd2;
-retained_data[7:0] <= 8'h01;
-retained_data[15:8] <= 8'h3E;
+retained_data <= retained_completion_data;
 end
 RETAIN_COMMIT_UART_SUCCESS: begin
 retained_data_length <= 16'd14;
@@ -125,6 +125,31 @@ read_response_emit_pending <= 1'b0;
 poly_zeroize <= 1'b1;
 core_state <= C_ZEROIZE_WAIT;
 end else begin
+// Long-running retained operations continue their FSM in this cycle, while
+// read-only reconciliation requests are answered independently. This avoids
+// losing the one-cycle request_valid pulse without pausing poly/Ascon/UART work.
+if ((core_state==C_WAIT_POLY || core_state==C_WAIT_ASCON ||
+core_state==C_WAIT_UART || core_state==C_ZEROIZE_WAIT ||
+core_state==C_ST_ASCON_WAIT || core_state==C_ST_ZERO_WAIT ||
+core_state==C_ST_NTT_WAIT || core_state==C_ST_NTT_SCAN ||
+core_state==C_ST_INTT_WAIT || core_state==C_ST_INTT_SCAN ||
+core_state==C_ST_BM_WAIT || core_state==C_ST_BM_SCAN) &&
+request_valid_i && response_ready_i) begin
+if (request_command_i==CMD_GET_STATUS) begin
+if (request_payload_length_i!=0)
+emit_error(request_command_i,request_txid_i,ERR_BAD_LENGTH,0);
+else
+emit_status_response(request_command_i,request_txid_i);
+end else if (request_command_i==CMD_GET_TXN_RESULT) begin
+if (request_payload_length_i!=2)
+emit_error(request_command_i,request_txid_i,ERR_BAD_LENGTH,0);
+else
+emit_txn_result_response(request_command_i,request_txid_i,
+{pbyte(request_payload_i,0),pbyte(request_payload_i,1)});
+end else begin
+emit_error(request_command_i,request_txid_i,ERR_BUSY,active_transaction_id);
+end
+end
 case (core_state)
 C_IDLE: begin
 if (transport_error_valid_i && response_ready_i) begin
@@ -163,15 +188,8 @@ emit_response(request_command_i,request_txid_i,FLAG_RESPONSE,16'd12,rsp);
 end
 end
 CMD_GET_STATUS: begin
-if (request_payload_length_i != 0) emit_error(request_command_i,request_txid_i,ERR_BAD_LENGTH,0);
-else begin
-rsp = '0;
-rsp[7:0] = {4'h0,session_state};
-rsp[15:8] = {5'h0,operation_state};
-rsp[23:16] = (mailbox_pending_i ? PENDING_RESPONSE_MAILBOX : 0) |
-(retained_valid ? PENDING_SIDE_EFFECT_RESULT : 0);
-rsp[31:24] = (self_test_pass ? SECURE_SELF_TEST_PASS : 0) |
-(staged_valid ? SECURE_SESSION_STAGED : 0) |
-(secure_enable_i ? SECURE_ENABLE : 0) |
-((session_state==SESSION_ZEROIZE_BUSY) ? SECURE_ZEROIZE_BUSY : 0) |
-(fault_o ? SECURE_FAULT_LOCKED : 0);
+if (request_payload_length_i != 0)
+emit_error(request_command_i,request_txid_i,ERR_BAD_LENGTH,0);
+else
+emit_status_response(request_command_i,request_txid_i);
+end
