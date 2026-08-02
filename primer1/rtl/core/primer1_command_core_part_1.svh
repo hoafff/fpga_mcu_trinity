@@ -16,12 +16,17 @@ logic [2:0] saved_read_chunk;
 logic [527:0] read_response_data;
 logic [7:0] selftest_index;
 logic [1:0] selftest_scan_phase;
+logic [15:0] selftest_requested_mask;
 logic [15:0] poly_read_sample;
 logic read_response_emit_pending;
 logic zeroize_from_command;
 logic zeroize_due_to_fault;
 logic zeroize_memory_done;
 logic [191:0] crypto_ad_snapshot;
+
+localparam logic [15:0] SELFTEST_SUPPORTED_MASK =
+TEST_MEMORY | TEST_NTT | TEST_INTT | TEST_BASEMUL |
+TEST_ASCON | TEST_ZEROIZE;
 
 typedef enum logic [2:0] {
 RETAIN_COMMIT_SUCCESS_EMPTY,
@@ -123,13 +128,90 @@ retained_completion_kind <= RETAIN_COMMIT_INTERNAL_FAULT;
 else if (length == 16'd14) begin
 retained_completion_kind <= RETAIN_COMMIT_UART_SUCCESS;
 retained_completion_data <= data;
-end else if (length == 16'd2)
+end else if (length == 16'd2) begin
 retained_completion_kind <= RETAIN_COMMIT_SELFTEST_SUCCESS;
-else
+retained_completion_data <= data;
+end else
 retained_completion_kind <= RETAIN_COMMIT_SUCCESS_EMPTY;
 retained_commit_pending <= 1'b1;
 end
 endtask
+
+task automatic emit_status_response(
+input logic [7:0] command,
+input logic [15:0] txid
+);
+logic [527:0] status_data;
+begin
+status_data = '0;
+status_data[7:0] = {4'h0,session_state};
+status_data[15:8] = {5'h0,operation_state};
+status_data[23:16] = (mailbox_pending_i ? PENDING_RESPONSE_MAILBOX : 0) |
+(retained_valid ? PENDING_SIDE_EFFECT_RESULT : 0);
+status_data[31:24] = (self_test_pass ? SECURE_SELF_TEST_PASS : 0) |
+(staged_valid ? SECURE_SESSION_STAGED : 0) |
+(secure_enable_i ? SECURE_ENABLE : 0) |
+((session_state==SESSION_ZEROIZE_BUSY) ? SECURE_ZEROIZE_BUSY : 0) |
+(fault_o ? SECURE_FAULT_LOCKED : 0);
+status_data[39:32]=active_session_id[31:24];
+status_data[47:40]=active_session_id[23:16];
+status_data[55:48]=active_session_id[15:8];
+status_data[63:56]=active_session_id[7:0];
+status_data[71:64]=last_error[15:8];
+status_data[79:72]=last_error[7:0];
+status_data[87:80]=active_transaction_id[15:8];
+status_data[95:88]=active_transaction_id[7:0];
+status_data[103:96]=diagnostic_summary[31:24];
+status_data[111:104]=diagnostic_summary[23:16];
+status_data[119:112]=diagnostic_summary[15:8];
+status_data[127:120]=diagnostic_summary[7:0];
+emit_response(command,txid,FLAG_RESPONSE,16'd16,status_data);
+end
+endtask
+
+task automatic emit_txn_result_response(
+input logic [7:0] command,
+input logic [15:0] response_txid,
+input logic [15:0] queried_txid
+);
+logic [527:0] result_data;
+integer result_index;
+begin
+if (!retained_valid || queried_txid != retained_txid)
+emit_error(command,response_txid,ERR_RESULT_NOT_READY,0);
+else begin
+result_data='0;
+result_data[7:0]=retained_txid[15:8];
+result_data[15:8]=retained_txid[7:0];
+result_data[23:16]={5'h0,retained_state};
+result_data[31:24]=retained_command;
+result_data[39:32]=retained_code[15:8];
+result_data[47:40]=retained_code[7:0];
+result_data[55:48]=retained_data_length[15:8];
+result_data[63:56]=retained_data_length[7:0];
+for (result_index=0;result_index<16;result_index=result_index+1)
+if (result_index<retained_data_length)
+result_data[8*(10+result_index)+:8]=retained_data[8*result_index+:8];
+emit_response(command,response_txid,FLAG_RESPONSE,
+16'd10+retained_data_length,result_data);
+end
+end
+endtask
+
+task automatic finish_selftest_success;
+logic [127:0] selftest_data;
+begin
+selftest_data='0;
+selftest_data[7:0]=selftest_requested_mask[15:8];
+selftest_data[15:8]=selftest_requested_mask[7:0];
+self_test_pass<=1'b1;
+session_state<=SESSION_READY_NO_SESSION;
+operation_state<=OP_IDLE;
+complete_retained(TXN_SUCCEEDED,ERR_OK,16'd2,selftest_data);
+core_state<=C_IDLE;
+end
+endtask
+
 logic [191:0] constructed_ad;
 logic [127:0] constructed_nonce;
 integer ai;
