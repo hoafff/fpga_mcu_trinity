@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from check_sdc import validate_sdc
+
 root = Path(__file__).resolve().parents[1]
 required = [line.strip() for line in (root / "sources.f").read_text().splitlines() if line.strip()]
 core_parts = [f"rtl/core/primer1_command_core_part_{i}.svh" for i in range(6)]
@@ -52,6 +54,28 @@ for rel in required:
     assert f'path="../{rel}"' in gprj, f"gprj missing {rel}"
 for rel in ["constraints/primer1.cst", "constraints/primer1.sdc"]:
     assert f'path="../{rel}"' in gprj, f"gprj missing {rel}"
+
+# Gowin V1.9.11.03 supports get_regs, not all_registers. The SDC guard keeps
+# the 27 MHz clock and limits exceptions to asynchronous input -> first-stage
+# synchronizer arcs instead of cutting all paths to all registers.
+validate_sdc(root / "constraints/primer1.sdc")
+
+top_text = (root / "rtl/primer1_top.sv").read_text()
+spi_text = (root / "rtl/io/spi_packet_endpoint.sv").read_text()
+for source, first_stage, second_stage, owner_text in [
+    ("secure_enable_i", "secure_meta", "secure_sync", top_text),
+    ("zeroize_ni", "zeroize_meta", "zeroize_sync", top_text),
+    ("fatal_latched_i", "fatal_meta", "fatal_sync", top_text),
+    ("spi_sck_i", "sck_meta", "sck_sync", spi_text),
+    ("spi_mosi_i", "mosi_meta", "mosi_sync", spi_text),
+    ("spi_cs_ni", "cs_meta", "cs_sync", spi_text),
+]:
+    assert re.search(rf"\b{first_stage}\s*<=\s*{source}\s*;", owner_text), (
+        f"missing first-stage synchronizer assignment for {source}"
+    )
+    assert re.search(rf"\b{second_stage}\s*<=\s*{first_stage}\s*;", owner_text), (
+        f"missing second-stage synchronizer assignment for {source}"
+    )
 
 # Both Gowin process-config names are committed because V1.9.11.03 may consult
 # either the generic or project-specific file when opening a pre-existing gprj.
@@ -114,7 +138,7 @@ ascon = (root / "rtl/crypto/ascon_aead128_encrypt.sv").read_text()
 assert "round_index" in ascon and "ascon_round(x0, x1, x2, x3, x4" in ascon
 assert ascon.count("ascon_round(") == 2, "Ascon rounds appear unrolled"
 
-spi = (root / "rtl/io/spi_packet_endpoint.sv").read_text()
+spi = spi_text
 core = core_text
 assert "crc32c_update_byte" in spi and "request_fingerprint_o" in spi
 assert "build_payload_shift[7:0]" in spi and "build_payload[8*(index-8) +: 8]" not in spi
@@ -144,6 +168,10 @@ print("PASS no_absolute_paths")
 print("PASS mandatory_blocks_present")
 print("PASS exact_device_identity")
 print("PASS canonical_systemverilog_config")
+print("PASS gowin_sdc_syntax_guard")
+print("PASS sys_clk_27m_constraint")
+print("PASS async_inputs_to_first_stage_only")
+print("PASS synchronizer_structure_matches_sdc")
 print("PASS shared_iterative_resource_architecture")
 print("PASS gowin_dpb_normal_write_template")
 print("PASS no_read_during_write_dependency_guard")
