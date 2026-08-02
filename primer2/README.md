@@ -61,19 +61,20 @@ of secure enable while active takes priority and prevents automatic recovery.
 
 ## Verification status
 
-Completed in the execution environment:
+The user-supplied pre-fix exact-device build completed synthesis with warning
+EX2664, place-and-route, 27 MHz timing and bitstream generation. It reported
+52.874 MHz Fmax, +18.124 ns worst setup slack, +0.307 ns worst hold slack, zero
+violated endpoints, Logic 79%, Registers 43%, CLS 86% and LW 8/8.
 
-- source-policy/static RTL checks: PASS;
-- byte-exact P1-compatible reference frame and Ascon checks: PASS;
-- official NIST SP 800-232 Count 817 compatibility check: PASS;
-- AD/ciphertext/tag bit-flip rejection in the reference model: PASS;
-- wrong-key and wrong-nonce rejection in the reference model: PASS.
+That evidence is superseded because the `fault_o` combinational read-before-write
+was corrected and the clean SystemVerilog 2017 batch flow was hardened. The
+current source requires:
 
-Not executed here because the required tools are absent:
+- static and byte-exact reference checks;
+- nine self-checking SystemVerilog simulations;
+- clean exact-device synthesis, PnR, STA and new `.fs` generation;
+- later physical SRAM programming and P1-to-P2 hardware qualification.
 
-- eight self-checking SystemVerilog simulations (`iverilog`/`vvp` unavailable);
-- Gowin synthesis, place-and-route, STA and `.fs` generation;
-- physical SRAM programming and P1-to-P2 hardware qualification.
-
-See `README_BUILD.md` and `docs/VERIFICATION_STATUS.md` for exact commands and
-the acceptance boundary. No exact-device or hardware PASS is claimed yet.
+See `README_BUILD.md`, `docs/VERIFICATION_STATUS.md`, and
+`docs/EXACT_DEVICE_BUILD_AUDIT_2026-08-02.md`. `hardware_qualified` remains
+false.
