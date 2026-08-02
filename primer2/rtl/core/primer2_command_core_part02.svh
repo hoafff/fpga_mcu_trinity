@@ -63,14 +63,15 @@
     request_mask = {pbyte(request_payload_i,0), pbyte(request_payload_i,1),
                     pbyte(request_payload_i,2), pbyte(request_payload_i,3)};
 
+    fault_o = fault_latched | (session_state == SESSION_FAULT_LOCKED);
     rx_accept_enable_o = (session_state == SESSION_ACTIVE) && active_valid &&
-                         secure_enable_i && !fault_o && !auth_result_valid &&
-                         (core_state != CORE_ZEROIZE);
+                         secure_enable_i &&
+                         !(fault_latched | (session_state == SESSION_FAULT_LOCKED)) &&
+                         !auth_result_valid && (core_state != CORE_ZEROIZE);
     result_pending_o = auth_result_valid;
     retained_result_pending_o = retained_valid;
     authenticated_result_pending_o = auth_result_valid;
     irq_event_pending_o = retained_valid | auth_result_valid;
-    fault_o = fault_latched | (session_state == SESSION_FAULT_LOCKED);
     session_state_o = session_state;
     operation_state_o = operation_state;
 
