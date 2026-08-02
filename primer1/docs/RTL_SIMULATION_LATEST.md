@@ -1,8 +1,8 @@
 # Primer #1 RTL simulation evidence — latest main run
 
-- Source commit: `bdfeb6fb794c53e83cf5540fc9d9bf5f5c00f485`
-- Workflow run: `30742169826`
-- Generated UTC: `2026-08-02T09:38:59.594614+00:00`
+- Source commit: `82a2fc0f9495ec1469ab15e1f56dad9b2fefe043`
+- Workflow run: `30742224211`
+- Generated UTC: `2026-08-02T09:40:32.313238+00:00`
 - Verification status: **FAIL**
 - Exit code: `1`
 
@@ -144,10 +144,8 @@ FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1
 
 === COMPILE tb_primer1_top ===
 === RUN tb_primer1_top ===
-PASS primer1_top_idle_and_miso_high_z
-PASS primer1_top_heartbeat_integration
-FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_top.sv:50: top fatal synchronizer/fail-closed path mismatch
-       Time: 166000  Scope: tb_primer1_top
+FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_top.sv:46: top startup zeroize did not complete
+       Time: 86000  Scope: tb_primer1_top
 
 RTL VERIFICATION FAIL
 FAIL tb_primer1_command_core: simulation
