@@ -88,16 +88,38 @@ fault_latched<=1'b1;session_state<=SESSION_FAULT_LOCKED;
 operation_state<=OP_IDLE;
 complete_retained(TXN_FAILED,ERR_SELF_TEST_FAILED,0,'0);
 core_state<=C_IDLE;
-end else begin
+end else if ((selftest_requested_mask &
+(TEST_MEMORY|TEST_NTT|TEST_INTT|TEST_BASEMUL|TEST_ZEROIZE))!=0) begin
 poly_zeroize<=1'b1;
 core_state<=C_ST_ZERO_WAIT;
+end else begin
+finish_selftest_success();
 end
 end
 end
 C_ST_ZERO_WAIT: begin
 if (poly_zeroize_done) begin
-poly_start_operation<=2'd1;poly_start<=1'b1;
+if ((selftest_requested_mask & TEST_MEMORY)!=0) begin
+selftest_index<=0;
+selftest_scan_phase<=2'd3;
+poly_read_slot<=1'b0;
+poly_read_addr<=0;
+core_state<=C_ST_NTT_SCAN;
+end else if ((selftest_requested_mask & TEST_NTT)!=0) begin
+poly_start_operation<=2'd1;
+poly_start<=1'b1;
 core_state<=C_ST_NTT_WAIT;
+end else if ((selftest_requested_mask & TEST_INTT)!=0) begin
+poly_start_operation<=2'd2;
+poly_start<=1'b1;
+core_state<=C_ST_INTT_WAIT;
+end else if ((selftest_requested_mask & TEST_BASEMUL)!=0) begin
+poly_start_operation<=2'd3;
+poly_start<=1'b1;
+core_state<=C_ST_BM_WAIT;
+end else begin
+finish_selftest_success();
+end
 end
 end
 C_ST_NTT_WAIT: begin
@@ -110,10 +132,8 @@ core_state<=C_ST_NTT_SCAN;
 end
 end
 
-// The three legacy *_SCAN states form a common three-cycle read pipeline for
-// every self-test phase: PRIME -> CAPTURE -> EVALUATE. The DPB/canonical output
-// is captured in poly_read_sample before it can affect transaction-control
-// or retained-result logic.
+// The three *_SCAN states implement PRIME -> CAPTURE -> EVALUATE for both the
+// two-RAM memory test and each selected polynomial operation result.
 C_ST_NTT_SCAN: begin
 core_state<=C_ST_INTT_SCAN;
 end
@@ -130,25 +150,55 @@ complete_retained(TXN_FAILED,ERR_SELF_TEST_FAILED,0,'0);
 core_state<=C_IDLE;
 end else if (selftest_index==8'd255) begin
 case (selftest_scan_phase)
-2'd0: begin
+2'd3: begin
+if (!poly_read_slot) begin
+selftest_index<=0;
+poly_read_slot<=1'b1;
+poly_read_addr<=0;
+core_state<=C_ST_NTT_SCAN;
+end else begin
+poly_read_slot<=1'b0;
+if ((selftest_requested_mask & TEST_NTT)!=0) begin
+poly_start_operation<=2'd1;
+poly_start<=1'b1;
+core_state<=C_ST_NTT_WAIT;
+end else if ((selftest_requested_mask & TEST_INTT)!=0) begin
 poly_start_operation<=2'd2;
 poly_start<=1'b1;
 core_state<=C_ST_INTT_WAIT;
-end
-2'd1: begin
+end else if ((selftest_requested_mask & TEST_BASEMUL)!=0) begin
 poly_start_operation<=2'd3;
 poly_start<=1'b1;
 core_state<=C_ST_BM_WAIT;
+end else begin
+finish_selftest_success();
+end
+end
+end
+2'd0: begin
+if ((selftest_requested_mask & TEST_INTT)!=0) begin
+poly_start_operation<=2'd2;
+poly_start<=1'b1;
+core_state<=C_ST_INTT_WAIT;
+end else if ((selftest_requested_mask & TEST_BASEMUL)!=0) begin
+poly_start_operation<=2'd3;
+poly_start<=1'b1;
+core_state<=C_ST_BM_WAIT;
+end else begin
+finish_selftest_success();
+end
+end
+2'd1: begin
+if ((selftest_requested_mask & TEST_BASEMUL)!=0) begin
+poly_start_operation<=2'd3;
+poly_start<=1'b1;
+core_state<=C_ST_BM_WAIT;
+end else begin
+finish_selftest_success();
+end
 end
 default: begin
-self_test_pass<=1'b1;
-session_state<=SESSION_READY_NO_SESSION;
-operation_state<=OP_IDLE;
-txn_data='0;
-txn_data[7:0]=8'h01;
-txn_data[15:8]=8'h3E;
-complete_retained(TXN_SUCCEEDED,ERR_OK,16'd2,txn_data);
-core_state<=C_IDLE;
+finish_selftest_success();
 end
 endcase
 end else begin
