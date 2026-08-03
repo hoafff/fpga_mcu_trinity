@@ -39,7 +39,7 @@ int main(void) {
         progress();
         full_contain_tiny_fault();
         pc_poll();
-        if (!g_tiny_fault_contained && !g_host_txn.valid &&
+        if (!g_fault && !g_host_txn.valid &&
             (uint32_t)(g_ms - last_probe) >= TRINITY_DEPLOY_ENDPOINT_PROBE_MS) {
             if (g_controller.p1.ready && g_controller.p2.ready)
                 (void)full_refresh_all();
