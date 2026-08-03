@@ -56,5 +56,6 @@ static uint16_t g_spi_txid = 1u;
 static uint16_t g_active_host_txid;
 static error_record_t g_error;
 static host_transaction_t g_host_txn;
+static trinity_controller_t g_controller;
 
 static endpoint_t g_p1 = {
