@@ -8,8 +8,8 @@ SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 SOURCE IDENTITY
 repository_commit:
 mlkem_submodule_commit: 048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
-sn32_architecture_version: 0.7.1
-sn32_build_id: 0x00070001
+sn32_architecture_version: 0.7.2
+sn32_build_id: 0x00070002
 
 SN32 BUILD AND FLASH
 armclang_version: 6.24
@@ -66,16 +66,41 @@ miso_released_when_each_cs_high:
 
 COMMAND EVIDENCE
 standalone_ping_log:
+p1_get_info_spi_diag_log:
+p2_get_info_spi_diag_log:
+p2_get_status_spi_diag_log:
 system_info_log:
 system_status_before_log:
 dual_spi_bringup_log:
 system_status_after_log:
 wiring_photo:
 
+RAW SPI DIAGNOSTIC AUDIT
+p1_get_info_target_txid:
+p1_get_info_request_fingerprint:
+p1_get_info_request_crc:
+p1_get_info_response_crc_match:
+p1_get_info_irq_sequence_valid:
+p2_get_info_target_txid:
+p2_get_info_request_fingerprint:
+p2_get_info_request_crc:
+p2_get_info_response_crc_match:
+p2_get_info_irq_sequence_valid:
+p2_get_status_target_txid:
+p2_get_status_request_fingerprint:
+p2_get_status_request_crc:
+p2_get_status_response_crc_match:
+p2_get_status_irq_sequence_valid:
+single_cs_response_capture_confirmed:
+response_command_and_txid_correlation_confirmed:
+
 ACCEPTANCE RESULTS
-v0_7_1_exact_keil_rebuild:
-v0_7_1_snlink_program_verify:
-v0_7_1_standalone_uart_ping:
+v0_7_2_exact_keil_rebuild:
+v0_7_2_snlink_program_verify:
+v0_7_2_standalone_uart_ping:
+p1_get_info_raw_diagnostic:
+p2_get_info_raw_diagnostic:
+p2_get_status_raw_diagnostic:
 p1_get_info_identity:
 p2_get_info_identity:
 p1_p2_ready_mask:
@@ -100,4 +125,5 @@ hardware_qualified: false
 full_system_hardware_qualified: false
 
 FAILURE NOTES
-Record every failed attempt and corrective action here, even if a later retry passes.
+Record every failed attempt and corrective action here, including the v0.7.1
+clean-boot TRANSACTION_CONFLICT run, even if a later v0.7.2 retry passes.
