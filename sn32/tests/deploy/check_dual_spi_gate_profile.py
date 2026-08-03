@@ -35,7 +35,11 @@ def require(text: str, token: str, label: str) -> None:
 
 
 def macro(text: str, name: str) -> int:
-    match = re.search(rf"^#define\s+{re.escape(name)}\s+(0x[0-9A-Fa-f]+|\d+)u?\s*$", text, re.M)
+    match = re.search(
+        rf"^#define\s+{re.escape(name)}\s+(0x[0-9A-Fa-f]+|\d+)u?\s*$",
+        text,
+        re.M,
+    )
     if match is None:
         fail(f"missing numeric macro {name}")
     return int(match.group(1), 0)
@@ -97,7 +101,7 @@ def main() -> int:
     require(uart_evidence, "PC <-> SN32 UART PING HARDWARE: PASS", "UART evidence")
     require(gate_doc, "SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS", "dual-SPI gate")
     require(gate_doc, "secure_enable_i  -> GND", "dual-SPI gate")
-    require(gate_doc, "TRINITY_DEPLOY_SPI_CLKDIV", "dual-SPI gate")
+    require(gate_doc, "SPI0 CLKDIV = 59", "dual-SPI gate")
     require(evidence_template, "run_manifest_<date>.txt", "dual-SPI evidence template")
 
     print("PASS: scoped PC-to-SN32 UART evidence is locked without broader claims")
