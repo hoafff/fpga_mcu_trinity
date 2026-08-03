@@ -7,6 +7,7 @@ from typing import Callable, Protocol
 
 from .protocol import (
     ErrorCode,
+    EventEnvelope,
     FrameFlags,
     HostCommand,
     HostFrame,
@@ -84,7 +85,7 @@ class BringupResult:
 
 
 class TrinitySerialClient:
-    """Synchronous PC↔SN32 client for the P1 control-plane bring-up gate."""
+    """Synchronous PC↔SN32 client with validated interleaved EVENT support."""
 
     def __init__(
         self,
@@ -93,6 +94,7 @@ class TrinitySerialClient:
         baudrate: int = 115200,
         read_timeout: float = 0.05,
         serial_factory: Callable[..., SerialPortLike] | None = None,
+        event_handler: Callable[[EventEnvelope], None] | None = None,
     ) -> None:
         if serial_factory is None:
             if serial is None:
@@ -109,6 +111,7 @@ class TrinitySerialClient:
         )
         self._next_transaction_id = 1
         self._rx = bytearray()
+        self._event_handler = event_handler
 
     def close(self) -> None:
         self._serial.close()
@@ -153,6 +156,22 @@ class TrinitySerialClient:
             raise HostProtocolError(f"unknown remote error code 0x{code:04X}") from exc
         raise RemoteError(error_code, system_state, source, related)
 
+    def _handle_event(self, frame: HostFrame) -> None:
+        if frame.command != int(HostCommand.EVENT):
+            raise HostProtocolError(
+                f"EVENT flag used with command 0x{frame.command:02X}"
+            )
+        if frame.transaction_id != 0:
+            raise HostProtocolError("EVENT frame transaction ID must be zero")
+        if frame.flags != int(FrameFlags.EVENT):
+            raise HostProtocolError("EVENT frame has invalid flags")
+        try:
+            event = EventEnvelope.decode(frame.payload)
+        except (ValueError, struct.error) as exc:
+            raise HostProtocolError(f"malformed EVENT frame: {exc}") from exc
+        if self._event_handler is not None:
+            self._event_handler(event)
+
     def request(
         self,
         command: HostCommand | int,
@@ -173,6 +192,7 @@ class TrinitySerialClient:
         while True:
             frame = self._read_wire_frame(deadline)
             if frame.flags & int(FrameFlags.EVENT):
+                self._handle_event(frame)
                 continue
             if frame.command != command_value or frame.transaction_id != txid:
                 raise HostProtocolError(
@@ -208,9 +228,9 @@ class TrinitySerialClient:
         ),
     ) -> int:
         payload = struct.pack(">BBH", int(TargetReadyMask.PRIMER1), int(profile), test_mask & 0xFFFF)
-        response = self.request(HostCommand.RUN_SELF_TEST, payload, timeout=2.0)
-        if response.payload:
-            raise HostProtocolError("RUN_SELF_TEST mailbox response must be empty")
+        response = self.request(HostCommand.RUN_SELF_TEST, payload, timeout=8.0)
+        if response.payload != struct.pack(">H", test_mask & 0xFFFF):
+            raise HostProtocolError("RUN_SELF_TEST final response has the wrong test mask")
         return response.transaction_id
 
     def get_transaction_result(self, host_txid: int) -> TransactionResult:
@@ -274,7 +294,10 @@ class TrinitySerialClient:
 
         self.retire_transaction_result(host_txid)
         status_after = self.get_system_status()
-        if status_after.system_state != SystemState.READY_NO_SESSION:
+        if status_after.system_state not in {
+            SystemState.READY_NO_KEYPAIR,
+            SystemState.READY_NO_SESSION,
+        }:
             raise HostProtocolError(
                 f"unexpected final P1 state: {status_after.system_state.name}"
             )
