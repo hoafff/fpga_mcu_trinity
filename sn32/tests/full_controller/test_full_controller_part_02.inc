@@ -26,6 +26,7 @@ int main(void) {
 
     memset(&bus, 0, sizeof(bus));
     bus.commit_level = true; /* Prove activation always re-arms a LOW->HIGH edge. */
+    bus.retained_not_ready_reads = 3u;
     bus.p1.session_state = TRINITY_SESSION_SELF_TEST_REQUIRED;
     bus.p2.session_state = TRINITY_SESSION_SELF_TEST_REQUIRED;
     bus.p1.next_txid = 0x1100u;
@@ -47,6 +48,8 @@ int main(void) {
     assert(trinity_controller_run_self_test(&controller,
         TRINITY_READY_PRIMER1 | TRINITY_READY_PRIMER2,
         0x013Eu, 1000u) == TRINITY_OK);
+    assert(controller.last_error == TRINITY_OK);
+    assert(bus.retained_not_ready_reads == 0u);
 
     memset(&session, 0, sizeof(session));
     session.session_id = 0x11223344u;
@@ -94,6 +97,7 @@ int main(void) {
     assert(trinity_controller_probe_all(&controller) == TRINITY_FAULT_LOCKED);
     assert((trinity_controller_fault_mask(&controller) & TRINITY_FAULT_TINY1P5) != 0u);
 
+    puts("PASS: delayed retained-result polling does not latch a false controller error");
     puts("PASS: dual-endpoint probe, retained self-test, staged/committed activation");
     puts("PASS: repeatable Tiny LOW>=2ms to HIGH commit edge and zeroize deassertion");
     puts("PASS: direct P1->P2 telemetry authentication, ACK and pending-result protection");
