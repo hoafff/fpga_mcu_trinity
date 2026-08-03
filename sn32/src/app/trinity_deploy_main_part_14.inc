@@ -116,6 +116,7 @@ static void handle_spi_diagnostic(const trinity_pc_frame_t *req) {
 }
 
 static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
+    const spi_exchange_trace_t *trace = NULL;
     uint16_t payload_length;
     if (!request_length_is(req, 0u)) {
         response_error(req, TRINITY_BAD_LENGTH,
@@ -123,17 +124,25 @@ static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
         return;
     }
 
-    g_pc_rsp.payload[0] = g_spi_first_failure.valid ? 1u : 0u;
-    g_pc_rsp.payload[1] = g_spi_first_failure.context;
-    if (!g_spi_first_failure.valid) {
+    if (g_spi_first_failure.valid) {
+        g_pc_rsp.payload[0] = 1u;
+        trace = &g_spi_first_failure;
+    } else if (g_spi_startup_residue.valid) {
+        g_pc_rsp.payload[0] = 0u;
+        trace = &g_spi_startup_residue;
+    } else {
+        g_pc_rsp.payload[0] = 0u;
+    }
+    g_pc_rsp.payload[1] = trace != NULL ? trace->context
+                                        : SPI_TRACE_CONTEXT_NONE;
+    if (trace == NULL) {
         g_pc_rsp.payload_length = 2u;
         (void)response_send();
         return;
     }
-    if (!serialize_spi_trace(&g_spi_first_failure, 2u, &payload_length)) {
+    if (!serialize_spi_trace(trace, 2u, &payload_length)) {
         response_error(req, TRINITY_BAD_LENGTH,
-                       TRINITY_SOURCE_SN32,
-                       g_spi_first_failure.target_txid);
+                       TRINITY_SOURCE_SN32, trace->target_txid);
         return;
     }
     g_pc_rsp.payload_length = payload_length;
