@@ -30,6 +30,28 @@ typedef struct {
 
 typedef struct {
     bool valid;
+    uint8_t target_id;
+    uint8_t command;
+    trinity_source_t source;
+    trinity_error_code_t result_code;
+    uint16_t target_txid;
+    uint32_t request_fingerprint;
+    uint16_t request_length;
+    uint16_t response_capture_length;
+    uint16_t response_frame_length;
+    uint16_t request_crc;
+    uint16_t response_crc_received;
+    uint16_t response_crc_calculated;
+    bool irq_before_request;
+    bool irq_after_request;
+    bool irq_before_response;
+    bool irq_after_response;
+    uint8_t request_bytes[TRINITY_SPI_MAX_PACKET];
+    uint8_t response_bytes[TRINITY_SPI_MAX_PACKET];
+} spi_exchange_trace_t;
+
+typedef struct {
+    bool valid;
     uint16_t host_txid;
     uint16_t target_txid;
     uint8_t original_host_command;
@@ -60,6 +82,7 @@ static bool g_heartbeat_level;
 static uint16_t g_spi_txid = 1u;
 static uint16_t g_active_host_txid;
 static error_record_t g_error;
+static spi_exchange_trace_t g_spi_trace;
 static host_transaction_t g_host_txn;
 static trinity_controller_t g_controller;
 static trinity_deploy_crypto_t g_crypto;
