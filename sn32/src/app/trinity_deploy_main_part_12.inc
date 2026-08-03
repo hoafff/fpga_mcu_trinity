@@ -9,7 +9,8 @@ static void handle_get_system_info(const trinity_pc_frame_t *req) {
 
     rc = full_probe_all();
     if (rc != TRINITY_OK) {
-        response_error(req, rc, g_controller.last_error_source, 0u);
+        response_error(req, rc, g_controller.last_error_source,
+                       (uint16_t)g_controller.last_error_detail);
         return;
     }
     g_pc_rsp.payload_length = 20u;
@@ -46,7 +47,8 @@ static void handle_get_system_status(const trinity_pc_frame_t *req) {
     }
     if (!g_fault) rc = full_refresh_all();
     if (rc != TRINITY_OK) {
-        response_error(req, rc, g_controller.last_error_source, 0u);
+        response_error(req, rc, g_controller.last_error_source,
+                       (uint16_t)g_controller.last_error_detail);
         return;
     }
 
