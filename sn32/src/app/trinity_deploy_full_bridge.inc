@@ -3,3 +3,5 @@
 #include "trinity_deploy_full_bridge_part_02.inc"
 #include "trinity_deploy_full_bridge_part_03.inc"
 #include "trinity_deploy_full_bridge_part_04.inc"
+#include "trinity_deploy_full_bridge_part_05.inc"
+#include "trinity_deploy_full_bridge_part_06.inc"
