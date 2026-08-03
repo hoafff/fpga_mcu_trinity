@@ -24,7 +24,7 @@ static void full_handle_run_self_test(const trinity_pc_frame_t *req) {
     trinity_write_be16(result, test_mask);
     managed_transaction_finish(rc, rc == TRINITY_OK ? result : NULL,
                                rc == TRINITY_OK ? sizeof(result) : 0u);
-    (void)response_send();
+    managed_transaction_respond(req);
 }
 
 static void full_handle_close_session(const trinity_pc_frame_t *req) {
@@ -37,7 +37,7 @@ static void full_handle_close_session(const trinity_pc_frame_t *req) {
     if (!managed_transaction_begin(req)) return;
     rc = trinity_controller_close_session(&g_controller, 20000u);
     managed_transaction_finish(rc, NULL, 0u);
-    (void)response_send();
+    managed_transaction_respond(req);
 }
 
 static void full_handle_zeroize(const trinity_pc_frame_t *req) {
@@ -52,7 +52,7 @@ static void full_handle_zeroize(const trinity_pc_frame_t *req) {
     if (req->payload[0] == TRINITY_ZEROIZE_ALL)
         trinity_deploy_crypto_zeroize(&g_crypto);
     managed_transaction_finish(rc, NULL, 0u);
-    (void)response_send();
+    managed_transaction_respond(req);
 }
 
 static void full_handle_send_telemetry(const trinity_pc_frame_t *req) {
