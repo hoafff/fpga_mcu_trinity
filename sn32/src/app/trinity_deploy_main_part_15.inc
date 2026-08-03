@@ -30,6 +30,9 @@ static void handle_request(const trinity_pc_frame_t *req) {
         case TRINITY_PC_SPI_DIAGNOSTIC:
             handle_spi_diagnostic(req);
             break;
+        case TRINITY_PC_GET_FIRST_SPI_FAILURE:
+            handle_get_first_spi_failure(req);
+            break;
         case TRINITY_PC_GENERATE_KEYPAIR:
             full_handle_generate_keypair(req);
             break;
