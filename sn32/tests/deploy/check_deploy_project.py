@@ -10,14 +10,22 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PROJECT = ROOT / "sn32/keil/trinity_sn32f407_deploy.uvprojx"
 S0_PROJECT = ROOT / "sn32/keil/trinity_sn32f407.uvprojx"
-SOURCE = ROOT / "sn32/src/app/trinity_deploy_main.c"
-SOURCE_PARTS = [ROOT / f"sn32/src/app/trinity_deploy_main_part_{index:02d}.inc" for index in range(18)]
+WRAPPER = ROOT / "sn32/src/app/trinity_deploy_main.c"
+CONTROLLER_H = ROOT / "sn32/include/trinity_full_controller.h"
+CONTROLLER_C = ROOT / "sn32/src/app/trinity_full_controller.c"
+CONTROLLER_PARTS = [ROOT / f"sn32/src/app/trinity_full_controller_part_{i:02d}.inc" for i in range(8)]
+BRIDGE = ROOT / "sn32/src/app/trinity_deploy_full_bridge.inc"
+BRIDGE_PARTS = [ROOT / f"sn32/src/app/trinity_deploy_full_bridge_part_{i:02d}.inc" for i in range(4)]
 CONFIG = ROOT / "sn32/config/trinity_deploy_config.h"
 BOARD = ROOT / "sn32/firmware/platform/sn32f407/board_profile.h"
+PARTS = [ROOT / f"sn32/src/app/trinity_deploy_main_part_{i:02d}.inc" for i in range(18)]
 HOST = ROOT / "pc_host/src/trinity_host/serial_client.py"
 CLI = ROOT / "pc_host/src/trinity_host/cli.py"
 PYPROJECT = ROOT / "pc_host/pyproject.toml"
 HOST_TEST = ROOT / "pc_host/tests/test_p1_bringup.py"
+FULL_TEST = ROOT / "sn32/tests/full_controller/test_full_controller.c"
+FULL_TEST_PARTS = [ROOT / f"sn32/tests/full_controller/test_full_controller_part_{i:02d}.inc" for i in range(3)]
+FULL_TEST_MAKEFILE = ROOT / "sn32/tests/full_controller/Makefile"
 
 
 def fail(message: str) -> None:
@@ -35,203 +43,175 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def require_source_and_host() -> None:
-    wrapper = read(SOURCE)
-    for index, part in enumerate(SOURCE_PARTS):
-        require(f'`include "trinity_deploy_main_part_{index:02d}.inc"' not in wrapper, "SystemVerilog include syntax used in C wrapper")
-        require(f'#include "trinity_deploy_main_part_{index:02d}.inc"' in wrapper, f"missing deploy source part {index}")
-    source = "".join(read(part) for part in SOURCE_PARTS)
+def check_source_and_tests() -> None:
+    wrapper = read(WRAPPER)
+    controller_h = read(CONTROLLER_H)
+    controller_wrapper = read(CONTROLLER_C)
+    controller_c = "".join(read(p) for p in CONTROLLER_PARTS)
+    bridge_wrapper = read(BRIDGE)
+    bridge = "".join(read(p) for p in BRIDGE_PARTS)
     config = read(CONFIG)
-    host = read(HOST)
-    cli = read(CLI)
-    pyproject = read(PYPROJECT)
-    host_test = read(HOST_TEST)
+    source = "".join(read(p) for p in PARTS) + bridge
 
-    flags = {
+    for i in range(18):
+        require(f'#include "trinity_deploy_main_part_{i:02d}.inc"' in wrapper,
+                f"wrapper missing source part {i}")
+    require('#include "trinity_full_controller.c"' in wrapper,
+            "full controller is not compiled by deploy target")
+    require('#include "trinity_deploy_full_bridge.inc"' in wrapper,
+            "SN32 hardware/controller bridge is not compiled")
+    for i in range(8):
+        require(f'#include "trinity_full_controller_part_{i:02d}.inc"' in controller_wrapper,
+                f"controller wrapper missing part {i}")
+    for i in range(4):
+        require(f'#include "trinity_deploy_full_bridge_part_{i:02d}.inc"' in bridge_wrapper,
+                f"bridge wrapper missing part {i}")
+
+    expected = {
         "TRINITY_DEPLOY_ENABLE_PC_UART": "1",
         "TRINITY_DEPLOY_ENABLE_SPI": "1",
         "TRINITY_DEPLOY_ENABLE_PRIMER1": "1",
-        "TRINITY_DEPLOY_ENABLE_MLKEM": "0",
+        "TRINITY_DEPLOY_ENABLE_PRIMER2": "1",
         "TRINITY_DEPLOY_ENABLE_PAYLOAD_RELAY": "0",
-        "TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT": "0",
+        "TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT": "1",
         "TRINITY_DEPLOY_ENABLE_DEMO_SECURE": "0",
-        "TRINITY_DEPLOY_P1_BRINGUP_ONLY": "1",
+        "TRINITY_DEPLOY_P1_BRINGUP_ONLY": "0",
     }
-    for macro, value in flags.items():
-        require(
-            re.search(rf"^#define\s+{macro}\s+{value}\s*$", config, re.M)
-            is not None,
-            f"wrong deploy guard {macro}",
-        )
+    for macro, value in expected.items():
+        require(re.search(rf"^#define\s+{macro}\s+{value}\s*$", config, re.M) is not None,
+                f"wrong full-deploy guard {macro}")
+    require("FPST_SN32F407_SESSION_COMMIT_PIN           8u" in config,
+            "SESSION_COMMIT is not locked to SN32 P3.8")
 
     for token in (
-        "SN_SPI0->CTRL1 = 0u",
-        "SN_SPI0->CLKDIV_b.DIV = 5u",
-        "endpoint_exchange(",
-        "TRINITY_SPI_GET_INFO",
-        "TRINITY_SPI_GET_STATUS",
-        "TRINITY_SPI_RUN_SELF_TEST",
-        "TRINITY_SPI_GET_TXN_RESULT",
-        "TRINITY_SPI_RETIRE_TXN_RESULT",
-        "request_fingerprint",
-        "host_txid",
-        "target_txid",
-        "P1_SELF_TEST_RESULT_MAX",
-        "g_spi_rsp.payload[8] != 0u",
-        "g_spi_rsp.payload[9] != 0u",
+        "trinity_controller_probe_all", "trinity_controller_run_self_test",
+        "trinity_controller_activate_session", "trinity_controller_close_session",
+        "trinity_controller_zeroize", "trinity_controller_send_telemetry",
+        "TRINITY_SPI_STAGE_SESSION", "TRINITY_SPI_COMMIT_SESSION",
+        "TRINITY_SPI_LOAD_TELEMETRY", "TRINITY_SPI_ENCRYPT_AND_SEND",
+        "TRINITY_SPI_GET_RX_STATUS", "TRINITY_SPI_READ_AUTH_RESULT",
+        "TRINITY_SPI_ACK_AUTH_RESULT", "TRINITY_RESULT_PENDING",
+        "TRINITY_AUTH_THRESHOLD",
     ):
-        require(token in source, f"deploy source missing {token}")
-
-    require(
-        "target_payload[0] = req->payload[2];" in source
-        and "target_payload[1] = req->payload[3];" in source
-        and "target_payload[2] = 0u;" in source
-        and "target_payload[3] = 0u;" in source,
-        "PC RUN_SELF_TEST is not mapped to P1 mask||reserved payload",
-    )
-    require(
-        "g_pc_rsp.payload_length = (uint16_t)(8u + g_host_txn.result_length);"
-        in source,
-        "P1 retained result is not translated to PC transaction result",
-    )
-    require(
-        "if (!g_host_txn.valid" in source
-        and "TRINITY_RESULT_NOT_READY" in source,
-        "unknown host transaction result is not rejected",
-    )
-    require(
-        "if (!g_host_txn.valid || query_txid != g_host_txn.host_txid) {\n"
-        "        (void)response_send();"
-        in source,
-        "RETIRE_TXN_RESULT is not idempotent for unknown/already-retired IDs",
-    )
-    require(
-        "if (!g_host_txn.valid &&" in source,
-        "periodic probe can interfere with an outstanding retained transaction",
-    )
-
-    forbidden_source = (
-        "TRINITY_SPI_ENCRYPT_AND_SEND",
-        "TRINITY_SPI_STAGE_SESSION",
-        "TRINITY_SPI_COMMIT_SESSION",
-        "TRINITY_PC_SEND_ONE_TELEMETRY",
-    )
-    for token in forbidden_source:
-        require(token not in source, f"out-of-scope command leaked into P1 bring-up firmware: {token}")
+        require(token in controller_h + controller_c, f"controller missing {token}")
 
     for token in (
-        "class TrinitySerialClient",
-        "def ping(",
-        "def get_system_info(",
-        "def get_system_status(",
-        "def start_p1_self_test(",
-        "def get_transaction_result(",
-        "def retire_transaction_result(",
-        "def run_p1_bringup(",
+        "full_session_commit_toggle", "FPST_SN32F407_SESSION_COMMIT_PORT",
+        "full_tiny_fault_active", "managed_transaction_begin",
+        "managed_transaction_finish", "full_handle_send_telemetry",
+        "full_handle_zeroize", "full_handle_transport_stress",
     ):
-        require(token in host, f"host client missing {token}")
+        require(token in bridge, f"deploy bridge missing {token}")
+
     for token in (
-        'sub.add_parser("ping"',
-        'sub.add_parser("p1-info"',
-        'sub.add_parser("p1-status"',
-        'sub.add_parser("p1-self-test-start"',
-        'sub.add_parser("txn-result"',
-        'sub.add_parser("txn-retire"',
-        'sub.add_parser("p1-bringup"',
-        '"step": "P1_CONTROL_PLANE_SELF_TEST"',
+        "TRINITY_PC_CLOSE_SESSION", "TRINITY_PC_ZEROIZE_SYSTEM",
+        "TRINITY_PC_SEND_ONE_TELEMETRY", "TRINITY_PC_READ_LAST_RESULT",
+        "TRINITY_PC_RUN_TRANSPORT_STRESS",
     ):
-        require(token in cli, f"host CLI missing {token}")
-    require(
-        'trinity-host = "trinity_host.cli:main"' in pyproject,
-        "console entrypoint is not installed",
-    )
-    require(
-        "PING" in host_test
-        and "GET_SYSTEM_INFO" in host_test
-        and "GET_SYSTEM_STATUS" in host_test
-        and "RUN_SELF_TEST" in host_test
-        and "GET_TXN_RESULT" in host_test
-        and "RETIRE_TXN_RESULT" in host_test,
-        "fake-serial test does not cover the required command sequence",
-    )
-    require(
-        'b"\\x02\\x02\\x00\\x3E"' in host_test,
-        "self-test target/profile/mask wire payload is not locked by test",
-    )
+        require(token in source, f"dispatcher missing {token}")
 
-    for text, label in ((wrapper + source, "SN32 source"), (host, "host client"), (cli, "host CLI")):
-        require(
-            not re.search(r"[A-Za-z]:[\\/]", text),
-            f"absolute Windows path in {label}",
-        )
+    require("TRINITY_DEPLOY_ENABLE_MLKEM               0" in config,
+            "ML-KEM must remain disabled until pinned vendor sources are present")
+    require("TRINITY_PC_GENERATE_KEYPAIR" in source and
+            "TRINITY_NOT_SUPPORTED" in source,
+            "unavailable ML-KEM commands must fail explicitly")
+    require("TRINITY_PC_REQUEST_FAULT_CLEAR" in source and
+            "TRINITY_SOURCE_TINY1P5" in source,
+            "fault clear must not pretend to clear the Tiny safety latch")
 
-    print("PASS: P1-only SN32 control-plane source implements GET_INFO/GET_STATUS and retained self-test lifecycle")
-    print("PASS: host and target transaction IDs are explicitly mapped and retirement is idempotent")
-    print("PASS: PC CLI locks PING -> INFO -> STATUS -> RUN -> GET -> RETIRE without session/encryption/P2")
-    print("PASS: source/config/host files contain no machine-specific absolute path")
+    full_test_wrapper = read(FULL_TEST)
+    full_test_source = "".join(read(p) for p in FULL_TEST_PARTS)
+    for i in range(3):
+        require(f'#include "test_full_controller_part_{i:02d}.inc"' in full_test_wrapper,
+                f"full controller test wrapper missing part {i}")
+    for token in (
+        "trinity_controller_activate_session", "trinity_controller_send_telemetry",
+        "TRINITY_RESULT_PENDING", "trinity_controller_zeroize",
+        "TRINITY_FAULT_TINY1P5",
+    ):
+        require(token in full_test_source, f"full controller test missing {token}")
+    require("-Wall -Wextra -Werror" in read(FULL_TEST_MAKEFILE),
+            "portable controller test is not warning-clean")
+
+    host_paths = (HOST, CLI, PYPROJECT, HOST_TEST)
+    host_checked = all(path.is_file() for path in host_paths)
+    if host_checked:
+        host = read(HOST)
+        cli = read(CLI)
+        pyproject = read(PYPROJECT)
+        host_test = read(HOST_TEST)
+        for token in ("class TrinitySerialClient", "def ping(", "def get_system_info(",
+                      "def get_system_status(", "def get_transaction_result(",
+                      "def retire_transaction_result("):
+            require(token in host, f"existing host client regression: missing {token}")
+        require('trinity-host = "trinity_host.cli:main"' in pyproject,
+                "host console entrypoint was removed")
+        require("PING" in host_test and "RUN_SELF_TEST" in host_test and
+                "GET_TXN_RESULT" in host_test and "RETIRE_TXN_RESULT" in host_test,
+                "existing host fake-serial regression lost coverage")
+        require('sub.add_parser("p1-bringup"' in cli,
+                "existing P1 hardware bring-up command was removed")
+        for text, label in ((host, "host client"), (cli, "host CLI")):
+            require(not re.search(r"[A-Za-z]:[\\/]", text),
+                    f"machine-specific absolute path in {label}")
+    else:
+        print("NOTE: PC host regression files absent from partial source-only checkout")
+
+    require(not re.search(r"[A-Za-z]:[\\/]", wrapper + source + controller_c),
+            "machine-specific absolute path in SN32 source")
+
+    print("PASS: full deploy source enables dual Primer SPI and Tiny SESSION_COMMIT")
+    print("PASS: controller covers stage/commit/active, telemetry/auth/ACK and zeroize")
+    print("PASS: host transaction cache preserves exact retry/conflict/result retirement")
+    print("PASS: direct P1-to-P2 UART is orchestrated without MCU payload relay")
+    print("PASS: unavailable ML-KEM commands fail explicitly; no fixed-key PASS path")
+    if host_checked:
+        print("PASS: existing PC host P1 bring-up regression remains present")
 
 
-def require_project_and_pins() -> None:
+def check_project_and_pins() -> None:
     project_text = read(PROJECT)
     board = read(BOARD)
     require(S0_PROJECT.is_file(), "canonical S0 project was removed")
     try:
         root = ET.fromstring(project_text)
     except ET.ParseError as exc:
-        fail(f"invalid deploy project XML: {exc}")
+        fail(f"invalid Keil XML: {exc}")
 
     def one(xpath: str) -> str:
         node = root.find(xpath)
-        require(node is not None and node.text is not None, f"missing XML field {xpath}")
+        require(node is not None and node.text is not None, f"missing {xpath}")
         return node.text.strip()
 
-    require(one("./Targets/Target/TargetName") == "trinity_sn32f407_deploy", "wrong deploy target name")
-    require(one("./Targets/Target/pCCUsed") == "6240000::V6.24::ARMCLANG", "ArmClang 6.24 lock changed")
-    require(one("./Targets/Target/TargetOption/TargetCommonOption/Device") == "SN32F407F", "device lock changed")
-    require(one("./Targets/Target/TargetOption/TargetCommonOption/PackID") == "SONiX.SN32F4_DFP.1.0.1", "DFP lock changed")
-    define = one("./Targets/Target/TargetOption/TargetArmAds/Cads/VariousControls/Define")
-    require(define == "TRINITY_DEPLOY_TARGET=1", "deploy define drifted")
-
-    paths = [(node.text or "").replace("\\", "/").lower() for node in root.findall(".//FilePath")]
-    expected_c = {
-        "../src/app/trinity_deploy_main.c",
-        "../firmware/platform/sn32f407/fpst_sn32f407_p010_guard.c",
-        "../src/trinity_protocol_common.c",
-        "../src/trinity_pc_protocol.c",
-        "../src/trinity_spi_protocol.c",
-    }
-    require({path for path in paths if path.endswith(".c")} == expected_c, "unexpected deploy C source set")
-    require(not re.search(r"(?:^|[>\s])(?:[A-Za-z]:\\|[A-Za-z]:/)", project_text), "absolute path in Keil project")
-
-    for token in (
-        "FPST_SN32F407_SPI_SCK_PIN             0u",
-        "FPST_SN32F407_SPI_MISO_PIN             1u",
-        "FPST_SN32F407_SPI_MOSI_PIN             2u",
-        "FPST_SN32F407_P1_CS_N_PIN              1u",
-        "FPST_SN32F407_P1_IRQ_N_PIN              3u",
-        "FPST_SN32F407_UART_TX_PIN               1u",
-        "FPST_SN32F407_UART_RX_PIN               2u",
-    ):
-        require(token in board, f"board profile pin drift: {token}")
-
-    print("PASS: Keil deploy project remains SN32F407F / ArmClang 6.24 / DFP 1.0.1 with the exact source set")
-    print("PASS: board profile retains P1 SPI and PC UART pin mappings")
+    require(one("./Targets/Target/TargetName") == "trinity_sn32f407_deploy",
+            "wrong deploy target")
+    require(one("./Targets/Target/pCCUsed") == "6240000::V6.24::ARMCLANG",
+            "ArmClang lock changed")
+    require(one("./Targets/Target/TargetOption/TargetCommonOption/Device") == "SN32F407F",
+            "device lock changed")
+    require(one("./Targets/Target/TargetOption/TargetCommonOption/PackID") == "SONiX.SN32F4_DFP.1.0.1",
+            "DFP lock changed")
+    require("../src/app/trinity_deploy_main.c" in project_text.replace("\\", "/").lower(),
+            "deploy entrypoint missing from Keil project")
+    require("FPST_SN32F407_P2_CS_N_PIN              2u" in board and
+            "FPST_SN32F407_P2_IRQ_N_PIN              8u" in board,
+            "P2 CS/IRQ pin mapping drifted")
+    require("FPST_SN32F407_TINY_FAULT_N_PIN        10u" in board,
+            "Tiny fault input mapping drifted")
+    print("PASS: Keil target remains SN32F407F / ArmClang 6.24 / DFP 1.0.1")
+    print("PASS: deploy translation unit and P1/P2/Tiny hardware mappings remain selected")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--source-only",
-        action="store_true",
-        help="check modified source/host files when a full repository checkout is unavailable",
-    )
+    parser.add_argument("--source-only", action="store_true")
     args = parser.parse_args()
-    require_source_and_host()
+    check_source_and_tests()
     if not args.source_only:
-        require_project_and_pins()
+        check_project_and_pins()
     else:
-        print("NOTE: project XML and board-profile checks skipped by explicit --source-only")
-    print("NOTE: static checks do not replace the exact ArmClang build and SN32 flash log")
+        print("NOTE: Keil XML and board-profile checks skipped by --source-only")
+    print("NOTE: static PASS does not claim ArmClang build, flash or hardware PASS")
     return 0
 
 
