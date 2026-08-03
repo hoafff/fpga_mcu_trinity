@@ -19,6 +19,7 @@ static void full_controller_bind(void) {
         full_tiny_fault_active
     };
     g_session_commit_level = false;
+    g_tiny_fault_contained = false;
     gpio_write(FPST_SN32F407_SESSION_COMMIT_PORT,
                FPST_SN32F407_SESSION_COMMIT_PIN, false);
     gpio_set_mode(FPST_SN32F407_SESSION_COMMIT_PORT,
