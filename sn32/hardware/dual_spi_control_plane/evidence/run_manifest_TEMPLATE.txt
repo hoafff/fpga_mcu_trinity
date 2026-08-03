@@ -1,0 +1,101 @@
+SN32 -> P1/P2 dual-SPI control-plane hardware evidence manifest
+
+DECISION
+result: PENDING
+permitted statement after complete audit:
+SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
+
+SOURCE IDENTITY
+repository_commit:
+mlkem_submodule_commit: 048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
+sn32_architecture_version: 0.7.1
+sn32_build_id: 0x00070001
+
+SN32 BUILD AND FLASH
+armclang_version: 6.24
+program_size_line:
+flash_used_bytes:
+flash_capacity_bytes: 32764
+ram_used_bytes:
+ram_capacity_bytes: 8192
+build_errors:
+build_warnings:
+axf_sha256:
+hex_sha256:
+snlink_program_result:
+snlink_verify_result:
+
+PRIMER IDENTITIES
+primer1_source_commit:
+primer1_bitstream_sha256:
+primer1_build_id: 0x50310001
+primer2_source_commit:
+primer2_bitstream_sha256:
+primer2_build_id: 0x50320001
+
+HARDWARE
+sn32_board_identity:
+primer1_board_identity:
+primer2_board_identity:
+ft232_identity:
+com_port:
+spi_frequency_hz: 100000
+spi_mode: 0
+spi_bit_order: MSB_FIRST
+common_ground_confirmed:
+independent_3v3_rails_not_joined:
+
+SAFETY STRAPS ON BOTH PRIMERS
+zeroize_ni_R11_to_3v3:
+fatal_latched_i_R12_to_gnd:
+secure_enable_i_T12_to_gnd:
+tiny_disconnected:
+sn32_p3_8_session_commit_disconnected:
+p1_r13_to_p2_r13_uart_disconnected:
+
+WIRING
+sn32_p1_0_sck_to_p1_p16_and_p2_p16:
+sn32_p1_2_mosi_to_p1_p15_and_p2_p15:
+sn32_p1_1_miso_from_p1_t15_and_p2_t15:
+sn32_p2_1_cs_to_p1_r14:
+sn32_p2_2_cs_to_p2_r14:
+sn32_p2_3_irq_from_p1_t14:
+sn32_p2_8_irq_from_p2_t14:
+miso_released_when_each_cs_high:
+
+COMMAND EVIDENCE
+standalone_ping_log:
+system_info_log:
+system_status_before_log:
+dual_spi_bringup_log:
+system_status_after_log:
+wiring_photo:
+
+ACCEPTANCE RESULTS
+v0_7_1_exact_keil_rebuild:
+v0_7_1_snlink_program_verify:
+v0_7_1_standalone_uart_ping:
+p1_get_info_identity:
+p2_get_info_identity:
+p1_p2_ready_mask:
+p1_retained_kat_0x013e:
+p1_result_retirement:
+p2_retained_kat_0x03e3:
+p2_result_retirement:
+final_ready_mask_sn32_p1_p2:
+final_fault_flags_zero:
+miso_contention_absent:
+abnormal_heating_absent:
+
+EXPLICIT NON-CLAIMS
+session_stage_commit_hardware: PENDING
+direct_uart_under_sn32_orchestration: PENDING
+authenticated_telemetry_via_sn32: PENDING
+mlkem_live_session_hardware: PENDING
+tiny_safety_integration: PENDING
+full_system_qualification: PENDING
+hardware_qualified: false
+full_system_hardware_qualified: false
+
+FAILURE NOTES
+Record every failed attempt and corrective action here, even if a later retry passes.
