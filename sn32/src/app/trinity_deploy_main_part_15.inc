@@ -27,6 +27,12 @@ static void handle_request(const trinity_pc_frame_t *req) {
         case TRINITY_PC_RETIRE_TXN_RESULT:
             handle_retire_txn_result(req);
             break;
+        case TRINITY_PC_GENERATE_KEYPAIR:
+            full_handle_generate_keypair(req);
+            break;
+        case TRINITY_PC_CREATE_SESSION:
+            full_handle_create_session(req);
+            break;
         case TRINITY_PC_CLOSE_SESSION:
             full_handle_close_session(req);
             break;
@@ -46,8 +52,6 @@ static void handle_request(const trinity_pc_frame_t *req) {
             response_error(req, TRINITY_NOT_SUPPORTED,
                            TRINITY_SOURCE_TINY1P5, 0u);
             break;
-        case TRINITY_PC_GENERATE_KEYPAIR:
-        case TRINITY_PC_CREATE_SESSION:
         case TRINITY_PC_RUN_DEMO:
         case TRINITY_PC_RUN_NTT_TEST:
         case TRINITY_PC_RUN_ASCON_TEST:
