@@ -25,7 +25,7 @@ class FakeDiagnosticSerial:
         self.response_bytes = bytes.fromhex(
             "A5 01 01 01 12 34 00 0C "
             "02 01 00 00 1E 0F 50 32 00 01 00 00 22 22"
-        ) + bytes(76 - 22)
+        )
 
     def write(self, data: bytes) -> int:
         request = HostFrame.decode_wire(data)
@@ -100,6 +100,7 @@ class SpiDiagnosticTests(unittest.TestCase):
         self.assertTrue(trace.irq_after_response)
         self.assertEqual(trace.request_bytes, fake.request_bytes)
         self.assertEqual(trace.response_bytes, fake.response_bytes)
+        self.assertEqual(trace.response_capture_length, 22)
         self.assertEqual(trace.response_frame_length, 22)
 
     def test_side_effect_command_is_rejected_locally(self) -> None:
