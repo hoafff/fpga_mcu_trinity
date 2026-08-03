@@ -1,11 +1,3 @@
-    if (g_error.code == TRINITY_FRAME_TIMEOUT ||
-        g_error.code == TRINITY_BAD_MAGIC ||
-        g_error.code == TRINITY_BAD_CRC ||
-        g_error.code == TRINITY_TRANSACTION_CONFLICT)
-        mask |= TRINITY_FAULT_TRANSPORT;
-    return mask;
-}
-
 static uint8_t system_state(void) {
     if (g_fault) return (uint8_t)TRINITY_SYSTEM_ERROR;
     return (uint8_t)g_controller.state;
