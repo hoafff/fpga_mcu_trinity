@@ -1,6 +1,9 @@
 # Immutable Gate 3 upstream pin
-# Import requested after the full SN32 controller integration on 2026-08-03.
+source_mode=git-submodule
 repository=https://github.com/pq-code-package/mlkem-native
 tag=v1.0.0
 commit=048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
-archive_sha256=PENDING_FIRST_IMPORT
+path=sn32/third_party/mlkem-native/upstream
+keil_source=mlkem/mlkem_native.c
+parameter_set=512
+namespace=trinity_mlkem512
