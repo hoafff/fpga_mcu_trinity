@@ -11,6 +11,7 @@ on:
       - sn32/docs/FULL_DEPLOY_SOURCE_HANDOFF.md
       - sn32/include/**
       - sn32/src/**
+      - sn32/keil/RTE/**
       - sn32/keil/trinity_sn32f407_deploy.uvprojx
       - sn32/third_party/mlkem-native/VENDOR.lock
       - sn32/third_party/mlkem-native/upstream
@@ -65,6 +66,7 @@ jobs:
           PYTHONPATH=pc_host/src python -m unittest discover -s pc_host/tests -v
       - name: Deploy project and repository static gates
         run: |
+          python sn32/tests/deploy/check_inc_boundaries.py
           python sn32/tests/deploy/check_deploy_project.py
           python sn32/tests/s0/check_s0_project.py
           python ai_context/scripts/check_repository_layout.py
