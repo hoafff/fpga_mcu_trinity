@@ -25,13 +25,24 @@
 
 int main(void) {
     uint32_t last_probe;
+    trinity_error_code_t startup_rc;
+    trinity_source_t startup_source = TRINITY_SOURCE_PRIMER1;
     SystemInit();
     SystemCoreClockUpdate();
     if (hardware_init() != TRINITY_OK) {
         for (;;) __NOP();
     }
 
-    (void)full_probe_all();
+    startup_rc = spi_drain_startup_mailbox(&g_p1);
+    if (startup_rc == TRINITY_OK) {
+        startup_source = TRINITY_SOURCE_PRIMER2;
+        startup_rc = spi_drain_startup_mailbox(&g_p2);
+    }
+    if (startup_rc == TRINITY_OK) {
+        (void)full_probe_all();
+    } else {
+        set_error(startup_rc, startup_source, 0u);
+    }
     progress();
     last_probe = g_ms;
 
