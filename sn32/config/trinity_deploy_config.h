@@ -9,8 +9,10 @@
 #define TRINITY_DEPLOY_ENABLE_SPI                1
 #define TRINITY_DEPLOY_ENABLE_PRIMER1            1
 #define TRINITY_DEPLOY_ENABLE_PRIMER2            1
-/* Enabled only after the exact pinned vendor tree is present in the Keil target. */
+/* Default remains off until the exact pinned vendor tree is selected by Keil. */
+#ifndef TRINITY_DEPLOY_ENABLE_MLKEM
 #define TRINITY_DEPLOY_ENABLE_MLKEM               0
+#endif
 /* P1 drives the qualified direct UART link to P2; SN32 never relays payload. */
 #define TRINITY_DEPLOY_ENABLE_PAYLOAD_RELAY       0
 #define TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT 1
