@@ -15,7 +15,8 @@ static void full_controller_bind(void) {
         full_exchange,
         full_now_ms,
         full_progress,
-        full_session_commit_toggle,
+        full_session_commit_low,
+        full_session_commit_high,
         full_tiny_fault_active
     };
     g_session_commit_level = false;
