@@ -28,14 +28,6 @@ static bool request_length_is(const trinity_pc_frame_t *req, uint16_t length) {
     return req != NULL && req->payload_length == length;
 }
 
-static void refresh_p1_status_best_effort(void) {
-    const trinity_error_code_t rc = endpoint_get_status(&g_p1);
-    if (rc != TRINITY_OK) {
-        g_p1.ready = false;
-        g_p1.last_error = (uint16_t)rc;
-    }
-}
-
 static void handle_ping(const trinity_pc_frame_t *req) {
     if (!request_length_is(req, 0u)) {
         response_error(req, TRINITY_BAD_LENGTH, TRINITY_SOURCE_HOST_PROTOCOL, 0u);
@@ -50,11 +42,5 @@ static void handle_get_system_info(const trinity_pc_frame_t *req) {
     trinity_error_code_t rc;
     if (!request_length_is(req, 0u)) {
         response_error(req, TRINITY_BAD_LENGTH, TRINITY_SOURCE_HOST_PROTOCOL, 0u);
-        return;
-    }
-    rc = endpoint_get_info(&g_p1);
-    if (rc != TRINITY_OK) {
-        g_p1.ready = false;
-        response_error(req, rc, TRINITY_SOURCE_PRIMER1, 0u);
         return;
     }
