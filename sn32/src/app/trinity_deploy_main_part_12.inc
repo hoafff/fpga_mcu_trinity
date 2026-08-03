@@ -1,3 +1,12 @@
+static void handle_get_system_info(const trinity_pc_frame_t *req) {
+    trinity_error_code_t rc;
+
+    if (!request_length_is(req, 0u)) {
+        response_error(req, TRINITY_BAD_LENGTH,
+                       TRINITY_SOURCE_HOST_PROTOCOL, 0u);
+        return;
+    }
+
     rc = full_probe_all();
     if (rc != TRINITY_OK) {
         response_error(req, rc, g_controller.last_error_source, 0u);
