@@ -36,7 +36,7 @@ static bool spi_trace_is_startup_reset_residue(
     if (trace->result_code != TRINITY_BAD_LENGTH ||
         trace->command != 0u || trace->target_txid != 0u ||
         trace->request_length != 0u ||
-        trace->response_capture_length != TRINITY_SPI_MAX_PACKET ||
+        trace->response_capture_length != 16u ||
         trace->response_frame_length != 16u ||
         trace->response_crc_received != trace->response_crc_calculated)
         return false;
@@ -61,10 +61,73 @@ static void spi_record_startup_residue(void) {
     }
 }
 
+/*
+ * Read the eight-byte header and its declared payload/CRC without releasing CS.
+ * The Primer mailbox resets its byte index on a new CS assertion, so the two
+ * phases must share one assertion. Clocking only the declared frame also avoids
+ * an artificial 76-byte tail after IRQ has already been released.
+ */
+static trinity_error_code_t spi_capture_response(endpoint_t *ep,
+                                                  size_t *response_len) {
+    trinity_error_code_t rc;
+    uint16_t payload_length;
+    size_t frame_len = 0u;
+    size_t captured = 0u;
+
+    if (ep == NULL || response_len == NULL) return TRINITY_BAD_STATE;
+    *response_len = 0u;
+    memset(g_spi_buf, 0, sizeof(g_spi_buf));
+
+    g_spi_trace.irq_before_response = irq_active(ep);
+    rc = spi_select(ep);
+    if (rc == TRINITY_OK) {
+        rc = spi_bytes_segment(NULL, g_spi_buf,
+                               TRINITY_SPI_HEADER_SIZE,
+                               0u, TRINITY_SPI_HEADER_SIZE, true);
+    }
+
+    if (rc == TRINITY_OK) {
+        g_spi_trace.command = g_spi_buf[2];
+        g_spi_trace.target_txid = trinity_read_be16(&g_spi_buf[4]);
+        if (g_spi_buf[0] != TRINITY_SPI_MAGIC) {
+            rc = TRINITY_BAD_MAGIC;
+        } else if (g_spi_buf[1] != TRINITY_PROTOCOL_VERSION) {
+            rc = TRINITY_BAD_VERSION;
+        } else {
+            payload_length = trinity_read_be16(&g_spi_buf[6]);
+            if (payload_length > TRINITY_SPI_MAX_PAYLOAD) {
+                rc = TRINITY_BAD_LENGTH;
+            } else {
+                frame_len = TRINITY_SPI_HEADER_SIZE + payload_length +
+                            TRINITY_SPI_CRC_SIZE;
+                g_spi_trace.response_frame_length = (uint16_t)frame_len;
+                rc = spi_bytes_segment(
+                    NULL, &g_spi_buf[TRINITY_SPI_HEADER_SIZE],
+                    frame_len - TRINITY_SPI_HEADER_SIZE,
+                    TRINITY_SPI_HEADER_SIZE, frame_len, false);
+                if (rc == TRINITY_OK) *response_len = frame_len;
+            }
+        }
+    }
+
+    spi_end();
+    wait_ms(SPI_RESPONSE_SETTLE_MS);
+    g_spi_trace.irq_after_response = irq_active(ep);
+
+    if (g_spi_trace.valid) {
+        captured = g_spi_trace.transfer_completed;
+        if (captured > TRINITY_SPI_MAX_PACKET)
+            captured = TRINITY_SPI_MAX_PACKET;
+        g_spi_trace.response_capture_length = (uint16_t)captured;
+        if (captured != 0u)
+            memcpy(g_spi_trace.response_bytes, g_spi_buf, captured);
+    }
+    return rc;
+}
+
 static trinity_error_code_t spi_drain_startup_mailbox(endpoint_t *ep) {
     trinity_error_code_t rc;
     trinity_error_code_t decode_rc;
-    uint16_t response_payload_length;
     size_t response_len;
     unsigned attempt;
     if (ep == NULL) return TRINITY_BAD_STATE;
@@ -72,62 +135,31 @@ static trinity_error_code_t spi_drain_startup_mailbox(endpoint_t *ep) {
 
     for (attempt = 0u; attempt < 3u; ++attempt) {
         spi_trace_begin(ep, 0u, 0u, 0u);
-        g_spi_trace.irq_before_response = irq_active(ep);
-        rc = spi_select(ep);
-        if (rc == TRINITY_OK)
-            rc = spi_bytes(NULL, g_spi_buf, TRINITY_SPI_MAX_PACKET);
-        spi_end();
-        wait_ms(SPI_RESPONSE_SETTLE_MS);
-        g_spi_trace.irq_after_response = irq_active(ep);
+        rc = spi_capture_response(ep, &response_len);
         if (rc != TRINITY_OK) {
             g_spi_trace.result_code = rc;
             spi_latch_first_failure();
             return rc;
         }
 
-        g_spi_trace.response_capture_length = TRINITY_SPI_MAX_PACKET;
-        memcpy(g_spi_trace.response_bytes, g_spi_buf,
-               TRINITY_SPI_MAX_PACKET);
-        if (g_spi_buf[0] != TRINITY_SPI_MAGIC) {
-            g_spi_trace.result_code = TRINITY_BAD_MAGIC;
+        g_spi_trace.response_crc_received =
+            trinity_read_be16(&g_spi_buf[response_len - 2u]);
+        g_spi_trace.response_crc_calculated =
+            trinity_crc16_ccitt_false(g_spi_buf, response_len - 2u);
+        decode_rc = trinity_spi_decode(g_spi_buf, response_len, &g_spi_rsp);
+        if (decode_rc != TRINITY_OK) {
+            g_spi_trace.result_code = decode_rc;
             spi_latch_first_failure();
-        } else if (g_spi_buf[1] != TRINITY_PROTOCOL_VERSION) {
-            g_spi_trace.result_code = TRINITY_BAD_VERSION;
-            spi_latch_first_failure();
-        } else {
-            response_payload_length = trinity_read_be16(&g_spi_buf[6]);
-            if (response_payload_length > TRINITY_SPI_MAX_PAYLOAD) {
-                g_spi_trace.result_code = TRINITY_BAD_LENGTH;
+        } else if ((g_spi_rsp.flags & TRINITY_FLAG_ERROR) != 0u) {
+            g_spi_trace.result_code =
+                g_spi_rsp.payload_length >= 2u
+                    ? (trinity_error_code_t)trinity_read_be16(
+                          g_spi_rsp.payload)
+                    : TRINITY_BAD_LENGTH;
+            if (spi_trace_is_startup_reset_residue(&g_spi_trace))
+                spi_record_startup_residue();
+            else
                 spi_latch_first_failure();
-            } else {
-                response_len = TRINITY_SPI_HEADER_SIZE +
-                               response_payload_length +
-                               TRINITY_SPI_CRC_SIZE;
-                g_spi_trace.command = g_spi_buf[2];
-                g_spi_trace.target_txid =
-                    trinity_read_be16(&g_spi_buf[4]);
-                g_spi_trace.response_frame_length = (uint16_t)response_len;
-                g_spi_trace.response_crc_received =
-                    trinity_read_be16(&g_spi_buf[response_len - 2u]);
-                g_spi_trace.response_crc_calculated =
-                    trinity_crc16_ccitt_false(g_spi_buf, response_len - 2u);
-                decode_rc = trinity_spi_decode(g_spi_buf, response_len,
-                                               &g_spi_rsp);
-                if (decode_rc != TRINITY_OK) {
-                    g_spi_trace.result_code = decode_rc;
-                    spi_latch_first_failure();
-                } else if ((g_spi_rsp.flags & TRINITY_FLAG_ERROR) != 0u) {
-                    g_spi_trace.result_code =
-                        g_spi_rsp.payload_length >= 2u
-                            ? (trinity_error_code_t)trinity_read_be16(
-                                  g_spi_rsp.payload)
-                            : TRINITY_BAD_LENGTH;
-                    if (spi_trace_is_startup_reset_residue(&g_spi_trace))
-                        spi_record_startup_residue();
-                    else
-                        spi_latch_first_failure();
-                }
-            }
         }
 
         if (!irq_active(ep)) return TRINITY_OK;
@@ -178,12 +210,6 @@ static trinity_error_code_t endpoint_exchange(
     g_spi_trace.irq_after_request = irq_active(ep);
     if (rc != TRINITY_OK) goto failed;
 
-    /*
-     * The Primer mailbox restarts at byte zero on every CS falling edge. Read
-     * the complete maximum packet under one CS assertion, then decode only the
-     * frame length declared by its header. Splitting header and payload across
-     * two CS assertions corrupts every response longer than eight bytes.
-     */
     wait_ms(SPI_RESPONSE_SETTLE_MS);
     while (!expired(wait_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS)) {
         if (!irq_active(ep)) {
@@ -191,15 +217,5 @@ static trinity_error_code_t endpoint_exchange(
             continue;
         }
 
-        g_spi_trace.irq_before_response = irq_active(ep);
-        rc = spi_select(ep);
-        if (rc == TRINITY_OK)
-            rc = spi_bytes(NULL, g_spi_buf, TRINITY_SPI_MAX_PACKET);
-        spi_end();
-        wait_ms(SPI_RESPONSE_SETTLE_MS);
-        g_spi_trace.irq_after_response = irq_active(ep);
+        rc = spi_capture_response(ep, &response_len);
         if (rc != TRINITY_OK) goto failed;
-
-        g_spi_trace.response_capture_length = TRINITY_SPI_MAX_PACKET;
-        memcpy(g_spi_trace.response_bytes, g_spi_buf,
-               TRINITY_SPI_MAX_PACKET);
