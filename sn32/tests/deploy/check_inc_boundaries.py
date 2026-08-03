@@ -23,7 +23,7 @@ EXPECTED_STACKS = (
     "{{",  # 07 -> endpoint_exchange while loop continues
     "",    # 08 -> endpoint_exchange complete
     "",    # 09 -> standalone retired-helper marker
-    "{(",  # 10 -> response_send and encode call continue
+    "{",   # 10 -> response_send continues
     "",    # 11 -> response_send and handle_ping complete
     "{",   # 12 -> handle_run_self_test continues
     "",    # 13 -> self-test and transaction-result handlers complete
