@@ -31,15 +31,17 @@ static void handle_spi_diagnostic(const trinity_pc_frame_t *req) {
     endpoint_t *ep;
     trinity_error_code_t rc;
     uint8_t irq_flags = 0u;
+    uint8_t target_id;
+    uint8_t command;
     uint16_t offset = 24u;
-    const uint8_t target_id = req->payload[0];
-    const uint8_t command = req->payload[1];
 
     if (!request_length_is(req, 2u)) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_HOST_PROTOCOL, 0u);
         return;
     }
+    target_id = req->payload[0];
+    command = req->payload[1];
     if ((target_id != TRINITY_TARGET_PRIMER1 &&
          target_id != TRINITY_TARGET_PRIMER2) ||
         (command != TRINITY_SPI_GET_INFO &&
