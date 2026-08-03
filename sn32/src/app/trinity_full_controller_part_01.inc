@@ -1,9 +1,18 @@
     if (endpoint->target_id == TRINITY_TARGET_PRIMER1) {
         if ((endpoint->capabilities & TRINITY_CONTROLLER_P1_CAPABILITIES) !=
-            TRINITY_CONTROLLER_P1_CAPABILITIES)
+            TRINITY_CONTROLLER_P1_CAPABILITIES) {
+            controller_latch_error(controller, TRINITY_NOT_SUPPORTED,
+                                   controller_source(endpoint->target_id),
+                                   ((uint32_t)TRINITY_SPI_GET_INFO << 16) |
+                                   issued_txid);
             return TRINITY_NOT_SUPPORTED;
+        }
     } else if ((endpoint->capabilities & TRINITY_CONTROLLER_P2_CAPABILITIES) !=
                TRINITY_CONTROLLER_P2_CAPABILITIES) {
+        controller_latch_error(controller, TRINITY_NOT_SUPPORTED,
+                               controller_source(endpoint->target_id),
+                               ((uint32_t)TRINITY_SPI_GET_INFO << 16) |
+                               issued_txid);
         return TRINITY_NOT_SUPPORTED;
     }
     return TRINITY_OK;
@@ -14,14 +23,21 @@ static trinity_error_code_t controller_get_status(
     trinity_controller_endpoint_t *endpoint) {
     uint8_t response[16];
     uint16_t response_length = 0u;
+    uint16_t issued_txid = 0u;
     trinity_error_code_t rc = controller_exchange(
         controller, endpoint->target_id, TRINITY_SPI_GET_STATUS,
-        NULL, 0u, response, sizeof(response), &response_length, NULL);
+        NULL, 0u, response, sizeof(response), &response_length, &issued_txid);
     if (rc != TRINITY_OK) {
         endpoint->ready = false;
         return rc;
     }
-    if (response_length != sizeof(response)) return TRINITY_BAD_LENGTH;
+    if (response_length != sizeof(response)) {
+        controller_latch_error(controller, TRINITY_BAD_LENGTH,
+                               controller_source(endpoint->target_id),
+                               ((uint32_t)TRINITY_SPI_GET_STATUS << 16) |
+                               issued_txid);
+        return TRINITY_BAD_LENGTH;
+    }
     endpoint->session_state = response[0];
     endpoint->operation_state = response[1];
     endpoint->pending_flags = response[2];
@@ -48,12 +64,7 @@ static trinity_error_code_t controller_probe_endpoint(
     endpoint->ready = false;
     rc = controller_get_info(controller, endpoint);
     if (rc == TRINITY_OK) rc = controller_get_status(controller, endpoint);
-    if (rc != TRINITY_OK) {
-        endpoint->last_error = (uint16_t)rc;
-        controller_latch_error(controller, rc,
-                               controller_source(endpoint->target_id),
-                               endpoint->target_id);
-    }
+    if (rc != TRINITY_OK) endpoint->last_error = (uint16_t)rc;
     return rc;
 }
 
