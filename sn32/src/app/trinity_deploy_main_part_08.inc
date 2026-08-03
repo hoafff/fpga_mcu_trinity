@@ -40,21 +40,3 @@ failed:
     set_error(rc, endpoint_source(ep), ((uint32_t)command << 16) | txid);
     return rc;
 }
-
-static void endpoint_clear(endpoint_t *ep) {
-    if (ep == NULL) return;
-    ep->ready = false;
-    ep->capabilities = 0u;
-    ep->build_id = 0u;
-    ep->session_state = (uint8_t)TRINITY_SESSION_BOOT;
-    ep->operation_state = (uint8_t)TRINITY_OPERATION_IDLE;
-    ep->pending_flags = 0u;
-    ep->secure_flags = 0u;
-    ep->session_id = 0u;
-    ep->last_error = 0u;
-    ep->active_transaction_id = 0u;
-    ep->diagnostic_summary = 0u;
-}
-
-static trinity_error_code_t endpoint_get_info(endpoint_t *ep) {
-    trinity_error_code_t rc = endpoint_exchange(
