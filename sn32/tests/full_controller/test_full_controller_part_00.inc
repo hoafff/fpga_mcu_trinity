@@ -26,6 +26,7 @@ typedef struct {
     bool commit_level;
     unsigned commit_low_calls;
     unsigned commit_high_calls;
+    unsigned retained_not_ready_reads;
     mock_endpoint_t p1;
     mock_endpoint_t p2;
     uint8_t telemetry[32];
