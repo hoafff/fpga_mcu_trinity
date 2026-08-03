@@ -33,16 +33,21 @@ int main(void) {
         for (;;) __NOP();
     }
 
+    wait_ms(TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS);
+    g_spi_trace_context = SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1;
     startup_rc = spi_drain_startup_mailbox(&g_p1);
     if (startup_rc == TRINITY_OK) {
         startup_source = TRINITY_SOURCE_PRIMER2;
+        g_spi_trace_context = SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2;
         startup_rc = spi_drain_startup_mailbox(&g_p2);
     }
     if (startup_rc == TRINITY_OK) {
+        g_spi_trace_context = SPI_TRACE_CONTEXT_STARTUP_PROBE;
         (void)full_probe_all();
     } else {
         set_error(startup_rc, startup_source, 0u);
     }
+    g_spi_trace_context = SPI_TRACE_CONTEXT_NONE;
     progress();
     last_probe = g_ms;
 
@@ -52,10 +57,12 @@ int main(void) {
         pc_poll();
         if (!g_fault && !g_host_txn.valid &&
             (uint32_t)(g_ms - last_probe) >= TRINITY_DEPLOY_ENDPOINT_PROBE_MS) {
+            g_spi_trace_context = SPI_TRACE_CONTEXT_PERIODIC_PROBE;
             if (g_controller.p1.ready && g_controller.p2.ready)
                 (void)full_refresh_all();
             else
                 (void)full_probe_all();
+            g_spi_trace_context = SPI_TRACE_CONTEXT_NONE;
             progress();
             last_probe = g_ms;
         }
