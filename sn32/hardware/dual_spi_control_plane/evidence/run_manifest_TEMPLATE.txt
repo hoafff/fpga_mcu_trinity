@@ -8,8 +8,8 @@ SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 SOURCE IDENTITY
 repository_commit:
 mlkem_submodule_commit: 048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
-sn32_architecture_version: 0.7.2
-sn32_build_id: 0x00070002
+sn32_architecture_version: 0.7.3
+sn32_build_id: 0x00070003
 
 SN32 BUILD AND FLASH
 armclang_version: 6.24
@@ -42,6 +42,8 @@ com_port:
 spi_frequency_hz: 100000
 spi_mode: 0
 spi_bit_order: MSB_FIRST
+spi_cs_guard_us: 10
+spi_startup_settle_ms: 5
 common_ground_confirmed:
 independent_3v3_rails_not_joined:
 
@@ -66,6 +68,7 @@ miso_released_when_each_cs_high:
 
 COMMAND EVIDENCE
 standalone_ping_log:
+first_spi_failure_log:
 p1_get_info_spi_diag_log:
 p2_get_info_spi_diag_log:
 p2_get_status_spi_diag_log:
@@ -74,6 +77,17 @@ system_status_before_log:
 dual_spi_bringup_log:
 system_status_after_log:
 wiring_photo:
+
+FIRST-FAILURE LATCH AUDIT
+first_spi_failure_latched:
+first_spi_failure_context:
+first_spi_failure_target_id:
+first_spi_failure_command:
+first_spi_failure_target_txid:
+first_spi_failure_transport_result:
+first_spi_failure_request_bytes:
+first_spi_failure_response_bytes:
+first_spi_failure_response_crc_match:
 
 RAW SPI DIAGNOSTIC AUDIT
 p1_get_info_target_txid:
@@ -95,9 +109,10 @@ single_cs_response_capture_confirmed:
 response_command_and_txid_correlation_confirmed:
 
 ACCEPTANCE RESULTS
-v0_7_2_exact_keil_rebuild:
-v0_7_2_snlink_program_verify:
-v0_7_2_standalone_uart_ping:
+v0_7_3_exact_keil_rebuild:
+v0_7_3_snlink_program_verify:
+v0_7_3_standalone_uart_ping:
+v0_7_3_first_spi_failure_latch_clear_or_explained:
 p1_get_info_raw_diagnostic:
 p2_get_info_raw_diagnostic:
 p2_get_status_raw_diagnostic:
@@ -126,4 +141,5 @@ full_system_hardware_qualified: false
 
 FAILURE NOTES
 Record every failed attempt and corrective action here, including the v0.7.1
-clean-boot TRANSACTION_CONFLICT run, even if a later v0.7.2 retry passes.
+clean-boot TRANSACTION_CONFLICT run and the v0.7.2 startup BAD_CRC/BAD_FLAGS
+capture at manual target txid 0x0004, even if the v0.7.3 retry passes.
