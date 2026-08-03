@@ -92,18 +92,20 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 4):
-        fail(f"startup-residue image must be version 0.7.4, got {version}")
+    if version != (0, 7, 5):
+        fail(f"SPI timeout telemetry image must be version 0.7.5, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("dual-SPI qualification must remain at 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("12 MHz / 2 / (CLKDIV+1) must use CLKDIV 59")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 10:
-        fail("v0.7.4 CS/FIFO qualification guard must be 10 us")
+        fail("v0.7.5 CS/FIFO qualification guard must be 10 us")
     if macro(config, "TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS") != 5:
-        fail("v0.7.4 startup settle must be 5 ms")
+        fail("v0.7.5 startup settle must be 5 ms")
+    if macro(config, "TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS") != 1:
+        fail("v0.7.5 inter-exchange mailbox guard must be 1 ms")
 
-    require(part00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070004)", "deploy part 00")
+    require(part00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070005)", "deploy part 00")
     require(part00, "handle_get_first_spi_failure", "deploy part 00")
     require(part00, "SPI qualification clock and CLKDIV disagree", "deploy part 00")
     require(part05, "SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;", "deploy part 05")
@@ -114,18 +116,29 @@ def main() -> int:
         "g_spi_first_failure",
         "g_spi_startup_residue",
         "g_spi_trace_context",
+        "SPI_TRANSFER_STAGE_TX_FULL",
+        "SPI_TRANSFER_STAGE_BUSY",
+        "SPI_TRANSFER_STAGE_RX_EMPTY",
+        "transfer_byte_index",
+        "transfer_completed",
+        "spi_status",
         "SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1",
         "SPI_TRACE_CONTEXT_STARTUP_PROBE",
         "SPI_TRACE_CONTEXT_HOST_DIAGNOSTIC",
     ):
-        require(part01, token, "first-failure and residue state")
+        require(part01, token, "first-failure byte telemetry state")
     for token in (
         "spi_guard_delay",
-        "TRINITY_DEPLOY_SPI_CS_GUARD_US",
+        "spi_transfer_timeout",
+        "SPI_TRANSFER_STAGE_TX_FULL",
+        "SPI_TRANSFER_STAGE_BUSY",
+        "SPI_TRANSFER_STAGE_RX_EMPTY",
+        "g_spi_trace.transfer_completed",
+        "g_spi_trace.spi_status = SN_SPI0->STAT",
         "SN_SPI0->CTRL0_b.FRESET = 3u;",
         "gpio_write(ep->cs_port, ep->cs_pin, false);",
     ):
-        require(part06, token, "SPI edge guard")
+        require(part06, token, "SPI byte-level transport telemetry")
 
     for token in (
         "spi_trace_begin",
@@ -149,14 +162,20 @@ def main() -> int:
         "response_crc_received",
         "response_crc_calculated",
         "g_spi_rsp.transaction_id != txid",
+        "TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS",
         "spi_latch_first_failure();",
     ):
-        require(part08, token, "response trace validation")
+        require(part08, token, "response settle and validation")
     for token in (
         "handle_spi_diagnostic",
         "handle_get_first_spi_failure",
         "serialize_spi_trace",
         "g_spi_startup_residue.valid",
+        "trace->transfer_stage",
+        "trace->transfer_direction",
+        "trace->transfer_byte_index",
+        "trace->transfer_completed",
+        "trace->spi_status",
         "TRINITY_SPI_GET_INFO",
         "TRINITY_SPI_GET_STATUS",
         "SPI_TRACE_CONTEXT_HOST_DIAGNOSTIC",
@@ -169,6 +188,7 @@ def main() -> int:
     require(part17, "SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2", "startup context")
     require(part17, "SPI_TRACE_CONTEXT_STARTUP_PROBE", "startup context")
     require(part17, "SPI_TRACE_CONTEXT_PERIODIC_PROBE", "periodic context")
+    require(part17, "!g_spi_first_failure.valid", "periodic failure freeze")
     for token in (
         "uint16_t issued_txid = 0u;",
         "((uint32_t)TRINITY_SPI_GET_INFO << 16)",
@@ -191,7 +211,11 @@ def main() -> int:
         "_first_spi_failure_dict",
         "HostCommand.GET_FIRST_SPI_FAILURE",
         '"startup_residue"',
-        '"request_fingerprint"',
+        '"transfer_stage"',
+        '"transfer_direction"',
+        '"transfer_byte_index"',
+        '"transfer_completed"',
+        '"spi_status"',
         '"response_crc_match"',
     ):
         require(cli, token, "PC diagnostic CLI")
@@ -211,6 +235,8 @@ def main() -> int:
     for token in (
         "test_startup_probe_failure_is_decoded_byte_exact",
         "test_startup_drain_reset_residue_is_not_latched_failure",
+        "transfer_extension",
+        "RX_EMPTY",
         "STARTUP_DRAIN_P1",
         "BAD_LENGTH(0x0103)",
         "test_unlatched_response_has_no_trace",
@@ -242,23 +268,29 @@ def main() -> int:
         "secure_enable_i  -> GND",
         "SPI0 CLKDIV   = 59",
         "P2 R13 uart_rx_i -> 3.3 V through 10 kΩ",
-        "architecture_version = 0.7.4",
-        "sn32_build_id         = 0x00070004",
+        "architecture_version = 0.7.5",
+        "sn32_build_id         = 0x00070005",
+        "inter-exchange guard                 = 1 ms",
+        "transfer_stage",
+        "transfer_byte_index",
+        "spi_status",
         "spi-first-failure",
         "startup_residue=True",
-        "STARTUP_DRAIN_P1",
-        "STARTUP_DRAIN_P2",
         "spi-diag --target p2 --command get-info",
     ):
         require(gate_doc, token, "dual-SPI gate")
     for token in (
         "repository_commit:",
-        "sn32_build_id: 0x00070004",
+        "sn32_build_id: 0x00070005",
         "spi_frequency_hz: 100000",
         "spi_cs_guard_us: 10",
+        "spi_inter_exchange_ms: 1",
         "first_spi_failure_log:",
         "startup_reset_residue_log:",
-        "v0_7_4_exact_keil_rebuild:",
+        "v0_7_5_exact_keil_rebuild:",
+        "first_failure_transfer_stage:",
+        "first_failure_transfer_byte_index:",
+        "first_failure_spi_status:",
         "p2_uart_rx_r13_pulled_up_to_3v3_through_10k:",
         "p1_retained_kat_0x013e:",
         "p2_retained_kat_0x03e3:",
@@ -266,11 +298,11 @@ def main() -> int:
     ):
         require(evidence_template, token, "dual-SPI evidence template")
 
-    print("PASS: v0.7.1 through v0.7.3 failures remain explicitly scoped")
-    print("PASS: v0.7.4 keeps 100 kHz single-CS transport and CS/FIFO guards")
-    print("PASS: exact command-0 txid-0 BAD_LENGTH reset residue is separated")
-    print("PASS: every non-matching drain error and every active failure stays latched")
-    print("PASS: PC reads residue/failure evidence without issuing target SPI traffic")
+    print("PASS: prior v0.7.1 through v0.7.4 evidence remains explicitly scoped")
+    print("PASS: v0.7.5 keeps 100 kHz single-CS transport and reset-residue separation")
+    print("PASS: 1 ms inter-exchange guard separates consecutive mailbox commands")
+    print("PASS: first failure preserves timeout stage, direction, byte and SPI status")
+    print("PASS: periodic probing freezes after the immutable first active failure")
     print("NOTE: static PASS does not claim exact Keil rebuild, flash or hardware PASS")
     return 0
 
