@@ -1,6 +1,10 @@
             query = trinity_read_be16(payload);
             if (!ep->retained_valid || query != ep->retained_txid)
                 return TRINITY_RESULT_NOT_READY;
+            if (bus->retained_not_ready_reads != 0u) {
+                bus->retained_not_ready_reads -= 1u;
+                return TRINITY_RESULT_NOT_READY;
+            }
             assert(response_capacity >= (uint16_t)(10u + ep->retained_length));
             trinity_write_be16(&response[0], query);
             response[2] = (uint8_t)ep->retained_state;
