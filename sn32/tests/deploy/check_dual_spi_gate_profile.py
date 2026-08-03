@@ -15,7 +15,10 @@ TEST = ROOT / "pc_host/tests/test_dual_spi_bringup.py"
 GATE_DOC = ROOT / "sn32/docs/SN32_DUAL_SPI_HARDWARE_QUALIFICATION_NEXT_GATE.md"
 UART_DOC = ROOT / "sn32/docs/PC_TO_SN32_UART_PING_HARDWARE_QUALIFICATION_2026-08-03.md"
 UART_EVIDENCE = ROOT / "sn32/hardware/pc_uart_ping/evidence/pc_uart_ping_2026-08-03.txt"
-EVIDENCE_TEMPLATE = ROOT / "sn32/hardware/dual_spi_control_plane/evidence/README.md"
+EVIDENCE_TEMPLATE = (
+    ROOT
+    / "sn32/hardware/dual_spi_control_plane/evidence/run_manifest_TEMPLATE.txt"
+)
 
 
 def fail(message: str) -> None:
@@ -102,11 +105,20 @@ def main() -> int:
     require(gate_doc, "SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS", "dual-SPI gate")
     require(gate_doc, "secure_enable_i  -> GND", "dual-SPI gate")
     require(gate_doc, "SPI0 CLKDIV = 59", "dual-SPI gate")
-    require(evidence_template, "run_manifest_<date>.txt", "dual-SPI evidence template")
+    for token in (
+        "repository_commit:",
+        "sn32_build_id: 0x00070001",
+        "spi_frequency_hz: 100000",
+        "p1_retained_kat_0x013e:",
+        "p2_retained_kat_0x03e3:",
+        "full_system_hardware_qualified: false",
+    ):
+        require(evidence_template, token, "dual-SPI evidence template")
 
     print("PASS: scoped PC-to-SN32 UART evidence is locked without broader claims")
     print("PASS: v0.7.1 dual-SPI gate is fixed at 100 kHz mode 0 with build ID 0x00070001")
     print("PASS: PC host probes P1/P2 and runs separate retained KAT self-tests")
+    print("PASS: dual-SPI evidence manifest records identities, wiring and non-claims")
     print("NOTE: static PASS does not claim a current exact Keil rebuild or dual-SPI hardware PASS")
     return 0
 
