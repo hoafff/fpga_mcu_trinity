@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 2u
+#define TRINITY_DEPLOY_VERSION_PATCH 3u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -31,6 +31,10 @@
 #define TRINITY_DEPLOY_SPI_CLKDIV                 59u
 #define TRINITY_DEPLOY_SPI_TIMEOUT_MS            100u
 #define TRINITY_DEPLOY_ENDPOINT_PROBE_MS         2000u
+/* Conservative qualification guards around FIFO reset, CS assertion and CS
+ * release. The software delay intentionally exceeds the nominal value. */
+#define TRINITY_DEPLOY_SPI_CS_GUARD_US             10u
+#define TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS        5u
 /* A long cryptographic call may keep heartbeat alive only for this bounded
  * lease. A wedged operation loses the lease and Tiny remains fail-closed. */
 #define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u
