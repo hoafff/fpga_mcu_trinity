@@ -85,7 +85,8 @@ typedef struct {
         uint16_t *issued_txid);
     uint32_t (*now_ms)(void *context);
     void (*progress)(void *context);
-    void (*session_commit_toggle)(void *context);
+    void (*session_commit_low)(void *context);
+    void (*session_commit_high)(void *context);
     bool (*tiny_fault_active)(void *context);
 } trinity_controller_ops_t;
 
