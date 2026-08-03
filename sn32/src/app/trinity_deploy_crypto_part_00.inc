@@ -3,6 +3,7 @@
 
 #include <string.h>
 
+#if TRINITY_DEPLOY_ENABLE_MLKEM
 static const uint8_t keygen_domain[] = {
     'T','R','I','N','I','T','Y','-','M','L','K','E','M','-','K','G','-','v','1'
 };
@@ -18,7 +19,6 @@ static bool seed_is_zero(const uint8_t seed[32]) {
     return aggregate == 0u;
 }
 
-#if TRINITY_DEPLOY_ENABLE_MLKEM
 static void expand_seed(uint8_t *output,
                         size_t output_length,
                         const uint8_t *domain,
