@@ -1,6 +1,7 @@
 #ifndef TRINITY_MLKEM_H
 #define TRINITY_MLKEM_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "trinity_mlkem_backend.h"
@@ -25,6 +26,14 @@ typedef struct {
     uint8_t nonce_prefix[TRINITY_NONCE_PREFIX_BYTES];
     uint32_t session_id;
 } trinity_session_material_t;
+
+void trinity_sha3_256(uint8_t output[32],
+                      const uint8_t *input,
+                      size_t input_length);
+void trinity_shake256(uint8_t *output,
+                      size_t output_length,
+                      const uint8_t *input,
+                      size_t input_length);
 
 trinity_error_code_t trinity_mlkem512_keygen_deterministic(
     uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES],
