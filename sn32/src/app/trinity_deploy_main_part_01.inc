@@ -1,6 +1,12 @@
     UART_TIMEOUT_MS = 100u,
     PC_FRAME_TIMEOUT_MS = 250u,
-    SPI_RESPONSE_SETTLE_MS = 1u
+    SPI_RESPONSE_SETTLE_MS = 1u,
+    SPI_TRACE_CONTEXT_NONE = 0u,
+    SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1 = 1u,
+    SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2 = 2u,
+    SPI_TRACE_CONTEXT_STARTUP_PROBE = 3u,
+    SPI_TRACE_CONTEXT_PERIODIC_PROBE = 4u,
+    SPI_TRACE_CONTEXT_HOST_DIAGNOSTIC = 5u
 };
 
 typedef struct {
@@ -30,6 +36,7 @@ typedef struct {
 
 typedef struct {
     bool valid;
+    uint8_t context;
     uint8_t target_id;
     uint8_t command;
     trinity_source_t source;
@@ -81,8 +88,10 @@ static bool g_spi_ready;
 static bool g_heartbeat_level;
 static uint16_t g_spi_txid = 1u;
 static uint16_t g_active_host_txid;
+static uint8_t g_spi_trace_context;
 static error_record_t g_error;
 static spi_exchange_trace_t g_spi_trace;
+static spi_exchange_trace_t g_spi_first_failure;
 static host_transaction_t g_host_txn;
 static trinity_controller_t g_controller;
 static trinity_deploy_crypto_t g_crypto;
