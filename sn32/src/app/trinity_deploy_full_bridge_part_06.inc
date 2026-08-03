@@ -13,6 +13,7 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
     uint8_t result[16];
     uint8_t telemetry[32];
     uint8_t benchmark_seed[32];
+    uint8_t last_percent = 0u;
     trinity_controller_auth_result_t auth;
     trinity_controller_session_material_t material;
     uint16_t operation_mask;
@@ -32,7 +33,10 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
     operation_mask = trinity_read_be16(&req->payload[2]);
     iterations = trinity_read_be32(&req->payload[4]);
     if (operation_mask == 0u || iterations == 0u || iterations > 1000u ||
-        (operation_mask & (uint16_t)~((1u << 11) - 1u)) != 0u) {
+        (operation_mask & (uint16_t)~((1u << 11) - 1u)) != 0u ||
+        (req->payload[0] & (uint8_t)~(TRINITY_READY_SN32 |
+          TRINITY_READY_PRIMER1 | TRINITY_READY_PRIMER2 |
+          TRINITY_READY_TINY1P5)) != 0u) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_HOST_PROTOCOL, operation_mask);
         return;
@@ -54,6 +58,19 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
         response_error(req, TRINITY_BAD_STATE, TRINITY_SOURCE_SN32, 0u);
         return;
     }
+    if (needs_kem &&
+        (req->payload[0] & TRINITY_READY_SN32) == 0u) {
+        response_error(req, TRINITY_BAD_LENGTH,
+                       TRINITY_SOURCE_HOST_PROTOCOL, req->payload[0]);
+        return;
+    }
+    if ((operation_mask & TRINITY_BENCH_SPI) != 0u &&
+        (req->payload[0] &
+         (TRINITY_READY_PRIMER1 | TRINITY_READY_PRIMER2)) == 0u) {
+        response_error(req, TRINITY_BAD_LENGTH,
+                       TRINITY_SOURCE_HOST_PROTOCOL, req->payload[0]);
+        return;
+    }
 #if !TRINITY_DEPLOY_ENABLE_MLKEM
     if (needs_kem) {
         response_error(req, TRINITY_NOT_SUPPORTED,
@@ -62,6 +79,7 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
     }
 #endif
     if (!managed_transaction_begin(req)) return;
+    full_send_progress_event(req, 0u);
 
     /* Prepare a keypair outside the timed loop for encaps/decaps-only runs. */
     if (needs_kem &&
@@ -124,6 +142,9 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
             rc = trinity_controller_send_telemetry(&g_controller, telemetry,
                                                    2000u, &auth);
         }
+        if (rc == TRINITY_OK)
+            full_progress_event_maybe(req, index + 1u, iterations,
+                                      &last_percent);
         progress();
     }
     trinity_controller_secure_clear(benchmark_seed, sizeof(benchmark_seed));
@@ -143,6 +164,7 @@ static void full_handle_run_demo(const trinity_pc_frame_t *req) {
     uint8_t telemetry[32];
     uint8_t seed_input[36];
     uint8_t result[14];
+    uint8_t last_percent = 0u;
     uint16_t frame_count;
     uint16_t index;
     trinity_error_code_t rc = TRINITY_OK;
@@ -170,6 +192,7 @@ static void full_handle_run_demo(const trinity_pc_frame_t *req) {
         return;
     }
     if (!managed_transaction_begin(req)) return;
+    full_send_progress_event(req, 0u);
 
     /* A deterministic demo is fully determined by this request's seed. */
     if (g_controller.state == TRINITY_SYSTEM_ACTIVE)
@@ -201,6 +224,9 @@ static void full_handle_run_demo(const trinity_pc_frame_t *req) {
         trinity_shake256(&telemetry[8], 24u, seed_input, sizeof(seed_input));
         rc = trinity_controller_send_telemetry(&g_controller, telemetry,
                                                2000u, &auth);
+        if (rc == TRINITY_OK)
+            full_progress_event_maybe(req, (uint32_t)index + 1u,
+                                      frame_count, &last_percent);
         progress();
     }
     trinity_controller_secure_clear(seed_input, sizeof(seed_input));
