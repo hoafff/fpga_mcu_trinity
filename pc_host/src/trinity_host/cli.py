@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import struct
 import sys
 
 from .protocol import HostCommand, SpiCommand, SystemStatus, TargetId
@@ -22,6 +23,19 @@ _SPI_TRACE_CONTEXT_NAMES = {
     3: "STARTUP_PROBE",
     4: "PERIODIC_PROBE",
     5: "HOST_DIAGNOSTIC",
+}
+
+_SPI_TRANSFER_STAGE_NAMES = {
+    0: "NONE",
+    1: "TX_FULL",
+    2: "BUSY",
+    3: "RX_EMPTY",
+}
+
+_SPI_TRANSFER_DIRECTION_NAMES = {
+    0: "NONE",
+    1: "REQUEST",
+    2: "RESPONSE",
 }
 
 
@@ -111,7 +125,41 @@ def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
             "context": context_name,
         }
 
-    trace = SpiDiagnosticTrace.decode(payload[2:])
+    if len(payload) < 2 + 24 + 12:
+        raise HostProtocolError(
+            "first SPI failure trace is missing byte-level transfer telemetry"
+        )
+    trace_payload = payload[2:]
+    request_length = struct.unpack_from(">H", trace_payload, 12)[0]
+    response_capture_length = struct.unpack_from(">H", trace_payload, 14)[0]
+    trace_length = 24 + request_length + response_capture_length
+    expected_length = 2 + trace_length + 12
+    if len(payload) != expected_length:
+        raise HostProtocolError(
+            f"first SPI failure payload length {len(payload)} != {expected_length}"
+        )
+
+    trace = SpiDiagnosticTrace.decode(payload[2:2 + trace_length])
+    extension = payload[2 + trace_length:]
+    transfer_stage_raw, transfer_direction_raw = extension[:2]
+    (
+        transfer_byte_index,
+        transfer_length,
+        transfer_completed,
+        spi_status,
+    ) = struct.unpack_from(">HHHI", extension, 2)
+    transfer = {
+        "transfer_stage": _SPI_TRANSFER_STAGE_NAMES.get(
+            transfer_stage_raw, f"UNKNOWN_{transfer_stage_raw}"
+        ),
+        "transfer_direction": _SPI_TRANSFER_DIRECTION_NAMES.get(
+            transfer_direction_raw, f"UNKNOWN_{transfer_direction_raw}"
+        ),
+        "transfer_byte_index": transfer_byte_index,
+        "transfer_length": transfer_length,
+        "transfer_completed": transfer_completed,
+        "spi_status": f"0x{spi_status:08X}",
+    }
     if latched_raw == 0:
         if context not in {1, 2}:
             raise HostProtocolError(
@@ -122,12 +170,14 @@ def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
             "startup_residue": True,
             "context": context_name,
             **_spi_trace_dict(trace),
+            **transfer,
         }
     return {
         "latched": True,
         "startup_residue": False,
         "context": context_name,
         **_spi_trace_dict(trace),
+        **transfer,
     }
 
 
