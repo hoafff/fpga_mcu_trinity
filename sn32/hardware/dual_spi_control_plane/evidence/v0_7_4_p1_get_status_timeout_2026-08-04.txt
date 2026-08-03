@@ -1,0 +1,69 @@
+SN32 v0.7.4 repeated cold-boot P1 GET_STATUS timeout evidence
+Date: 2026-08-04
+Scope: SN32 -> P1/P2 dual-SPI control-plane gate only
+Result: FAIL / ROOT CAUSE PENDING V0.7.5 BYTE-LEVEL TELEMETRY
+
+IMAGE
+architecture_version: 0.7.4
+sn32_build_id: 0x00070004
+spi_frequency_hz: 100000
+spi_mode: 0
+spi_bit_order: MSB_FIRST
+
+REPRODUCTION NOTE
+The user repeated the run after removing all wires/power and rebuilding the
+power-up sequence. Both complete cold-start attempts produced the same immutable
+first active failure. This specific failure is therefore not explained by PC
+UART back-power, Primer reset order, or the exact command-0/txid-0 startup-drain
+reset residue.
+
+REPEATED FIRST ACTIVE FAILURE
+context=STARTUP_PROBE
+target_id=1
+command=0x02
+error_source=1
+transport_result=FRAME_TIMEOUT(0x0505)
+target_txid=0x0002
+request_fingerprint=0xF7006846
+request_length=10
+response_capture_length=0
+response_frame_length=0
+request_crc=0xA228
+response_crc_received=0x0000
+response_crc_calculated=0x0000
+response_crc_match=False
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 02 00 00 02 00 00 a2 28
+response_bytes=
+
+INTERPRETATION
+- target txid 0x0002 is P1 GET_STATUS.
+- P1 GET_INFO txid 0x0001 completed sufficiently for startup probe to advance.
+- P1 IRQ asserted after GET_STATUS and was active before the response read.
+- IRQ released during the response-read attempt.
+- SN32 returned FRAME_TIMEOUT before recording a complete response capture.
+- The current v0.7.4 trace cannot identify whether the SN32 stalled waiting for
+  TX FIFO space, SPI BUSY release, or RX FIFO data, nor the byte index.
+- Automatic periodic probing continued in v0.7.4 and could create later traffic;
+  the immutable first-failure record above remains authoritative.
+
+V0.7.5 CORRECTIVE DIAGNOSTIC
+- add 1 ms inter-exchange guard after every valid response;
+- record transfer stage: TX_FULL, BUSY, or RX_EMPTY;
+- record direction, byte index, requested length, completed byte count and SPI
+  status register;
+- freeze automatic periodic probes after the first active SPI failure;
+- keep exact reset-residue classification and single-CS response capture.
+
+EXPLICIT NON-CLAIMS
+P1 hardware defect: NOT PROVEN
+P1 RTL defect: NOT PROVEN
+SN32 SPI peripheral defect: NOT PROVEN
+SN32 firmware root cause: NOT YET PROVEN
+dual-SPI control-plane hardware PASS: NOT CLAIMED
+session stage/commit hardware PASS: NOT CLAIMED
+direct UART under SN32 orchestration PASS: NOT CLAIMED
+full-system qualification: NOT CLAIMED
