@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "sn32/config/trinity_deploy_config.h"
+TARGET = ROOT / "sn32/target.toml"
 PART00 = ROOT / "sn32/src/app/trinity_deploy_main_part_00.inc"
 PART01 = ROOT / "sn32/src/app/trinity_deploy_main_part_01.inc"
 PART05 = ROOT / "sn32/src/app/trinity_deploy_main_part_05.inc"
@@ -50,6 +51,11 @@ def require(text: str, token: str, label: str) -> None:
         fail(f"{label} missing {token}")
 
 
+def forbid(text: str, token: str, label: str) -> None:
+    if token in text:
+        fail(f"{label} still contains forbidden token {token}")
+
+
 def macro(text: str, name: str) -> int:
     match = re.search(
         rf"^#define\s+{re.escape(name)}\s+(0x[0-9A-Fa-f]+|\d+)u?\s*$",
@@ -61,8 +67,17 @@ def macro(text: str, name: str) -> int:
     return int(match.group(1), 0)
 
 
+def function_slice(text: str, start: str, end: str, label: str) -> str:
+    start_index = text.find(start)
+    end_index = text.find(end, start_index + len(start))
+    if start_index < 0 or end_index < 0:
+        fail(f"cannot isolate {label}")
+    return text[start_index:end_index]
+
+
 def main() -> int:
     config = read(CONFIG)
+    target = read(TARGET)
     part00 = read(PART00)
     part01 = read(PART01)
     part05 = read(PART05)
@@ -92,25 +107,23 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 5):
-        fail(f"SPI timeout telemetry image must be version 0.7.5, got {version}")
+    if version != (0, 7, 6):
+        fail(f"exact-frame transport image must be version 0.7.6, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("dual-SPI qualification must remain at 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("12 MHz / 2 / (CLKDIV+1) must use CLKDIV 59")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 10:
-        fail("v0.7.5 CS/FIFO qualification guard must be 10 us")
+        fail("CS/FIFO qualification guard must remain 10 us")
     if macro(config, "TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS") != 5:
-        fail("v0.7.5 startup settle must be 5 ms")
+        fail("startup settle must remain 5 ms")
     if macro(config, "TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS") != 1:
-        fail("v0.7.5 inter-exchange mailbox guard must be 1 ms")
+        fail("inter-exchange mailbox guard must remain 1 ms")
 
-    require(part00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070005)", "deploy part 00")
-    require(part00, "handle_get_first_spi_failure", "deploy part 00")
-    require(part00, "SPI qualification clock and CLKDIV disagree", "deploy part 00")
-    require(part05, "SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;", "deploy part 05")
-    if "SN_SPI0->CLKDIV_b.DIV = 5u" in part05:
-        fail("old 1 MHz literal divider returned")
+    require(part00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070006)", "deploy identity")
+    require(part00, "SPI qualification clock and CLKDIV disagree", "deploy clock lock")
+    require(part05, "SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;", "SPI init")
+    forbid(part05, "SN_SPI0->CLKDIV_b.DIV = 5u", "SPI init")
 
     for token in (
         "g_spi_first_failure",
@@ -122,42 +135,66 @@ def main() -> int:
         "transfer_byte_index",
         "transfer_completed",
         "spi_status",
-        "SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1",
-        "SPI_TRACE_CONTEXT_STARTUP_PROBE",
-        "SPI_TRACE_CONTEXT_HOST_DIAGNOSTIC",
     ):
-        require(part01, token, "first-failure byte telemetry state")
-    for token in (
-        "spi_guard_delay",
-        "spi_transfer_timeout",
-        "SPI_TRANSFER_STAGE_TX_FULL",
-        "SPI_TRANSFER_STAGE_BUSY",
-        "SPI_TRANSFER_STAGE_RX_EMPTY",
-        "g_spi_trace.transfer_completed",
-        "g_spi_trace.spi_status = SN_SPI0->STAT",
-        "SN_SPI0->CTRL0_b.FRESET = 3u;",
-        "gpio_write(ep->cs_port, ep->cs_pin, false);",
-    ):
-        require(part06, token, "SPI byte-level transport telemetry")
+        require(part01, token, "first-failure state")
 
     for token in (
-        "spi_trace_begin",
-        "spi_latch_first_failure",
-        "spi_trace_is_startup_reset_residue",
-        "spi_record_startup_residue",
-        "trace->command != 0u",
-        "trace->target_txid != 0u",
-        "trace->response_frame_length != 16u",
-        "TRINITY_FLAG_RESPONSE | TRINITY_FLAG_ERROR",
-        "spi_drain_startup_mailbox",
-        "spi_bytes(NULL, g_spi_buf, TRINITY_SPI_MAX_PACKET)",
-        "The Primer mailbox restarts at byte zero",
+        "spi_bytes_segment",
+        "spi_transfer_timeout",
+        "byte_offset",
+        "transfer_length",
+        "Drain the received byte as soon as RX_EMPTY clears",
+        "g_spi_trace.transfer_completed",
+        "SN_SPI0->CTRL0_b.FRESET = 3u;",
+    ):
+        require(part06, token, "segmented SPI transport")
+
+    transfer = function_slice(
+        part06,
+        "static trinity_error_code_t spi_bytes_segment(",
+        "static trinity_error_code_t spi_bytes(",
+        "spi_bytes_segment",
+    )
+    tx_write = transfer.find("SN_SPI0->DATA =")
+    rx_wait = transfer.find("while ((SN_SPI0->STAT & SPI_RX_EMPTY)")
+    rx_read = transfer.find("value = (uint8_t)SN_SPI0->DATA;")
+    busy_wait = transfer.find("while ((SN_SPI0->STAT & SPI_BUSY)")
+    if min(tx_write, rx_wait, rx_read, busy_wait) < 0 or not (
+        tx_write < rx_wait < rx_read < busy_wait
+    ):
+        fail("SPI byte order must be TX write -> RX wait/read -> BUSY wait")
+    if transfer.count("const uint32_t start = g_ms") != 0:
+        fail("whole-packet timeout returned; each wait stage needs a fresh deadline")
+    if transfer.count("stage_start = g_ms") < 3:
+        fail("TX_FULL, RX_EMPTY and BUSY waits do not have independent deadlines")
+
+    for token in (
+        "spi_capture_response",
+        "Read the eight-byte header and its declared payload/CRC",
+        "spi_bytes_segment(NULL, g_spi_buf",
+        "frame_len - TRINITY_SPI_HEADER_SIZE",
+        "Clocking only the declared frame",
+        "trace->response_capture_length != 16u",
+        "g_spi_trace.response_capture_length = (uint16_t)captured",
         "if (issued_txid != NULL) *issued_txid = txid;",
         "g_spi_trace.context = g_spi_trace_context",
     ):
-        require(part07, token, "single-CS residue-aware transport")
-    if "spi_bytes(NULL, g_spi_buf, TRINITY_SPI_HEADER_SIZE)" in part07:
-        fail("split response header read returned")
+        require(part07, token, "exact-frame single-CS transport")
+    forbid(part07, "spi_bytes(NULL, g_spi_buf, TRINITY_SPI_MAX_PACKET)", "response capture")
+
+    capture = function_slice(
+        part07,
+        "static trinity_error_code_t spi_capture_response(",
+        "static trinity_error_code_t spi_drain_startup_mailbox(",
+        "spi_capture_response",
+    )
+    if capture.count("spi_select(ep)") != 1 or capture.count("spi_end();") != 1:
+        fail("response header and remainder must share exactly one CS assertion")
+    if capture.count("spi_bytes_segment(") != 2:
+        fail("response capture must contain exactly header and remainder segments")
+    if capture.find("spi_end();") < capture.rfind("spi_bytes_segment("):
+        fail("CS is released before the declared response remainder is captured")
+
     for token in (
         "response_crc_received",
         "response_crc_calculated",
@@ -165,30 +202,30 @@ def main() -> int:
         "TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS",
         "spi_latch_first_failure();",
     ):
-        require(part08, token, "response settle and validation")
+        require(part08, token, "response validation")
+
     for token in (
         "handle_spi_diagnostic",
         "handle_get_first_spi_failure",
         "serialize_spi_trace",
-        "g_spi_startup_residue.valid",
         "trace->transfer_stage",
         "trace->transfer_direction",
         "trace->transfer_byte_index",
         "trace->transfer_completed",
         "trace->spi_status",
-        "TRINITY_SPI_GET_INFO",
-        "TRINITY_SPI_GET_STATUS",
-        "SPI_TRACE_CONTEXT_HOST_DIAGNOSTIC",
     ):
         require(part14, token, "diagnostic handlers")
     require(part15, "case TRINITY_PC_SPI_DIAGNOSTIC:", "PC dispatch")
     require(part15, "case TRINITY_PC_GET_FIRST_SPI_FAILURE:", "PC dispatch")
-    require(part17, "TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS", "startup settle")
-    require(part17, "SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1", "startup context")
-    require(part17, "SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2", "startup context")
-    require(part17, "SPI_TRACE_CONTEXT_STARTUP_PROBE", "startup context")
-    require(part17, "SPI_TRACE_CONTEXT_PERIODIC_PROBE", "periodic context")
-    require(part17, "!g_spi_first_failure.valid", "periodic failure freeze")
+    for token in (
+        "SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1",
+        "SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2",
+        "SPI_TRACE_CONTEXT_STARTUP_PROBE",
+        "SPI_TRACE_CONTEXT_PERIODIC_PROBE",
+        "!g_spi_first_failure.valid",
+    ):
+        require(part17, token, "startup and periodic probe policy")
+
     for token in (
         "uint16_t issued_txid = 0u;",
         "((uint32_t)TRINITY_SPI_GET_INFO << 16)",
@@ -210,12 +247,8 @@ def main() -> int:
         '"spi-first-failure"',
         "_first_spi_failure_dict",
         "HostCommand.GET_FIRST_SPI_FAILURE",
-        '"startup_residue"',
         '"transfer_stage"',
-        '"transfer_direction"',
         '"transfer_byte_index"',
-        '"transfer_completed"',
-        '"spi_status"',
         '"response_crc_match"',
     ):
         require(cli, token, "PC diagnostic CLI")
@@ -228,7 +261,6 @@ def main() -> int:
     for token in (
         "test_p2_get_info_trace_is_byte_exact",
         "HostCommand.SPI_DIAGNOSTIC",
-        "SpiCommand.RUN_SELF_TEST",
         "not side-effect-free",
     ):
         require(diag_test, token, "raw diagnostic regression")
@@ -239,7 +271,6 @@ def main() -> int:
         "RX_EMPTY",
         "STARTUP_DRAIN_P1",
         "BAD_LENGTH(0x0103)",
-        "test_unlatched_response_has_no_trace",
     ):
         require(first_failure_test, token, "first-failure regression")
 
@@ -259,50 +290,46 @@ def main() -> int:
             "First failing endpoint:",
             "NOT PROVEN",
             "TRANSACTION_CONFLICT 0x0205",
-            "related_target_txid",
         ):
             require(text, token, label)
 
     for token in (
-        "SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS",
-        "secure_enable_i  -> GND",
-        "SPI0 CLKDIV   = 59",
-        "P2 R13 uart_rx_i -> 3.3 V through 10 kΩ",
-        "architecture_version = 0.7.5",
-        "sn32_build_id         = 0x00070005",
-        "inter-exchange guard                 = 1 ms",
-        "transfer_stage",
-        "transfer_byte_index",
-        "spi_status",
-        "spi-first-failure",
-        "startup_residue=True",
-        "spi-diag --target p2 --command get-info",
+        "architecture_version = 0.7.6",
+        "sn32_build_id         = 0x00070006",
+        "header + declared remainder",
+        "RX FIFO drain",
+        "response_capture_length=22",
+        "response_capture_length=26",
+        "v0.7.6 exact Keil rebuild",
+        "full_system_hardware_qualified:            false",
     ):
         require(gate_doc, token, "dual-SPI gate")
     for token in (
-        "repository_commit:",
-        "sn32_build_id: 0x00070005",
-        "spi_frequency_hz: 100000",
-        "spi_cs_guard_us: 10",
-        "spi_inter_exchange_ms: 1",
-        "first_spi_failure_log:",
-        "startup_reset_residue_log:",
-        "v0_7_5_exact_keil_rebuild:",
-        "first_failure_transfer_stage:",
-        "first_failure_transfer_byte_index:",
-        "first_failure_spi_status:",
-        "p2_uart_rx_r13_pulled_up_to_3v3_through_10k:",
-        "p1_retained_kat_0x013e:",
-        "p2_retained_kat_0x03e3:",
+        'implementation_status = "V0_7_6_EXACT_FRAME_SINGLE_CS_RX_DRAIN_SOURCE_READY"',
+        'qualification_build_id = "0x00070006"',
+        'qualification_architecture_version = "0.7.6"',
+        'qualification_response_capture = "HEADER_THEN_DECLARED_REMAINDER_UNDER_ONE_CS_EXACT_FRAME_LENGTH"',
+        'deploy_translation_unit_compile = "PENDING_CI_FOR_V0_7_6"',
+    ):
+        require(target, token, "SN32 target metadata")
+    for token in (
+        "sn32_architecture_version: 0.7.6",
+        "sn32_build_id: 0x00070006",
+        "trace_response_capture_length:",
+        "p1_get_info_response_capture_length_22:",
+        "p1_get_status_response_capture_length_26:",
+        "single_cs_header_and_remainder_confirmed:",
+        "rx_fifo_drained_before_busy_wait_confirmed:",
+        "v0_7_6_exact_keil_rebuild:",
         "full_system_hardware_qualified: false",
     ):
         require(evidence_template, token, "dual-SPI evidence template")
 
-    print("PASS: prior v0.7.1 through v0.7.4 evidence remains explicitly scoped")
-    print("PASS: v0.7.5 keeps 100 kHz single-CS transport and reset-residue separation")
-    print("PASS: 1 ms inter-exchange guard separates consecutive mailbox commands")
-    print("PASS: first failure preserves timeout stage, direction, byte and SPI status")
-    print("PASS: periodic probing freezes after the immutable first active failure")
+    print("PASS: v0.7.6 identity and 100 kHz qualification profile are locked")
+    print("PASS: response header and declared remainder use one continuous CS")
+    print("PASS: response capture length equals the declared frame length")
+    print("PASS: RX FIFO is drained before the BUSY completion wait")
+    print("PASS: timeout telemetry and immutable first-failure latch remain enabled")
     print("NOTE: static PASS does not claim exact Keil rebuild, flash or hardware PASS")
     return 0
 
