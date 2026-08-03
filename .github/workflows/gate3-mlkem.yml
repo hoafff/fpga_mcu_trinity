@@ -67,6 +67,7 @@ jobs:
       - name: Deploy project and repository static gates
         run: |
           python sn32/tests/deploy/check_inc_boundaries.py
+          python sn32/tests/deploy/check_keil_size_profile.py
           python sn32/tests/deploy/check_deploy_project.py
           python sn32/tests/s0/check_s0_project.py
           python ai_context/scripts/check_repository_layout.py
