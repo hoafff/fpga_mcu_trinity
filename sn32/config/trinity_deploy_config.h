@@ -2,7 +2,7 @@
 #define TRINITY_DEPLOY_CONFIG_H
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
-#define TRINITY_DEPLOY_VERSION_MINOR 6u
+#define TRINITY_DEPLOY_VERSION_MINOR 7u
 #define TRINITY_DEPLOY_VERSION_PATCH 0u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
@@ -27,5 +27,8 @@
 #define TRINITY_DEPLOY_SPI_HZ                1000000u
 #define TRINITY_DEPLOY_SPI_TIMEOUT_MS            100u
 #define TRINITY_DEPLOY_ENDPOINT_PROBE_MS         2000u
+/* A long cryptographic call may keep heartbeat alive only for this bounded
+ * lease. A wedged operation loses the lease and Tiny remains fail-closed. */
+#define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u
 
 #endif /* TRINITY_DEPLOY_CONFIG_H */
