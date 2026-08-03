@@ -23,9 +23,9 @@ Already qualified separately:
 PC <-> SN32 UART PING HARDWARE: PASS
 ```
 
-The v0.7.1 split-response defect is fixed: a complete Primer response is read
-under one CS assertion. The v0.7.2 manual P1 GET_INFO, P2 GET_INFO and P2
-GET_STATUS transactions passed command/txid correlation, CRC and IRQ release.
+The v0.7.1 split-response defect was fixed by keeping CS asserted across a
+complete response. The v0.7.2 manual P1 GET_INFO, P2 GET_INFO and P2 GET_STATUS
+transactions passed command/txid correlation, CRC and IRQ release.
 
 The v0.7.3/v0.7.4 latch also proved that the exact startup-drain frame below is
 a reset residue whose target follows the Primer reset last:
@@ -50,42 +50,36 @@ startup_residue=True
 
 Every non-matching startup-drain error remains an active failure.
 
-## New v0.7.4 cold-boot evidence
+## Repeated v0.7.4 failure
 
-Two runs performed after complete wire and power disconnection reproduced the
-same first active failure:
-
-```text
-context               = STARTUP_PROBE
-target_id              = 1
-command                = GET_STATUS 0x02
-target_txid            = 0x0002
-transport_result       = FRAME_TIMEOUT 0x0505
-request_length         = 10
-response_capture_length= 0
-irq_after_request      = 1
-irq_before_response    = 1
-irq_after_response     = 0
-request_bytes          = A5 01 02 00 00 02 00 00 A2 28
-```
-
-The probe reaches target txid `0x0002`, therefore P1 GET_INFO txid `0x0001`
-completed sufficiently for the controller to issue P1 GET_STATUS. Full power
-removal did not change the failure. This rules out reset order and PC UART
-back-power as the explanation for this specific timeout.
-
-SW2 is not used as qualification evidence because observed uptime continued to
-increase after pressing it. That reset-button issue is separate from the
-reproducible SPI failure.
-
-## Required v0.7.5 image
+Two complete cold starts reproduced the same first active failure:
 
 ```text
-architecture_version = 0.7.5
-sn32_build_id         = 0x00070005
+context                = STARTUP_PROBE
+target_id               = 1
+command                 = GET_STATUS 0x02
+target_txid             = 0x0002
+transport_result        = FRAME_TIMEOUT 0x0505
+request_length          = 10
+response_capture_length = 0
+irq_after_request       = 1
+irq_before_response     = 1
+irq_after_response      = 0
+request_bytes           = A5 01 02 00 00 02 00 00 A2 28
 ```
 
-Locked transport and new guard:
+P1 GET_INFO txid `0x0001` completed sufficiently for the controller to issue P1
+GET_STATUS. Full power removal did not change the failure, so reset order and PC
+UART back-power are not accepted as its explanation.
+
+## v0.7.6 corrective image
+
+```text
+architecture_version = 0.7.6
+sn32_build_id         = 0x00070006
+```
+
+Locked transport:
 
 ```text
 SPI frequency                       = 100000 Hz
@@ -95,29 +89,40 @@ word length                         = 8 bits
 SPI0 CLKDIV   = 59
 CS/FIFO guard                       = 10 us nominal
 startup settle                      = 5 ms
-inter-exchange guard                 = 1 ms
-complete response read under one CS = retained
+inter-exchange guard                = 1 ms
+header + declared remainder         = one continuous CS assertion
+RX FIFO drain                       = before BUSY completion wait
+response capture                    = exact declared frame length
 ```
 
-The 1 ms guard is applied after a valid response before the next endpoint
-command. It separates the P1 GET_INFO mailbox release from the following P1
-GET_STATUS request without changing the protocol, clock mode or payload.
+### Source correction
+
+v0.7.5 still clocked `TRINITY_SPI_MAX_PACKET` bytes for every response even when
+the actual GET_INFO and GET_STATUS frames were only 22 and 26 bytes. It also
+waited for SPI `BUSY` to clear before draining the received byte. v0.7.6 changes
+the transport as follows:
+
+1. assert CS once;
+2. read the eight-byte response header;
+3. derive the payload and CRC length while CS remains asserted;
+4. read only the declared remainder;
+5. drain each RX byte before waiting for BUSY to clear;
+6. release CS and validate command, txid and CRC.
+
+This retains the single-CS requirement while removing the artificial 76-byte
+tail and the possible RX-FIFO/BUSY back-pressure cycle.
 
 After the immutable first active failure is latched, automatic periodic probing
-is disabled. PC UART remains available to read evidence, and an explicit
-`spi-diag` command may still be issued only after the first-failure audit.
+remains disabled. PC UART remains available to read the evidence.
 
 ## Byte-level timeout telemetry
-
-The command remains:
 
 ```bat
 trinity-host --port COM3 spi-first-failure
 ```
 
-It reads SN32 RAM only and does not assert either Primer CS.
-
-For v0.7.5 a trace additionally reports:
+The command reads SN32 RAM only and does not assert either Primer CS. A failure
+trace reports:
 
 ```text
 transfer_stage
@@ -128,20 +133,7 @@ transfer_completed
 spi_status
 ```
 
-`transfer_stage` values are:
-
-```text
-NONE
-TX_FULL
-BUSY
-RX_EMPTY
-```
-
-`transfer_direction` is `REQUEST` or `RESPONSE`. On another timeout these fields
-identify the exact SPI peripheral wait condition and byte offset. For example,
-`RX_EMPTY`, `RESPONSE`, byte 17 means the SN32 transmitted the response-read
-clock for that byte but the SPI receive FIFO did not become non-empty before the
-100 ms transfer deadline.
+`transfer_stage` values are `NONE`, `TX_FULL`, `BUSY` and `RX_EMPTY`.
 
 ## Wiring preflight
 
@@ -200,9 +192,9 @@ AXF generation: PASS
 HEX generation: PASS
 ```
 
-Flash and Verify through SN-LINK. Do not reuse the v0.7.4 HEX.
+Flash and Verify through SN-LINK. Do not reuse the v0.7.5 HEX.
 
-## Mandatory v0.7.5 rerun
+## Mandatory v0.7.6 rerun
 
 Do not use SW2. Use a complete SN32 power cycle after P1 and P2 are configured.
 Then run only:
@@ -212,20 +204,10 @@ trinity-host --port COM3 ping
 trinity-host --port COM3 spi-first-failure
 ```
 
-Possible outcomes:
+If `latched=True`, stop and retain the complete block. Do not repeat power cycles
+merely to seek a passing run.
 
-1. `latched=False`, optionally with the exact `startup_residue=True` signature:
-   the 1 ms inter-exchange guard removed the active P1 timeout.
-2. `latched=True`: stop and retain the complete block, especially
-   `transfer_stage`, `transfer_direction`, `transfer_byte_index`,
-   `transfer_completed` and `spi_status`.
-
-Do not repeat power cycles merely to seek a passing run. One coherent v0.7.5
-capture is sufficient to select the next source correction.
-
-## Raw diagnostic stage
-
-Only after the v0.7.5 first active failure latch is clear, run:
+Only when the first active failure latch is clear, run:
 
 ```bat
 trinity-host --port COM3 spi-diag --target p1 --command get-info
@@ -246,12 +228,16 @@ IRQ sequence = 0 -> 1 -> 1 -> 0
 transport_result = OK
 ```
 
-Expected active response frame lengths are 22 bytes for GET_INFO and 26 bytes
-for GET_STATUS. `response_capture_length=76` is intentional.
+Expected active response and capture lengths are:
+
+```text
+GET_INFO:   response_frame_length=22, response_capture_length=22
+GET_STATUS: response_frame_length=26, response_capture_length=26
+```
 
 ## Discovery and retained KAT gate
 
-Only after all four active raw transactions pass:
+Only after all four raw transactions pass:
 
 ```bat
 trinity-host --port COM3 system-info
@@ -264,8 +250,8 @@ Expected identity:
 
 ```text
 protocol_version=1
-architecture_version=0.7.5
-sn32_build_id=0x00070005
+architecture_version=0.7.6
+sn32_build_id=0x00070006
 primer1_build_id=0x50310001
 primer2_build_id=0x50320001
 ```
@@ -280,9 +266,9 @@ P2 = 0x03E3
 ## Acceptance criteria
 
 ```text
-v0.7.5 exact Keil rebuild:                         PASS
-v0.7.5 SN-LINK program/verify:                     PASS
-v0.7.5 standalone PC UART PING:                    PASS
+v0.7.6 exact Keil rebuild:                         PASS
+v0.7.6 SN-LINK program/verify:                     PASS
+v0.7.6 standalone PC UART PING:                    PASS
 first active SPI failure immediately postboot:     CLEAR
 startup reset residue:                             NONE or EXACT-MATCH ONLY
 P1 GET_INFO raw active diagnostic:                 PASS
