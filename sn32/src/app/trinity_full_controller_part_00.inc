@@ -5,6 +5,7 @@
 enum {
     CONTROLLER_STATUS_TIMEOUT_MS = 100u,
     CONTROLLER_POLL_INTERVAL_MS = 1u,
+    CONTROLLER_SESSION_COMMIT_LOW_MS = 2u,
     CONTROLLER_SESSION_STAGE_TIMEOUT_MS = 500u,
     CONTROLLER_SESSION_ACTIVE_TIMEOUT_MS = 2000u
 };
@@ -50,6 +51,13 @@ static bool controller_expired(const trinity_controller_t *controller,
     return (uint32_t)(controller_now(controller) - started) >= timeout_ms;
 }
 
+static void controller_wait_ms(const trinity_controller_t *controller,
+                               uint32_t delay_ms) {
+    const uint32_t started = controller_now(controller);
+    while (!controller_expired(controller, started, delay_ms))
+        controller_progress(controller);
+}
+
 static bool controller_tiny_fault(const trinity_controller_t *controller) {
     return controller->ops.tiny_fault_active != NULL &&
            controller->ops.tiny_fault_active(controller->ops.context);
@@ -72,7 +80,8 @@ static trinity_error_code_t controller_exchange(
     uint16_t *response_length,
     uint16_t *issued_txid) {
     trinity_error_code_t rc;
-    if (controller == NULL || controller->ops.exchange == NULL)
+    if (controller == NULL || controller->ops.exchange == NULL ||
+        controller->ops.now_ms == NULL)
         return TRINITY_INTERNAL_FAULT;
     if (controller_tiny_fault(controller)) {
         controller_latch_error(controller, TRINITY_FAULT_LOCKED,
