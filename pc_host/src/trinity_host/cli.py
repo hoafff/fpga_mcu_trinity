@@ -100,15 +100,32 @@ def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
     if latched_raw not in {0, 1}:
         raise HostProtocolError(f"invalid first SPI failure latch value {latched_raw}")
     context_name = _SPI_TRACE_CONTEXT_NAMES.get(context, f"UNKNOWN_{context}")
-    if latched_raw == 0:
-        if len(payload) != 2:
+    if len(payload) == 2:
+        if latched_raw != 0 or context != 0:
             raise HostProtocolError(
-                "unlatched first SPI failure response must contain only two bytes"
+                "first SPI failure metadata names a trace but no trace is present"
             )
-        return {"latched": False, "context": context_name}
+        return {
+            "latched": False,
+            "startup_residue": False,
+            "context": context_name,
+        }
+
     trace = SpiDiagnosticTrace.decode(payload[2:])
+    if latched_raw == 0:
+        if context not in {1, 2}:
+            raise HostProtocolError(
+                "unlatched SPI trace must be a startup-drain reset residue"
+            )
+        return {
+            "latched": False,
+            "startup_residue": True,
+            "context": context_name,
+            **_spi_trace_dict(trace),
+        }
     return {
         "latched": True,
+        "startup_residue": False,
         "context": context_name,
         **_spi_trace_dict(trace),
     }
@@ -152,7 +169,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub.add_parser(
         "spi-first-failure",
-        help="read the immutable first SPI failure trace without issuing Primer SPI traffic",
+        help=(
+            "read the immutable first active SPI failure, or the exact startup "
+            "reset residue when no active failure occurred"
+        ),
     )
 
     # Retained compatibility aliases for the earlier P1-only workflow.
