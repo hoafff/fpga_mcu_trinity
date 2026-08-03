@@ -1,9 +1,9 @@
     if (rc == TRINITY_OK)
-        rc = trinity_cobs_encode(g_pc_raw, raw_len, g_pc_tx,
-                                 sizeof(g_pc_tx) - 1u, &wire_len);
+        rc = trinity_cobs_encode(g_pc_raw, raw_len, g_pc_wire,
+                                 sizeof(g_pc_wire) - 1u, &wire_len);
     if (rc == TRINITY_OK) {
-        g_pc_tx[wire_len] = 0u;
-        rc = uart_write(g_pc_tx, wire_len + 1u);
+        g_pc_wire[wire_len] = 0u;
+        rc = uart_write(g_pc_wire, wire_len + 1u);
     }
     if (rc != TRINITY_OK) set_error(rc, TRINITY_SOURCE_SN32, 0u);
     return rc;
@@ -37,10 +37,3 @@ static void handle_ping(const trinity_pc_frame_t *req) {
     trinity_write_be32(g_pc_rsp.payload, g_ms);
     (void)response_send();
 }
-
-static void handle_get_system_info(const trinity_pc_frame_t *req) {
-    trinity_error_code_t rc;
-    if (!request_length_is(req, 0u)) {
-        response_error(req, TRINITY_BAD_LENGTH, TRINITY_SOURCE_HOST_PROTOCOL, 0u);
-        return;
-    }
