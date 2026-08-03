@@ -4,15 +4,20 @@ static bool full_diagnostic_state_ready(void) {
 }
 
 static trinity_error_code_t full_run_self_test_iterations(
+    const trinity_pc_frame_t *req,
     uint8_t target_mask,
     uint16_t test_mask,
     uint16_t iterations) {
     uint16_t index;
+    uint8_t last_percent = 0u;
     trinity_error_code_t rc = TRINITY_OK;
+    full_send_progress_event(req, 0u);
     for (index = 0u; index < iterations; ++index) {
         rc = trinity_controller_run_self_test(&g_controller, target_mask,
                                               test_mask, 8000u);
         if (rc != TRINITY_OK) break;
+        full_progress_event_maybe(req, (uint32_t)index + 1u,
+                                  iterations, &last_percent);
         progress();
     }
     return rc;
@@ -49,7 +54,8 @@ static void full_handle_diagnostic_test(const trinity_pc_frame_t *req,
                       ? (TRINITY_READY_PRIMER1 | TRINITY_READY_PRIMER2)
                       : TRINITY_READY_PRIMER1;
     if (!managed_transaction_begin(req)) return;
-    rc = full_run_self_test_iterations(target_mask, test_mask, iterations);
+    rc = full_run_self_test_iterations(req, target_mask, test_mask,
+                                       iterations);
     result[0] = req->payload[0];
     result[1] = target_mask;
     trinity_write_be16(&result[2], iterations);
