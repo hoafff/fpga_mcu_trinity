@@ -6,8 +6,8 @@ static void full_handle_generate_keypair(const trinity_pc_frame_t *req) {
                        TRINITY_SOURCE_HOST_PROTOCOL, 0u);
         return;
     }
-    if (g_controller.state == TRINITY_SYSTEM_ACTIVE ||
-        g_controller.state == TRINITY_SYSTEM_SESSION_ESTABLISHING) {
+    if (g_controller.state != TRINITY_SYSTEM_READY_NO_KEYPAIR &&
+        g_controller.state != TRINITY_SYSTEM_READY_NO_SESSION) {
         response_error(req, TRINITY_BAD_STATE, TRINITY_SOURCE_SN32, 0u);
         return;
     }
@@ -37,6 +37,11 @@ static void full_handle_create_session(const trinity_pc_frame_t *req) {
     if (req->payload[0] == 2u) {
         response_error(req, TRINITY_NOT_SUPPORTED,
                        TRINITY_SOURCE_SN32, 0u);
+        return;
+    }
+    if (g_controller.state != TRINITY_SYSTEM_READY_NO_SESSION ||
+        !g_crypto.keypair_valid) {
+        response_error(req, TRINITY_BAD_STATE, TRINITY_SOURCE_SN32, 0u);
         return;
     }
     if (!managed_transaction_begin(req)) return;
