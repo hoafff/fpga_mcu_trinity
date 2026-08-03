@@ -8,30 +8,7 @@
 
 static uint8_t system_state(void) {
     if (g_fault) return (uint8_t)TRINITY_SYSTEM_ERROR;
-    if (!g_p1.ready) return (uint8_t)TRINITY_SYSTEM_SELF_TEST_REQUIRED;
-#if TRINITY_DEPLOY_P1_BRINGUP_ONLY == 0
-    if (!g_p2.ready) return (uint8_t)TRINITY_SYSTEM_SELF_TEST_REQUIRED;
-#endif
-    switch ((trinity_session_state_t)g_p1.session_state) {
-        case TRINITY_SESSION_BOOT:
-            return (uint8_t)TRINITY_SYSTEM_BOOT;
-        case TRINITY_SESSION_SELF_TEST_REQUIRED:
-            return (uint8_t)TRINITY_SYSTEM_SELF_TEST_REQUIRED;
-        case TRINITY_SESSION_SELF_TEST_RUNNING:
-            return (uint8_t)TRINITY_SYSTEM_SELF_TEST_RUNNING;
-        case TRINITY_SESSION_READY_NO_SESSION:
-        case TRINITY_SESSION_STAGED:
-        case TRINITY_SESSION_COMMITTED_BLOCKED:
-            return (uint8_t)TRINITY_SYSTEM_READY_NO_SESSION;
-        case TRINITY_SESSION_ACTIVE:
-            return (uint8_t)TRINITY_SYSTEM_ACTIVE;
-        case TRINITY_SESSION_ZEROIZE_BUSY:
-            return (uint8_t)TRINITY_SYSTEM_ZEROIZE_BUSY;
-        case TRINITY_SESSION_FAULT_LOCKED:
-            return (uint8_t)TRINITY_SYSTEM_FAULT_LOCKED;
-        default:
-            return (uint8_t)TRINITY_SYSTEM_ERROR;
-    }
+    return (uint8_t)g_controller.state;
 }
 
 static uint32_t pc_request_fingerprint(const trinity_pc_frame_t *req) {
