@@ -111,9 +111,10 @@ static trinity_error_code_t controller_get_info(
     trinity_controller_endpoint_t *endpoint) {
     uint8_t response[12];
     uint16_t response_length = 0u;
+    uint16_t issued_txid = 0u;
     trinity_error_code_t rc = controller_exchange(
         controller, endpoint->target_id, TRINITY_SPI_GET_INFO,
-        NULL, 0u, response, sizeof(response), &response_length, NULL);
+        NULL, 0u, response, sizeof(response), &response_length, &issued_txid);
     if (rc != TRINITY_OK) return rc;
     if (response_length != sizeof(response) ||
         response[0] != endpoint->target_id ||
