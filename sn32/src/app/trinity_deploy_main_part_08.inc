@@ -41,6 +41,7 @@
 
 failed:
     g_spi_trace.result_code = rc;
+    spi_latch_first_failure();
     set_error(rc, endpoint_source(ep), ((uint32_t)command << 16) | txid);
     return rc;
 }
