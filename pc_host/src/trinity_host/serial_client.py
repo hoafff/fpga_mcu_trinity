@@ -11,8 +11,10 @@ from .protocol import (
     FrameFlags,
     HostCommand,
     HostFrame,
+    SpiCommand,
     SystemState,
     SystemStatus,
+    TargetId,
     TargetReadyMask,
     TestMask,
     TestProfile,
@@ -31,6 +33,8 @@ EXPECTED_P1_BUILD_ID = 0x50310001
 EXPECTED_P2_BUILD_ID = 0x50320001
 P1_KAT_TEST_MASK = 0x013E
 P2_KAT_TEST_MASK = 0x03E3
+SPI_DIAGNOSTIC_HEADER_SIZE = 24
+SPI_DIAGNOSTIC_MAX_CAPTURE = 76
 
 
 class SerialPortLike(Protocol):
@@ -98,6 +102,93 @@ class DualSpiBringupResult:
     primer1_transaction: TransactionResult
     primer2_transaction: TransactionResult
     status_after: SystemStatus
+
+
+@dataclass(frozen=True, slots=True)
+class SpiDiagnosticTrace:
+    target_id: int
+    command: int
+    source: int
+    result_code: ErrorCode
+    target_transaction_id: int
+    request_fingerprint: int
+    request_length: int
+    response_capture_length: int
+    response_frame_length: int
+    request_crc: int
+    response_crc_received: int
+    response_crc_calculated: int
+    irq_before_request: bool
+    irq_after_request: bool
+    irq_before_response: bool
+    irq_after_response: bool
+    request_bytes: bytes
+    response_bytes: bytes
+
+    @classmethod
+    def decode(cls, payload: bytes) -> "SpiDiagnosticTrace":
+        if len(payload) < SPI_DIAGNOSTIC_HEADER_SIZE:
+            raise HostProtocolError(
+                f"SPI diagnostic payload must be at least 24 bytes, got {len(payload)}"
+            )
+        target_id, command, source, irq_flags = payload[:4]
+        (
+            result_code_raw,
+            target_txid,
+            request_fingerprint,
+            request_length,
+            response_capture_length,
+            response_frame_length,
+            request_crc,
+            response_crc_received,
+            response_crc_calculated,
+        ) = struct.unpack_from(">HHIHHHHHH", payload, 4)
+        if request_length > SPI_DIAGNOSTIC_MAX_CAPTURE:
+            raise HostProtocolError(
+                f"SPI diagnostic request capture too long: {request_length}"
+            )
+        if response_capture_length > SPI_DIAGNOSTIC_MAX_CAPTURE:
+            raise HostProtocolError(
+                "SPI diagnostic response capture too long: "
+                f"{response_capture_length}"
+            )
+        expected_length = (
+            SPI_DIAGNOSTIC_HEADER_SIZE
+            + request_length
+            + response_capture_length
+        )
+        if len(payload) != expected_length:
+            raise HostProtocolError(
+                f"SPI diagnostic payload length {len(payload)} != {expected_length}"
+            )
+        try:
+            result_code = ErrorCode(result_code_raw)
+        except ValueError as exc:
+            raise HostProtocolError(
+                f"unknown SPI diagnostic result 0x{result_code_raw:04X}"
+            ) from exc
+        request_start = SPI_DIAGNOSTIC_HEADER_SIZE
+        response_start = request_start + request_length
+        return cls(
+            target_id=target_id,
+            command=command,
+            source=source,
+            result_code=result_code,
+            target_transaction_id=target_txid,
+            request_fingerprint=request_fingerprint,
+            request_length=request_length,
+            response_capture_length=response_capture_length,
+            response_frame_length=response_frame_length,
+            request_crc=request_crc,
+            response_crc_received=response_crc_received,
+            response_crc_calculated=response_crc_calculated,
+            irq_before_request=bool(irq_flags & 0x01),
+            irq_after_request=bool(irq_flags & 0x02),
+            irq_before_response=bool(irq_flags & 0x04),
+            irq_after_response=bool(irq_flags & 0x08),
+            request_bytes=payload[request_start:response_start],
+            response_bytes=payload[response_start:expected_length],
+        )
 
 
 class TrinitySerialClient:
@@ -238,6 +329,32 @@ class TrinitySerialClient:
         return SystemStatus.decode(
             self.request(HostCommand.GET_SYSTEM_STATUS, timeout=1.0).payload
         )
+
+    def spi_diagnostic(
+        self,
+        target_id: TargetId | int,
+        command: SpiCommand | int,
+    ) -> SpiDiagnosticTrace:
+        target_value = int(target_id)
+        command_value = int(command)
+        if target_value not in {int(TargetId.PRIMER1), int(TargetId.PRIMER2)}:
+            raise ValueError(f"invalid SPI diagnostic target {target_value}")
+        if command_value not in {
+            int(SpiCommand.GET_INFO),
+            int(SpiCommand.GET_STATUS),
+        }:
+            raise ValueError(
+                f"SPI diagnostic command 0x{command_value:02X} is not side-effect-free"
+            )
+        response = self.request(
+            HostCommand.SPI_DIAGNOSTIC,
+            bytes((target_value, command_value)),
+            timeout=2.0,
+        )
+        trace = SpiDiagnosticTrace.decode(response.payload)
+        if trace.target_id != target_value or trace.command != command_value:
+            raise HostProtocolError("SPI diagnostic target/command correlation mismatch")
+        return trace
 
     def start_self_test(
         self,
