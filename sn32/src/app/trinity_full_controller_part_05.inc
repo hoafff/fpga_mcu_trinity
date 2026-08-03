@@ -1,6 +1,8 @@
     trinity_error_code_t rc2;
     uint32_t session_id;
     if (controller == NULL) return TRINITY_INTERNAL_FAULT;
+    if (controller->ops.session_commit_low != NULL)
+        controller->ops.session_commit_low(controller->ops.context);
     session_id = controller->session_material_valid
                      ? controller->session.session_id : 0u;
     rc1 = controller_abort_one(controller, TRINITY_TARGET_PRIMER1, session_id);
@@ -13,9 +15,11 @@
     trinity_controller_forget_last_result(controller);
     controller->state = TRINITY_SYSTEM_READY_NO_SESSION;
     (void)timeout_ms;
-    if (rc1 != TRINITY_OK && rc1 != TRINITY_BAD_SESSION) return rc1;
-    if (rc2 != TRINITY_OK && rc2 != TRINITY_BAD_SESSION) return rc2;
-    return TRINITY_OK;
+    if (rc1 != TRINITY_OK && rc1 != TRINITY_BAD_SESSION &&
+        rc1 != TRINITY_FAULT_LOCKED) return rc1;
+    if (rc2 != TRINITY_OK && rc2 != TRINITY_BAD_SESSION &&
+        rc2 != TRINITY_FAULT_LOCKED) return rc2;
+    return controller_tiny_fault(controller) ? TRINITY_FAULT_LOCKED : TRINITY_OK;
 }
 
 trinity_error_code_t trinity_controller_zeroize(
@@ -25,6 +29,8 @@ trinity_error_code_t trinity_controller_zeroize(
     trinity_error_code_t rc1;
     trinity_error_code_t rc2;
     if (controller == NULL) return TRINITY_INTERNAL_FAULT;
+    if (controller->ops.session_commit_low != NULL)
+        controller->ops.session_commit_low(controller->ops.context);
     controller->state = TRINITY_SYSTEM_ZEROIZE_BUSY;
     rc1 = controller_zeroize_one(controller, TRINITY_TARGET_PRIMER1,
                                  scope, timeout_ms);
@@ -39,9 +45,11 @@ trinity_error_code_t trinity_controller_zeroize(
     controller->state = controller_tiny_fault(controller)
                             ? TRINITY_SYSTEM_FAULT_LOCKED
                             : TRINITY_SYSTEM_READY_NO_SESSION;
-    if (rc1 != TRINITY_OK && rc1 != TRINITY_ZEROIZED) return rc1;
-    if (rc2 != TRINITY_OK && rc2 != TRINITY_ZEROIZED) return rc2;
-    return TRINITY_OK;
+    if (rc1 != TRINITY_OK && rc1 != TRINITY_ZEROIZED &&
+        rc1 != TRINITY_FAULT_LOCKED) return rc1;
+    if (rc2 != TRINITY_OK && rc2 != TRINITY_ZEROIZED &&
+        rc2 != TRINITY_FAULT_LOCKED) return rc2;
+    return controller_tiny_fault(controller) ? TRINITY_FAULT_LOCKED : TRINITY_OK;
 }
 
 static trinity_error_code_t controller_get_rx_status(
