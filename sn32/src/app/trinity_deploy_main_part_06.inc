@@ -12,30 +12,59 @@ static void spi_guard_delay(void) {
     }
 }
 
+static trinity_error_code_t spi_transfer_timeout(uint8_t stage,
+                                                  size_t byte_index,
+                                                  size_t transfer_length) {
+    if (g_spi_trace.valid) {
+        g_spi_trace.transfer_stage = stage;
+        g_spi_trace.transfer_byte_index = (uint16_t)byte_index;
+        g_spi_trace.transfer_length = (uint16_t)transfer_length;
+        g_spi_trace.spi_status = SN_SPI0->STAT;
+    }
+    return TRINITY_FRAME_TIMEOUT;
+}
+
 static trinity_error_code_t spi_bytes(const uint8_t *tx, uint8_t *rx,
                                       size_t len) {
     const uint32_t start = g_ms;
     size_t i;
     if (!g_spi_ready || !g_spi_selected) return TRINITY_BAD_STATE;
+    if (g_spi_trace.valid) {
+        g_spi_trace.transfer_stage = SPI_TRANSFER_STAGE_NONE;
+        g_spi_trace.transfer_direction =
+            tx != NULL ? SPI_TRANSFER_DIRECTION_REQUEST
+                       : SPI_TRANSFER_DIRECTION_RESPONSE;
+        g_spi_trace.transfer_byte_index = 0u;
+        g_spi_trace.transfer_length = (uint16_t)len;
+        g_spi_trace.transfer_completed = 0u;
+        g_spi_trace.spi_status = SN_SPI0->STAT;
+    }
     for (i = 0u; i < len; ++i) {
         while ((SN_SPI0->STAT & SPI_TX_FULL) != 0u) {
             progress();
             if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return TRINITY_FRAME_TIMEOUT;
+                return spi_transfer_timeout(SPI_TRANSFER_STAGE_TX_FULL,
+                                            i, len);
         }
         SN_SPI0->DATA = tx != NULL ? tx[i] : 0u;
         while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
             progress();
             if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return TRINITY_FRAME_TIMEOUT;
+                return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY,
+                                            i, len);
         }
         while ((SN_SPI0->STAT & SPI_RX_EMPTY) != 0u) {
             progress();
             if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return TRINITY_FRAME_TIMEOUT;
+                return spi_transfer_timeout(SPI_TRANSFER_STAGE_RX_EMPTY,
+                                            i, len);
         }
         if (rx != NULL) rx[i] = (uint8_t)SN_SPI0->DATA;
         else (void)SN_SPI0->DATA;
+        if (g_spi_trace.valid) {
+            g_spi_trace.transfer_completed = (uint16_t)(i + 1u);
+            g_spi_trace.spi_status = SN_SPI0->STAT;
+        }
     }
     return TRINITY_OK;
 }
