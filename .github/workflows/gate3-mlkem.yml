@@ -7,6 +7,7 @@ on:
       - .github/workflows/gate3-mlkem.yml
       - .gitmodules
       - sn32/config/**
+      - sn32/docs/FULL_DEPLOY_SOURCE_HANDOFF.md
       - sn32/include/**
       - sn32/src/**
       - sn32/keil/trinity_sn32f407_deploy.uvprojx
