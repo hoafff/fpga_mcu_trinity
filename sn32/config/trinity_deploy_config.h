@@ -2,24 +2,24 @@
 #define TRINITY_DEPLOY_CONFIG_H
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
-#define TRINITY_DEPLOY_VERSION_MINOR 5u
-#define TRINITY_DEPLOY_VERSION_PATCH 1u
+#define TRINITY_DEPLOY_VERSION_MINOR 6u
+#define TRINITY_DEPLOY_VERSION_PATCH 0u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
 #define TRINITY_DEPLOY_ENABLE_PRIMER1            1
 #define TRINITY_DEPLOY_ENABLE_PRIMER2            1
+/* Enabled only after the exact pinned vendor tree is present in the Keil target. */
 #define TRINITY_DEPLOY_ENABLE_MLKEM               0
+/* P1 drives the qualified direct UART link to P2; SN32 never relays payload. */
 #define TRINITY_DEPLOY_ENABLE_PAYLOAD_RELAY       0
-#define TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT 0
+#define TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT 1
 #define TRINITY_DEPLOY_ENABLE_DEMO_SECURE         0
+#define TRINITY_DEPLOY_P1_BRINGUP_ONLY            0
 
-/*
- * Hardware gate currently authorized: PC -> SN32 -> Primer #1 control plane.
- * Primer #2 remains in the shared pin profile but is neither required nor
- * probed until this flag is changed after the P1 gate is accepted.
- */
-#define TRINITY_DEPLOY_P1_BRINGUP_ONLY            1
+/* SN32 P3.8 / PAT17 -> Tiny J1-6 session_commit_toggle_i. */
+#define FPST_SN32F407_SESSION_COMMIT_PORT          3u
+#define FPST_SN32F407_SESSION_COMMIT_PIN           8u
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
 #define TRINITY_DEPLOY_SPI_HZ                1000000u
