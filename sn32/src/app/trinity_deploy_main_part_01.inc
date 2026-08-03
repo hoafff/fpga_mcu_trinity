@@ -1,6 +1,13 @@
     UART_TIMEOUT_MS = 100u,
     PC_FRAME_TIMEOUT_MS = 250u,
     SPI_RESPONSE_SETTLE_MS = 1u,
+    SPI_TRANSFER_STAGE_NONE = 0u,
+    SPI_TRANSFER_STAGE_TX_FULL = 1u,
+    SPI_TRANSFER_STAGE_BUSY = 2u,
+    SPI_TRANSFER_STAGE_RX_EMPTY = 3u,
+    SPI_TRANSFER_DIRECTION_NONE = 0u,
+    SPI_TRANSFER_DIRECTION_REQUEST = 1u,
+    SPI_TRANSFER_DIRECTION_RESPONSE = 2u,
     SPI_TRACE_CONTEXT_NONE = 0u,
     SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1 = 1u,
     SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2 = 2u,
@@ -53,6 +60,12 @@ typedef struct {
     bool irq_after_request;
     bool irq_before_response;
     bool irq_after_response;
+    uint8_t transfer_stage;
+    uint8_t transfer_direction;
+    uint16_t transfer_byte_index;
+    uint16_t transfer_length;
+    uint16_t transfer_completed;
+    uint32_t spi_status;
     uint8_t request_bytes[TRINITY_SPI_MAX_PACKET];
     uint8_t response_bytes[TRINITY_SPI_MAX_PACKET];
 } spi_exchange_trace_t;
