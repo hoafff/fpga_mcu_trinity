@@ -116,8 +116,8 @@ it. Do not proceed if either board drives MISO while its chip select is high.
 ### Independent selects and IRQ inputs
 
 ```text
-SN32 P2.1 P1_CS_N -> P1 R14 spi_cs_ni
-SN32 P2.2 P2_CS_N -> P2 R14 spi_cs_ni
+SN32 P2.1 P1_CS_N  -> P1 R14 spi_cs_ni
+SN32 P2.2 P2_CS_N  -> P2 R14 spi_cs_ni
 SN32 P2.3 P1_IRQ_N <- P1 T14 irq_no
 SN32 P2.8 P2_IRQ_N <- P2 T14 irq_no
 ```
@@ -141,22 +141,35 @@ session-commit output remains disconnected from Tiny.
 
 Do not leave R11, R12 or T12 floating.
 
-### Direct P1-to-P2 UART
+### Direct P1-to-P2 UART isolation
 
-For maximum isolation, leave the P1 R13 -> P2 R13 payload wire disconnected in
-this dual-SPI control-plane gate. It is reconnected only in the later
-session/telemetry integration gate. This does not revoke its earlier independent
-hardware qualification.
+Do not connect P1 R13 to P2 R13 in this dual-SPI control-plane gate.
+
+Because P2 `uart_rx_i` has no internal pull configured, hold the isolated P2 R13
+input at the UART idle-high level through a 10 kΩ pull-up:
+
+```text
+P1 R13 uart_tx_o -> disconnected
+P2 R13 uart_rx_i -> 3.3 V through 10 kΩ
+```
+
+Do not tie P2 R13 directly to P1 or to a push-pull test source during this gate.
+The 10 kΩ pull-up prevents a floating UART input without creating a hard drive
+conflict when the later direct-UART connection is restored after power-off.
+
+This isolation does not revoke the earlier independent P1-to-P2 UART hardware
+qualification.
 
 ## Power and reset sequence
 
-1. Confirm all SPI, safety and ground wiring with power removed.
+1. Confirm all SPI, safety, P2 UART pull-up and ground wiring with power removed.
 2. Power P1 and P2 and wait for both FPGA configurations to complete.
 3. Confirm both CS inputs are high before starting SN32.
-4. Connect/power the FT232 without connecting its VCC pin.
-5. Power or reset SN32 last so its initial `GET_INFO` requests reach configured
+4. Confirm P2 R13 is idle high and both unselected MISO outputs are released.
+5. Connect/power the FT232 without connecting its VCC pin.
+6. Power or reset SN32 last so its initial `GET_INFO` requests reach configured
    Primer endpoints.
-6. Abort immediately for abnormal heating, supply droop, MISO contention or a
+7. Abort immediately for abnormal heating, supply droop, MISO contention or a
    chip-select line stuck low.
 
 Power-cycling P1/P2 before SN32 also prevents an old response mailbox from being
@@ -257,6 +270,7 @@ P2 retained KAT mask 0x03E3:              PASS
 P2 result retirement:                     PASS
 final ready mask includes SN32/P1/P2:      PASS
 final fault_flags = 0:                     PASS
+P2 uart_rx_i remains idle high:            PASS
 MISO contention or abnormal heating:      NONE
 ```
 
@@ -296,6 +310,12 @@ Save the following under:
 sn32/hardware/dual_spi_control_plane/evidence/
 ```
 
+Start from:
+
+```text
+sn32/hardware/dual_spi_control_plane/evidence/run_manifest_TEMPLATE.txt
+```
+
 Required records:
 
 - full exact Keil rebuild log;
@@ -303,7 +323,8 @@ Required records:
 - SN-LINK program/verify log;
 - standalone v0.7.1 PING output;
 - complete `system-info`, `system-status` and `dual-spi-bringup` output;
-- wiring photograph showing all shared bus, CS, IRQ, ground and safety straps;
+- wiring photograph showing all shared bus, CS, IRQ, P2 UART pull-up, ground and
+  safety straps;
 - source commit, submodule commit and P1/P2 bitstream identities;
 - failure notes, even if a later retry passes.
 
