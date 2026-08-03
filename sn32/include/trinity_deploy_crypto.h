@@ -14,10 +14,13 @@ extern "C" {
 typedef struct {
     bool keypair_valid;
     uint32_t keypair_generation;
-    uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES];
+    uint8_t public_key_hash[32];
     uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES];
     union {
-        uint8_t keygen_coins[TRINITY_MLKEM_KEYGEN_COINS_BYTES];
+        struct {
+            uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES];
+            uint8_t coins[TRINITY_MLKEM_KEYGEN_COINS_BYTES];
+        } keygen;
         struct {
             uint8_t ciphertext[TRINITY_MLKEM512_CIPHERTEXT_BYTES];
             uint8_t encapsulated_secret[TRINITY_MLKEM_SHARED_SECRET_BYTES];
