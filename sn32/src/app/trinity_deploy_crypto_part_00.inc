@@ -44,7 +44,7 @@ void trinity_deploy_crypto_init(trinity_deploy_crypto_t *crypto) {
 
 void trinity_deploy_crypto_zeroize(trinity_deploy_crypto_t *crypto) {
     if (crypto == NULL) return;
-    trinity_secure_zero(crypto, sizeof(*crypto));
+    trinity_controller_secure_clear(crypto, sizeof(*crypto));
 }
 
 trinity_error_code_t trinity_deploy_crypto_generate_keypair(
