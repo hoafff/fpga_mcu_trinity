@@ -15,6 +15,16 @@ from .serial_client import (
 )
 
 
+_SPI_TRACE_CONTEXT_NAMES = {
+    0: "NONE",
+    1: "STARTUP_DRAIN_P1",
+    2: "STARTUP_DRAIN_P2",
+    3: "STARTUP_PROBE",
+    4: "PERIODIC_PROBE",
+    5: "HOST_DIAGNOSTIC",
+}
+
+
 def _status_dict(status: SystemStatus) -> dict[str, object]:
     return {
         "system_state": status.system_state.name,
@@ -81,6 +91,29 @@ def _spi_trace_dict(trace: SpiDiagnosticTrace) -> dict[str, object]:
     }
 
 
+def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
+    if len(payload) < 2:
+        raise HostProtocolError(
+            f"first SPI failure payload must be at least 2 bytes, got {len(payload)}"
+        )
+    latched_raw, context = payload[:2]
+    if latched_raw not in {0, 1}:
+        raise HostProtocolError(f"invalid first SPI failure latch value {latched_raw}")
+    context_name = _SPI_TRACE_CONTEXT_NAMES.get(context, f"UNKNOWN_{context}")
+    if latched_raw == 0:
+        if len(payload) != 2:
+            raise HostProtocolError(
+                "unlatched first SPI failure response must contain only two bytes"
+            )
+        return {"latched": False, "context": context_name}
+    trace = SpiDiagnosticTrace.decode(payload[2:])
+    return {
+        "latched": True,
+        "context": context_name,
+        **_spi_trace_dict(trace),
+    }
+
+
 def _emit(data: dict[str, object], as_json: bool) -> None:
     if as_json:
         print(json.dumps(data, sort_keys=True))
@@ -116,6 +149,10 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="spi_command",
         choices=("get-info", "get-status"),
         required=True,
+    )
+    sub.add_parser(
+        "spi-first-failure",
+        help="read the immutable first SPI failure trace without issuing Primer SPI traffic",
     )
 
     # Retained compatibility aliases for the earlier P1-only workflow.
@@ -179,6 +216,15 @@ def main(argv: list[str] | None = None) -> int:
                 trace = client.spi_diagnostic(target, command)
                 _emit(
                     {"step": "SPI_DIAGNOSTIC", **_spi_trace_dict(trace)},
+                    args.json,
+                )
+            elif args.command == "spi-first-failure":
+                response = client.request(HostCommand.GET_FIRST_SPI_FAILURE)
+                _emit(
+                    {
+                        "step": "SPI_FIRST_FAILURE",
+                        **_first_spi_failure_dict(response.payload),
+                    },
                     args.json,
                 )
             elif args.command == "p1-self-test-start":
