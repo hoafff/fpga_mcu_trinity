@@ -2,7 +2,22 @@
     memset(g_host_txn.result_data, 0, sizeof(g_host_txn.result_data));
     if (result_length != 0u && result != NULL)
         memcpy(g_host_txn.result_data, result, result_length);
+
     full_sync_legacy_status();
+    g_host_txn.result_system_state = system_state();
+    g_host_txn.result_related_target_txid = g_host_txn.target_txid;
+    if (rc == TRINITY_OK) {
+        g_host_txn.result_source = (uint8_t)TRINITY_SOURCE_SN32;
+    } else if (g_controller.last_error == rc) {
+        g_host_txn.result_source = (uint8_t)g_controller.last_error_source;
+        set_error(rc, g_controller.last_error_source,
+                  g_host_txn.target_txid);
+    } else if (g_error.code == rc) {
+        g_host_txn.result_source = (uint8_t)g_error.source;
+    } else {
+        g_host_txn.result_source = (uint8_t)TRINITY_SOURCE_SN32;
+        set_error(rc, TRINITY_SOURCE_SN32, g_host_txn.target_txid);
+    }
 }
 
 static void full_handle_run_self_test(const trinity_pc_frame_t *req) {
