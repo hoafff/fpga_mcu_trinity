@@ -52,6 +52,7 @@ secure_enable_i_T12_to_gnd:
 tiny_disconnected:
 sn32_p3_8_session_commit_disconnected:
 p1_r13_to_p2_r13_uart_disconnected:
+p2_uart_rx_r13_pulled_up_to_3v3_through_10k:
 
 WIRING
 sn32_p1_0_sck_to_p1_p16_and_p2_p16:
@@ -84,6 +85,7 @@ p2_retained_kat_0x03e3:
 p2_result_retirement:
 final_ready_mask_sn32_p1_p2:
 final_fault_flags_zero:
+p2_uart_rx_idle_high:
 miso_contention_absent:
 abnormal_heating_absent:
 
