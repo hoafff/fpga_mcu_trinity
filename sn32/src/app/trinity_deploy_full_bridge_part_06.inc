@@ -1,10 +1,20 @@
+static void full_make_benchmark_seed(uint32_t iteration,
+                                     uint8_t domain,
+                                     uint8_t seed[32]) {
+    uint8_t input[9];
+    input[0] = 'B'; input[1] = 'E'; input[2] = 'N'; input[3] = 'C';
+    input[4] = domain;
+    trinity_write_be32(&input[5], iteration);
+    trinity_shake256(seed, 32u, input, sizeof(input));
+    trinity_controller_secure_clear(input, sizeof(input));
+}
+
 static void full_handle_benchmark(const trinity_pc_frame_t *req) {
-    const uint16_t unsupported =
-        TRINITY_BENCH_MLKEM_KEYGEN | TRINITY_BENCH_MLKEM_ENCAPS |
-        TRINITY_BENCH_MLKEM_DECAPS;
     uint8_t result[16];
     uint8_t telemetry[32];
+    uint8_t benchmark_seed[32];
     trinity_controller_auth_result_t auth;
+    trinity_controller_session_material_t material;
     uint16_t operation_mask;
     uint32_t iterations;
     uint32_t index;
@@ -12,6 +22,7 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
     trinity_error_code_t rc = TRINITY_OK;
     bool needs_self_test;
     bool needs_payload;
+    bool needs_kem;
 
     if (!request_length_is(req, 8u) || req->payload[1] != 0u) {
         response_error(req, TRINITY_BAD_LENGTH,
@@ -20,14 +31,10 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
     }
     operation_mask = trinity_read_be16(&req->payload[2]);
     iterations = trinity_read_be32(&req->payload[4]);
-    if (operation_mask == 0u || iterations == 0u || iterations > 1000u) {
+    if (operation_mask == 0u || iterations == 0u || iterations > 1000u ||
+        (operation_mask & (uint16_t)~((1u << 11) - 1u)) != 0u) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_HOST_PROTOCOL, operation_mask);
-        return;
-    }
-    if ((operation_mask & unsupported) != 0u) {
-        response_error(req, TRINITY_NOT_SUPPORTED,
-                       TRINITY_SOURCE_SN32, operation_mask & unsupported);
         return;
     }
     needs_self_test = (operation_mask &
@@ -35,7 +42,11 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
          TRINITY_BENCH_ASCON_ENCRYPT | TRINITY_BENCH_ASCON_DECRYPT)) != 0u;
     needs_payload = (operation_mask &
         (TRINITY_BENCH_PAYLOAD_UART | TRINITY_BENCH_END_TO_END)) != 0u;
-    if (needs_self_test && !full_diagnostic_state_ready()) {
+    needs_kem = (operation_mask &
+        (TRINITY_BENCH_MLKEM_KEYGEN | TRINITY_BENCH_MLKEM_ENCAPS |
+         TRINITY_BENCH_MLKEM_DECAPS)) != 0u;
+
+    if ((needs_self_test || needs_kem) && !full_diagnostic_state_ready()) {
         response_error(req, TRINITY_BAD_STATE, TRINITY_SOURCE_SN32, 0u);
         return;
     }
@@ -43,10 +54,49 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
         response_error(req, TRINITY_BAD_STATE, TRINITY_SOURCE_SN32, 0u);
         return;
     }
+    if (needs_kem && !TRINITY_DEPLOY_ENABLE_MLKEM) {
+        response_error(req, TRINITY_NOT_SUPPORTED,
+                       TRINITY_SOURCE_SN32, operation_mask);
+        return;
+    }
     if (!managed_transaction_begin(req)) return;
+
+    /* Prepare a keypair outside the timed loop for encaps/decaps-only runs. */
+    if (needs_kem &&
+        (operation_mask & TRINITY_BENCH_MLKEM_KEYGEN) == 0u &&
+        !g_crypto.keypair_valid) {
+        full_make_benchmark_seed(0u, 0x4Bu, benchmark_seed);
+        rc = trinity_deploy_crypto_generate_keypair(&g_crypto, 1u,
+                                                    benchmark_seed);
+        trinity_controller_secure_clear(benchmark_seed,
+                                        sizeof(benchmark_seed));
+        if (rc == TRINITY_OK)
+            g_controller.state = TRINITY_SYSTEM_READY_NO_SESSION;
+    }
+
     started = g_ms;
     for (index = 0u; index < iterations && rc == TRINITY_OK; ++index) {
-        if ((operation_mask &
+        if ((operation_mask & TRINITY_BENCH_MLKEM_KEYGEN) != 0u) {
+            full_make_benchmark_seed(index, 0x4Bu, benchmark_seed);
+            rc = trinity_deploy_crypto_generate_keypair(&g_crypto, 1u,
+                                                        benchmark_seed);
+            trinity_controller_secure_clear(benchmark_seed,
+                                            sizeof(benchmark_seed));
+            if (rc == TRINITY_OK)
+                g_controller.state = TRINITY_SYSTEM_READY_NO_SESSION;
+        }
+        if (rc == TRINITY_OK && (operation_mask &
+            (TRINITY_BENCH_MLKEM_ENCAPS |
+             TRINITY_BENCH_MLKEM_DECAPS)) != 0u) {
+            full_make_benchmark_seed(index, 0x45u, benchmark_seed);
+            memset(&material, 0, sizeof(material));
+            rc = trinity_deploy_crypto_create_session(
+                &g_crypto, 1u, benchmark_seed, &material);
+            trinity_controller_secure_clear(benchmark_seed,
+                                            sizeof(benchmark_seed));
+            trinity_controller_secure_clear(&material, sizeof(material));
+        }
+        if (rc == TRINITY_OK && (operation_mask &
              (TRINITY_BENCH_NTT | TRINITY_BENCH_INTT |
               TRINITY_BENCH_BASEMUL)) != 0u) {
             rc = trinity_controller_run_self_test(
@@ -77,6 +127,8 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
         }
         progress();
     }
+    trinity_controller_secure_clear(benchmark_seed, sizeof(benchmark_seed));
+    trinity_controller_secure_clear(&material, sizeof(material));
     trinity_write_be16(&result[0], operation_mask);
     trinity_write_be16(&result[2], req->payload[0]);
     trinity_write_be32(&result[4], index);
@@ -120,13 +172,16 @@ static void full_handle_run_demo(const trinity_pc_frame_t *req) {
     }
     if (!managed_transaction_begin(req)) return;
 
-    if (!g_crypto.keypair_valid) {
+    /* A deterministic demo is fully determined by this request's seed. */
+    if (g_controller.state == TRINITY_SYSTEM_ACTIVE)
+        rc = trinity_controller_close_session(&g_controller, 20000u);
+    if (rc == TRINITY_OK) {
         rc = trinity_deploy_crypto_generate_keypair(
             &g_crypto, 1u, &req->payload[8]);
         if (rc == TRINITY_OK)
             g_controller.state = TRINITY_SYSTEM_READY_NO_SESSION;
     }
-    if (rc == TRINITY_OK && g_controller.state != TRINITY_SYSTEM_ACTIVE) {
+    if (rc == TRINITY_OK) {
         memset(&material, 0, sizeof(material));
         rc = trinity_deploy_crypto_create_session(
             &g_crypto, 1u, &req->payload[8], &material);
