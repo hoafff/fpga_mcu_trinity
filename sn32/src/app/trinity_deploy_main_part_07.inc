@@ -26,6 +26,41 @@ static void spi_latch_first_failure(void) {
     }
 }
 
+static bool spi_trace_is_startup_reset_residue(
+    const spi_exchange_trace_t *trace) {
+    const uint8_t *rsp;
+    if (trace == NULL || !trace->valid) return false;
+    if (trace->context != SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1 &&
+        trace->context != SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2)
+        return false;
+    if (trace->result_code != TRINITY_BAD_LENGTH ||
+        trace->command != 0u || trace->target_txid != 0u ||
+        trace->request_length != 0u ||
+        trace->response_capture_length != TRINITY_SPI_MAX_PACKET ||
+        trace->response_frame_length != 16u ||
+        trace->response_crc_received != trace->response_crc_calculated)
+        return false;
+
+    rsp = trace->response_bytes;
+    return rsp[0] == TRINITY_SPI_MAGIC &&
+           rsp[1] == TRINITY_PROTOCOL_VERSION &&
+           rsp[2] == 0u &&
+           rsp[3] == (TRINITY_FLAG_RESPONSE | TRINITY_FLAG_ERROR) &&
+           rsp[4] == 0u && rsp[5] == 0u &&
+           rsp[6] == 0u && rsp[7] == 6u &&
+           rsp[8] == (uint8_t)(TRINITY_BAD_LENGTH >> 8) &&
+           rsp[9] == (uint8_t)TRINITY_BAD_LENGTH &&
+           rsp[10] == 1u && rsp[11] == 0u &&
+           rsp[12] == 0u && rsp[13] == 0u;
+}
+
+static void spi_record_startup_residue(void) {
+    if (!g_spi_startup_residue.valid &&
+        spi_trace_is_startup_reset_residue(&g_spi_trace)) {
+        g_spi_startup_residue = g_spi_trace;
+    }
+}
+
 static trinity_error_code_t spi_drain_startup_mailbox(endpoint_t *ep) {
     trinity_error_code_t rc;
     trinity_error_code_t decode_rc;
@@ -87,7 +122,10 @@ static trinity_error_code_t spi_drain_startup_mailbox(endpoint_t *ep) {
                             ? (trinity_error_code_t)trinity_read_be16(
                                   g_spi_rsp.payload)
                             : TRINITY_BAD_LENGTH;
-                    spi_latch_first_failure();
+                    if (spi_trace_is_startup_reset_residue(&g_spi_trace))
+                        spi_record_startup_residue();
+                    else
+                        spi_latch_first_failure();
                 }
             }
         }
