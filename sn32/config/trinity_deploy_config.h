@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 4u
+#define TRINITY_DEPLOY_VERSION_PATCH 5u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -35,6 +35,9 @@
  * release. The software delay intentionally exceeds the nominal value. */
 #define TRINITY_DEPLOY_SPI_CS_GUARD_US             10u
 #define TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS        5u
+/* Allow the Primer mailbox/IRQ synchronizers to settle after a complete
+ * response before issuing the next command to either endpoint. */
+#define TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS        1u
 /* A long cryptographic call may keep heartbeat alive only for this bounded
  * lease. A wedged operation loses the lease and Tiny remains fail-closed. */
 #define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u
