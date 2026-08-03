@@ -48,8 +48,7 @@ void trinity_sha3_256(uint8_t output[32],
 }
 
 trinity_error_code_t trinity_mlkem512_keygen_deterministic(
-    uint8_t public_key[800],
-    uint8_t secret_key[1632],
+    uint8_t public_key[800], uint8_t secret_key[1632],
     const uint8_t coins[64]) {
     size_t index;
     ++keygen_calls;
@@ -68,10 +67,8 @@ trinity_error_code_t trinity_mlkem512_keygen(uint8_t public_key[800],
 }
 
 trinity_error_code_t trinity_mlkem512_encaps_deterministic(
-    uint8_t ciphertext[768],
-    uint8_t shared_secret[32],
-    const uint8_t public_key[800],
-    const uint8_t coins[32]) {
+    uint8_t ciphertext[768], uint8_t shared_secret[32],
+    const uint8_t public_key[800], const uint8_t coins[32]) {
     size_t index;
     ++encaps_calls;
     memset(ciphertext, 0, 768u);
@@ -94,8 +91,7 @@ trinity_error_code_t trinity_mlkem512_encaps(uint8_t ciphertext[768],
 }
 
 trinity_error_code_t trinity_mlkem512_decaps(
-    uint8_t shared_secret[32],
-    const uint8_t ciphertext[768],
+    uint8_t shared_secret[32], const uint8_t ciphertext[768],
     const uint8_t secret_key[1632]) {
     (void)secret_key;
     memcpy(shared_secret, ciphertext, 32u);
@@ -105,8 +101,7 @@ trinity_error_code_t trinity_mlkem512_decaps(
 
 trinity_error_code_t trinity_kdf_derive_session(
     trinity_session_material_t *material,
-    const uint8_t shared_secret[32],
-    const uint8_t ciphertext[768]) {
+    const uint8_t shared_secret[32], const uint8_t ciphertext[768]) {
     memcpy(material->ascon_key, shared_secret, 16u);
     memcpy(material->nonce_prefix, &ciphertext[32], 8u);
     material->session_id = UINT32_C(0x11223344);
@@ -138,8 +133,7 @@ int main(void) {
     assert(all_zero(&crypto, sizeof(crypto)));
     assert(trinity_deploy_crypto_generate_keypair(&crypto, 1u, seed) ==
            TRINITY_OK);
-    assert(crypto.keypair_valid);
-    assert(crypto.keypair_generation == 1u);
+    assert(crypto.keypair_valid && crypto.keypair_generation == 1u);
     assert(keygen_calls == 1u);
     assert(all_zero(&crypto.workspace, sizeof(crypto.workspace)));
 
@@ -164,13 +158,23 @@ int main(void) {
 
     memset(seed, 0, sizeof(seed));
     assert(trinity_deploy_crypto_generate_keypair(&crypto, 1u, seed) ==
+           TRINITY_OK);
+    assert(keygen_calls == 2u);
+    assert(trinity_deploy_crypto_create_session(&crypto, 0u, seed,
+                                                &material) == TRINITY_OK);
+    assert(encaps_calls == 3u);
+
+    seed[0] = 1u;
+    assert(trinity_deploy_crypto_generate_keypair(&crypto, 0u, seed) ==
            TRINITY_BAD_LENGTH);
+    assert(trinity_deploy_crypto_create_session(&crypto, 0u, seed,
+                                                &material) == TRINITY_BAD_LENGTH);
     assert(trinity_deploy_crypto_generate_keypair(&crypto, 2u, seed) ==
            TRINITY_NOT_SUPPORTED);
 
     trinity_deploy_crypto_zeroize(&crypto);
     assert(all_zero(&crypto, sizeof(crypto)));
-    puts("PASS: deploy ML-KEM key state, deterministic coins, KEM self-check and KDF");
-    puts("PASS: mismatch rejection and explicit key/workspace zeroization");
+    puts("PASS: deploy ML-KEM key state, deterministic and demo session policies");
+    puts("PASS: KEM self-check, mismatch rejection and explicit zeroization");
     return 0;
 }
