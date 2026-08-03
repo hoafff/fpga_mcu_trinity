@@ -16,11 +16,10 @@ trinity_error_code_t trinity_deploy_crypto_create_session(
     memset(&derived, 0, sizeof(derived));
     trinity_secure_zero(&crypto->workspace, sizeof(crypto->workspace));
     if (mode == 0u) {
-        /* Deterministic demo policy: derive the session seed from public
-         * key identity and keypair generation. It is reproducible and is not
-         * represented as DEMO_SECURE entropy. */
-        trinity_sha3_256(effective_seed, crypto->public_key,
-                         sizeof(crypto->public_key));
+        /* Deterministic demo policy derives from public identity and generation.
+         * It is reproducible and is not represented as DEMO_SECURE entropy. */
+        memcpy(effective_seed, crypto->public_key_hash,
+               sizeof(effective_seed));
         effective_seed[28] ^= (uint8_t)(crypto->keypair_generation >> 24);
         effective_seed[29] ^= (uint8_t)(crypto->keypair_generation >> 16);
         effective_seed[30] ^= (uint8_t)(crypto->keypair_generation >> 8);
@@ -35,7 +34,7 @@ trinity_error_code_t trinity_deploy_crypto_create_session(
     rc = trinity_mlkem512_encaps_deterministic(
         crypto->workspace.session.ciphertext,
         crypto->workspace.session.encapsulated_secret,
-        crypto->public_key,
+        embedded_public_key(crypto),
         crypto->workspace.session.encaps_coins);
     if (rc == TRINITY_OK) {
         rc = trinity_mlkem512_decaps(
@@ -84,7 +83,7 @@ trinity_error_code_t trinity_deploy_crypto_public_key_hash(
 #if TRINITY_DEPLOY_ENABLE_MLKEM
     if (crypto == NULL || digest == NULL) return TRINITY_INTERNAL_FAULT;
     if (!crypto->keypair_valid) return TRINITY_BAD_STATE;
-    trinity_sha3_256(digest, crypto->public_key, sizeof(crypto->public_key));
+    memcpy(digest, crypto->public_key_hash, 32u);
     return TRINITY_OK;
 #else
     (void)crypto;
