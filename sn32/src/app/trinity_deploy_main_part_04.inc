@@ -7,6 +7,22 @@ static bool expired(uint32_t start, uint32_t timeout) {
 
 static void progress(void) { g_progress_ms = g_ms; }
 
+static void crypto_progress_lease_begin(void) {
+    g_crypto_lease_deadline_ms =
+        g_ms + TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS;
+    g_crypto_lease_active = true;
+    progress();
+}
+
+static trinity_error_code_t crypto_progress_lease_end(
+    trinity_error_code_t operation_result) {
+    const bool lease_failed =
+        g_fault && g_error.code == TRINITY_HEARTBEAT_TIMEOUT;
+    g_crypto_lease_active = false;
+    progress();
+    return lease_failed ? TRINITY_HEARTBEAT_TIMEOUT : operation_result;
+}
+
 static void wait_ms(uint32_t duration) {
     const uint32_t start = g_ms;
     while (!expired(start, duration)) progress();
@@ -14,10 +30,27 @@ static void wait_ms(uint32_t duration) {
 
 void SysTick_Handler(void) {
     const uint32_t now = ++g_ms;
+    bool lease_alive = false;
+    bool foreground_alive;
+
+    if (g_crypto_lease_active) {
+        lease_alive = (int32_t)(g_crypto_lease_deadline_ms - now) > 0;
+        if (!lease_alive) {
+            g_crypto_lease_active = false;
+            g_fault = true;
+            g_trinity_deploy_marker = DEPLOY_MARKER_ERR;
+            set_error(TRINITY_HEARTBEAT_TIMEOUT, TRINITY_SOURCE_SN32,
+                      TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS);
+            cs_all_high();
+        }
+    }
+
     if ((uint32_t)(now - g_heartbeat_ms) >= HEARTBEAT_MS) {
         g_heartbeat_ms = now;
-        g_heartbeat_level = !g_fault &&
-                            (uint32_t)(now - g_progress_ms) <= PROGRESS_LEASE_MS
+        foreground_alive =
+            (uint32_t)(now - g_progress_ms) <= PROGRESS_LEASE_MS ||
+            lease_alive;
+        g_heartbeat_level = !g_fault && foreground_alive
                                 ? !g_heartbeat_level : false;
         gpio_write(FPST_SN32F407_MCU_HEARTBEAT_PORT,
                    FPST_SN32F407_MCU_HEARTBEAT_PIN,
@@ -28,6 +61,7 @@ void SysTick_Handler(void) {
         if (faults != FPST_P010_VIOLATION_NONE) {
             g_guard_faults |= faults;
             g_fault = true;
+            g_crypto_lease_active = false;
             g_trinity_deploy_marker = DEPLOY_MARKER_ERR;
             set_error(TRINITY_FAULT_LOCKED, TRINITY_SOURCE_SN32, faults);
             cs_all_high();
