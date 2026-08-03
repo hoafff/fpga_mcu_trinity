@@ -1,0 +1,63 @@
+SN32 -> P1/P2 dual-SPI clean-boot qualification evidence
+Date: 2026-08-03
+Source commit tested: 409e11944c539aaebe2e77f74ed88b252b13c6ed
+SN32 image identity: architecture 0.7.1, build ID 0x00070001
+
+POWER / RESET SEQUENCE
+1. All boards powered off.
+2. Existing dual-SPI wiring retained.
+3. Primer #1 and Primer #2 powered first.
+4. Both FPGA configurations allowed to complete.
+5. SN32 powered/reset last.
+6. P1/P2 were not reset after SN32 started.
+7. Only PING and one dual-spi-bringup command were executed.
+
+COMMAND OUTPUT
+E:\thithithi\fpga_mcu_trinity\pc_host>trinity-host --port COM3 ping
+[PING]
+result=PASS
+uptime_ms=6946
+
+E:\thithithi\fpga_mcu_trinity\pc_host>trinity-host --port COM3 dual-spi-bringup --timeout 10 --poll 0.1
+FAIL: remote error TRANSACTION_CONFLICT(0x0205), system_state=9, source=2, related_target_txid=0x0000
+
+LOCKED SCOPE RESULT
+PC <-> SN32 UART:                    PASS
+DUAL-SPI clean-boot qualification: FAIL
+First PC command that failed:        GET_SYSTEM_INFO
+Reported error source:               P2 / source=2
+First failing endpoint:              NOT PROVEN BY v0.7.1 TELEMETRY
+Exact failing target command:        NOT RECOVERABLE FROM v0.7.1 TELEMETRY
+Reported error:                      TRANSACTION_CONFLICT 0x0205
+related_target_txid:                 0x0000
+
+AUDIT DISPOSITION
+The v0.7.1 SN32 transport read the eight-byte SPI response header under one CS
+assertion, released CS, then asserted CS again for the payload and CRC. The
+Primer mailbox restarts its transmit byte index at zero on every CS falling
+edge. Therefore responses longer than eight bytes were assembled from
+non-contiguous data and could fail CRC or command/transaction correlation.
+
+P2 RTL cannot issue TRANSACTION_CONFLICT for GET_INFO or GET_STATUS. It issues
+that code only for a retained side-effect request that reuses the retained
+transaction ID with a different command or request fingerprint. The clean-boot
+gate had not reached RUN_SELF_TEST. The observed 0x0205 is therefore not accepted
+as proof of a P2 retained-request conflict.
+
+source=2 is a reported final error source, not proof that P2 was the first
+endpoint to fail. The v0.7.1 probe routine probed P1 and then P2 even if P1 had
+already failed, allowing the later source/detail to overwrite earlier telemetry.
+
+related_target_txid was zero because GET_SYSTEM_INFO serialized a literal zero
+and GET_INFO/GET_STATUS did not request the issued target transaction ID from
+the transport. This is diagnostic loss, not evidence that target txid zero was
+sent.
+
+NON-CLAIMS
+SN32 -> P1 SPI hardware PASS:              NOT CLAIMED
+SN32 -> P2 SPI hardware PASS:              NOT CLAIMED
+SN32 dual-SPI control-plane hardware PASS: NOT CLAIMED
+Primer retained self-test hardware PASS:   NOT RUN
+session / crypto / Tiny / full system:     NOT RUN
+hardware_qualified:                        false
+full_system_hardware_qualified:            false
