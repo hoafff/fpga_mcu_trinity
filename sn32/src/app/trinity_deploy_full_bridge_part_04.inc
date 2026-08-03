@@ -5,6 +5,26 @@ static bool full_seed_is_zero(const uint8_t seed[32]) {
     return aggregate == 0u;
 }
 
+static trinity_error_code_t full_crypto_generate_keypair(
+    uint8_t mode,
+    const uint8_t seed[32]) {
+    trinity_error_code_t rc;
+    crypto_progress_lease_begin();
+    rc = trinity_deploy_crypto_generate_keypair(&g_crypto, mode, seed);
+    return crypto_progress_lease_end(rc);
+}
+
+static trinity_error_code_t full_crypto_create_session(
+    uint8_t mode,
+    const uint8_t seed[32],
+    trinity_controller_session_material_t *material) {
+    trinity_error_code_t rc;
+    crypto_progress_lease_begin();
+    rc = trinity_deploy_crypto_create_session(
+        &g_crypto, mode, seed, material);
+    return crypto_progress_lease_end(rc);
+}
+
 static void full_handle_generate_keypair(const trinity_pc_frame_t *req) {
     trinity_error_code_t rc;
     uint8_t digest[32];
@@ -20,8 +40,7 @@ static void full_handle_generate_keypair(const trinity_pc_frame_t *req) {
         return;
     }
     if (!managed_transaction_begin(req)) return;
-    rc = trinity_deploy_crypto_generate_keypair(
-        &g_crypto, req->payload[0], &req->payload[1]);
+    rc = full_crypto_generate_keypair(req->payload[0], &req->payload[1]);
     if (rc == TRINITY_OK)
         rc = trinity_deploy_crypto_public_key_hash(&g_crypto, digest);
     if (rc == TRINITY_OK)
@@ -55,8 +74,8 @@ static void full_handle_create_session(const trinity_pc_frame_t *req) {
     }
     if (!managed_transaction_begin(req)) return;
     memset(&material, 0, sizeof(material));
-    rc = trinity_deploy_crypto_create_session(
-        &g_crypto, req->payload[0], &req->payload[1], &material);
+    rc = full_crypto_create_session(req->payload[0], &req->payload[1],
+                                    &material);
     mode = req->payload[0] == 1u ? TRINITY_MODE_KAT
                                  : TRINITY_MODE_DEMO_DETERMINISTIC;
     if (rc == TRINITY_OK)
