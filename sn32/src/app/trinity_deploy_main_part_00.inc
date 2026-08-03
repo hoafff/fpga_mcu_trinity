@@ -3,6 +3,7 @@
 #include "board_profile.h"
 #include "fpst_sn32f407_p010_guard.h"
 #include "trinity_deploy_config.h"
+#include "trinity_deploy_crypto.h"
 #include "trinity_full_controller.h"
 #include "trinity_pc_protocol.h"
 #include "trinity_spi_protocol.h"
@@ -35,15 +36,17 @@
 #endif
 
 #define DEPLOY_BUILD_ID UINT32_C(0x00060000)
-#define DEPLOY_MARKER_BOOT UINT32_C(0x44504254) /* DPBT */
-#define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)   /* DPOK */
-#define DEPLOY_MARKER_ERR UINT32_C(0x44504552)  /* DPER */
+#define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
+#define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
+#define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
 #define P1_SELF_TEST_RESULT_MAX TRINITY_CONTROLLER_MAX_RESULT_BYTES
 
 static void full_controller_bind(void);
 static trinity_error_code_t full_probe_all(void);
 static trinity_error_code_t full_refresh_all(void);
 static void full_handle_run_self_test(const trinity_pc_frame_t *req);
+static void full_handle_generate_keypair(const trinity_pc_frame_t *req);
+static void full_handle_create_session(const trinity_pc_frame_t *req);
 static void full_handle_close_session(const trinity_pc_frame_t *req);
 static void full_handle_zeroize(const trinity_pc_frame_t *req);
 static void full_handle_send_telemetry(const trinity_pc_frame_t *req);
