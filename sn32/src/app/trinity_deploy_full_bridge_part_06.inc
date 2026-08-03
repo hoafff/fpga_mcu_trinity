@@ -54,11 +54,13 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
         response_error(req, TRINITY_BAD_STATE, TRINITY_SOURCE_SN32, 0u);
         return;
     }
-    if (needs_kem && !TRINITY_DEPLOY_ENABLE_MLKEM) {
+#if !TRINITY_DEPLOY_ENABLE_MLKEM
+    if (needs_kem) {
         response_error(req, TRINITY_NOT_SUPPORTED,
                        TRINITY_SOURCE_SN32, operation_mask);
         return;
     }
+#endif
     if (!managed_transaction_begin(req)) return;
 
     /* Prepare a keypair outside the timed loop for encaps/decaps-only runs. */
@@ -66,8 +68,7 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
         (operation_mask & TRINITY_BENCH_MLKEM_KEYGEN) == 0u &&
         !g_crypto.keypair_valid) {
         full_make_benchmark_seed(0u, 0x4Bu, benchmark_seed);
-        rc = trinity_deploy_crypto_generate_keypair(&g_crypto, 1u,
-                                                    benchmark_seed);
+        rc = full_crypto_generate_keypair(1u, benchmark_seed);
         trinity_controller_secure_clear(benchmark_seed,
                                         sizeof(benchmark_seed));
         if (rc == TRINITY_OK)
@@ -78,8 +79,7 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
     for (index = 0u; index < iterations && rc == TRINITY_OK; ++index) {
         if ((operation_mask & TRINITY_BENCH_MLKEM_KEYGEN) != 0u) {
             full_make_benchmark_seed(index, 0x4Bu, benchmark_seed);
-            rc = trinity_deploy_crypto_generate_keypair(&g_crypto, 1u,
-                                                        benchmark_seed);
+            rc = full_crypto_generate_keypair(1u, benchmark_seed);
             trinity_controller_secure_clear(benchmark_seed,
                                             sizeof(benchmark_seed));
             if (rc == TRINITY_OK)
@@ -90,8 +90,7 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
              TRINITY_BENCH_MLKEM_DECAPS)) != 0u) {
             full_make_benchmark_seed(index, 0x45u, benchmark_seed);
             memset(&material, 0, sizeof(material));
-            rc = trinity_deploy_crypto_create_session(
-                &g_crypto, 1u, benchmark_seed, &material);
+            rc = full_crypto_create_session(1u, benchmark_seed, &material);
             trinity_controller_secure_clear(benchmark_seed,
                                             sizeof(benchmark_seed));
             trinity_controller_secure_clear(&material, sizeof(material));
@@ -176,15 +175,13 @@ static void full_handle_run_demo(const trinity_pc_frame_t *req) {
     if (g_controller.state == TRINITY_SYSTEM_ACTIVE)
         rc = trinity_controller_close_session(&g_controller, 20000u);
     if (rc == TRINITY_OK) {
-        rc = trinity_deploy_crypto_generate_keypair(
-            &g_crypto, 1u, &req->payload[8]);
+        rc = full_crypto_generate_keypair(1u, &req->payload[8]);
         if (rc == TRINITY_OK)
             g_controller.state = TRINITY_SYSTEM_READY_NO_SESSION;
     }
     if (rc == TRINITY_OK) {
         memset(&material, 0, sizeof(material));
-        rc = trinity_deploy_crypto_create_session(
-            &g_crypto, 1u, &req->payload[8], &material);
+        rc = full_crypto_create_session(1u, &req->payload[8], &material);
         if (rc == TRINITY_OK)
             rc = trinity_controller_activate_session(
                 &g_controller, &material, TRINITY_MODE_DEMO_DETERMINISTIC,
