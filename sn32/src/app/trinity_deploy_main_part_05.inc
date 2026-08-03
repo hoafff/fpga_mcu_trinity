@@ -27,8 +27,8 @@ static void spi_init(void) {
     SN_SPI0->CTRL0_b.LOOPBACK = 0u;
     SN_SPI0->CTRL0_b.SDODIS = 0u;
     SN_SPI0->FIFO_TH = 0u;
-    SN_SPI0->CLKDIV_b.DIV = 5u; /* 12 MHz / 12 = 1 MHz. */
-    SN_SPI0->CTRL1 = 0u;        /* Mode 0, MSB first. */
+    SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;
+    SN_SPI0->CTRL1 = 0u; /* Mode 0, MSB first. */
     SN_SPI0->CTRL0_b.SELDIS = 1u;
     SN_SPI0->CTRL0_b.FRESET = 3u;
     SN_SPI0->IE = 0u;
