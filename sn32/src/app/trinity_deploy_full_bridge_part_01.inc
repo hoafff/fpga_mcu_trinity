@@ -43,6 +43,36 @@ static trinity_error_code_t full_refresh_all(void) {
     return rc;
 }
 
+static void full_send_progress_event(const trinity_pc_frame_t *req,
+                                     uint8_t percent) {
+    memset(&g_pc_rsp, 0, sizeof(g_pc_rsp));
+    g_pc_rsp.version = TRINITY_PROTOCOL_VERSION;
+    g_pc_rsp.command = TRINITY_PC_EVENT;
+    g_pc_rsp.flags = TRINITY_FLAG_EVENT;
+    g_pc_rsp.transaction_id = 0u;
+    g_pc_rsp.payload_length = 8u;
+    trinity_write_be16(&g_pc_rsp.payload[0], TRINITY_EVENT_PROGRESS);
+    g_pc_rsp.payload[2] = 0u;
+    g_pc_rsp.payload[3] = (uint8_t)TRINITY_SOURCE_SN32;
+    trinity_write_be16(&g_pc_rsp.payload[4], req->transaction_id);
+    g_pc_rsp.payload[6] = percent;
+    g_pc_rsp.payload[7] = 0u;
+    (void)response_send();
+}
+
+static void full_progress_event_maybe(const trinity_pc_frame_t *req,
+                                      uint32_t completed,
+                                      uint32_t total,
+                                      uint8_t *last_percent) {
+    uint8_t percent;
+    if (total == 0u || last_percent == NULL) return;
+    percent = (uint8_t)((completed * 100u) / total);
+    if (percent == 100u || percent >= (uint8_t)(*last_percent + 5u)) {
+        *last_percent = percent;
+        full_send_progress_event(req, percent);
+    }
+}
+
 static void managed_transaction_respond(const trinity_pc_frame_t *req) {
     if (g_host_txn.state == TRINITY_TXN_ACCEPTED ||
         g_host_txn.state == TRINITY_TXN_RUNNING) {
