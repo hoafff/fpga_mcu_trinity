@@ -31,11 +31,16 @@ static trinity_error_code_t controller_execute_retained(
     trinity_error_code_t rc;
 
     if (result == NULL) return TRINITY_INTERNAL_FAULT;
+    memset(result, 0, sizeof(*result));
+    result->state = TRINITY_TXN_ACCEPTED;
+    result->original_command = command;
+
     rc = controller_exchange(controller, target_id, command, payload,
                              payload_length, NULL, 0u, &response_length,
                              &original_txid);
     if (rc != TRINITY_OK) return rc;
     if (response_length != 0u) return TRINITY_BAD_LENGTH;
+    result->original_txid = original_txid;
 
     started = controller_now(controller);
     do {
@@ -43,7 +48,8 @@ static trinity_error_code_t controller_execute_retained(
                                                original_txid, command, result);
         if (rc == TRINITY_OK && controller_transaction_terminal(result->state))
             break;
-        if (rc != TRINITY_OK && rc != TRINITY_RESULT_NOT_READY)
+        if (rc != TRINITY_OK && rc != TRINITY_RESULT_NOT_READY &&
+            rc != TRINITY_BUSY)
             return rc;
         controller_progress(controller);
     } while (!controller_expired(controller, started, timeout_ms));
