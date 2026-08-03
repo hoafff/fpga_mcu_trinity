@@ -19,6 +19,20 @@ static trinity_error_code_t crypto_progress_lease_end(
     const bool lease_failed =
         g_fault && g_error.code == TRINITY_HEARTBEAT_TIMEOUT;
     g_crypto_lease_active = false;
+    if (lease_failed) {
+        trinity_deploy_crypto_zeroize(&g_crypto);
+        trinity_controller_secure_clear(&g_controller.session,
+                                        sizeof(g_controller.session));
+        trinity_controller_forget_last_result(&g_controller);
+        g_controller.session_material_valid = false;
+        g_controller.commit_issued = false;
+        g_controller.current_sequence = 0u;
+        g_controller.state = TRINITY_SYSTEM_FAULT_LOCKED;
+        g_controller.last_error = TRINITY_HEARTBEAT_TIMEOUT;
+        g_controller.last_error_source = TRINITY_SOURCE_SN32;
+        g_controller.last_error_detail =
+            TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS;
+    }
     progress();
     return lease_failed ? TRINITY_HEARTBEAT_TIMEOUT : operation_result;
 }
