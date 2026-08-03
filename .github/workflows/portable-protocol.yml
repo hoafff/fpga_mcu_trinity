@@ -11,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -20,12 +22,20 @@ jobs:
           python ai_context/scripts/check_project_memory_detail.py
           python ai_context/scripts/check_protocol_registry.py
           python ai_context/scripts/check_candidate_hashes.py
+      - name: SN32 full deploy static gate
+        run: python sn32/tests/deploy/check_deploy_project.py
       - name: Python protocol tests
         env:
           PYTHONPATH: pc_host/src
         run: python -m unittest discover -s pc_host/tests -v
       - name: Portable C protocol tests
         run: make -C sn32/tests/portable test
+      - name: Full SN32 controller tests
+        run: make -C sn32/tests/full_controller test
+      - name: SN32 deploy crypto lifecycle tests
+        run: make -C sn32/tests/deploy_crypto test
+      - name: Pinned ML-KEM Gate 3 tests
+        run: make -C sn32/tests/mlkem_gate3 test
 
   primer2-rtl:
     runs-on: ubuntu-latest
