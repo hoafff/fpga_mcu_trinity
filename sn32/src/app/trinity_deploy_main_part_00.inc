@@ -42,6 +42,7 @@
 #define P1_SELF_TEST_RESULT_MAX TRINITY_CONTROLLER_MAX_RESULT_BYTES
 
 static void full_controller_bind(void);
+static void full_contain_tiny_fault(void);
 static trinity_error_code_t full_probe_all(void);
 static trinity_error_code_t full_refresh_all(void);
 static void full_handle_run_self_test(const trinity_pc_frame_t *req);
