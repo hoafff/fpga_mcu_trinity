@@ -42,8 +42,20 @@ static void handle_request(const trinity_pc_frame_t *req) {
         case TRINITY_PC_SEND_ONE_TELEMETRY:
             full_handle_send_telemetry(req);
             break;
+        case TRINITY_PC_RUN_DEMO:
+            full_handle_run_demo(req);
+            break;
         case TRINITY_PC_READ_LAST_RESULT:
             full_handle_read_last_result(req);
+            break;
+        case TRINITY_PC_RUN_NTT_TEST:
+            full_handle_ntt_test(req);
+            break;
+        case TRINITY_PC_RUN_ASCON_TEST:
+            full_handle_ascon_test(req);
+            break;
+        case TRINITY_PC_RUN_BENCHMARK:
+            full_handle_benchmark(req);
             break;
         case TRINITY_PC_RUN_TRANSPORT_STRESS:
             full_handle_transport_stress(req);
@@ -52,16 +64,13 @@ static void handle_request(const trinity_pc_frame_t *req) {
             response_error(req, TRINITY_NOT_SUPPORTED,
                            TRINITY_SOURCE_TINY1P5, 0u);
             break;
-        case TRINITY_PC_RUN_DEMO:
-        case TRINITY_PC_RUN_NTT_TEST:
-        case TRINITY_PC_RUN_ASCON_TEST:
-        case TRINITY_PC_RUN_BENCHMARK:
         case TRINITY_PC_INJECT_TEST_FAULT:
             response_error(req, TRINITY_NOT_SUPPORTED,
                            TRINITY_SOURCE_SN32, 0u);
             break;
         default:
-            response_error(req, TRINITY_NOT_SUPPORTED, TRINITY_SOURCE_SN32, 0u);
+            response_error(req, TRINITY_NOT_SUPPORTED,
+                           TRINITY_SOURCE_SN32, 0u);
             break;
     }
     g_active_host_txid = g_host_txn.valid ? g_host_txn.host_txid : 0u;
