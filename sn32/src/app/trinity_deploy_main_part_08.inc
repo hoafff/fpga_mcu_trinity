@@ -35,6 +35,7 @@
             goto failed;
         }
         g_spi_trace.result_code = TRINITY_OK;
+        wait_ms(TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS);
         return TRINITY_OK;
     }
     rc = TRINITY_FRAME_TIMEOUT;
