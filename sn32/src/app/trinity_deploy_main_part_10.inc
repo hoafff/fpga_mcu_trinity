@@ -1,4 +1,6 @@
 static uint8_t system_state(void) {
+    if (g_controller.state == TRINITY_SYSTEM_FAULT_LOCKED)
+        return (uint8_t)TRINITY_SYSTEM_FAULT_LOCKED;
     if (g_fault) return (uint8_t)TRINITY_SYSTEM_ERROR;
     return (uint8_t)g_controller.state;
 }
