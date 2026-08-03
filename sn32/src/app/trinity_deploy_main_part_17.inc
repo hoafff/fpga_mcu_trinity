@@ -16,6 +16,7 @@
         return rc;
     }
     spi_init();
+    trinity_deploy_crypto_init(&g_crypto);
     full_controller_bind();
     progress();
     g_trinity_deploy_marker = DEPLOY_MARKER_OK;
