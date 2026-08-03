@@ -15,7 +15,7 @@ This gate does not establish a session, enable secure operation, send telemetry,
 exercise the direct P1-to-P2 UART payload, integrate Tiny, execute ML-KEM as part
 of a live session, or qualify the full system.
 
-## Prerequisite evidence
+## Prior results
 
 Already locked separately:
 
@@ -30,20 +30,23 @@ sn32/docs/PC_TO_SN32_UART_PING_HARDWARE_QUALIFICATION_2026-08-03.md
 sn32/hardware/pc_uart_ping/evidence/pc_uart_ping_2026-08-03.txt
 ```
 
-That result belongs to source commit:
+The first v0.7.1 clean-boot dual-SPI run failed during PC `GET_SYSTEM_INFO` with
+reported error `TRANSACTION_CONFLICT`, source 2 and related target txid zero.
+The old telemetry cannot prove which endpoint or target command failed first.
+The source audit found that SN32 split a Primer response across two CS
+assertions, while the Primer mailbox restarts at response byte zero on every CS
+falling edge.
+
+Failure audit:
 
 ```text
-40ff6f06ed32d3139899aae291047f35d0740f86
+sn32/docs/SN32_DUAL_SPI_CLEAN_BOOT_FAILURE_2026-08-03.md
+sn32/hardware/dual_spi_control_plane/evidence/clean_boot_failure_2026-08-03.txt
 ```
 
-The dual-SPI gate uses the later v0.7.1 qualification image and therefore
-requires a new exact Keil rebuild, flash operation and standalone PING check
-before connecting either Primer.
+Do not reuse the v0.7.1 image for this gate.
 
 ## Locked qualification transport
-
-The first SN32 dual-SPI run uses the same transport settings as the previously
-successful ESP32-C3 dual-Primer harness:
 
 ```text
 SPI frequency = 100000 Hz
@@ -59,16 +62,15 @@ SCK = 12000000 / (2 * (59 + 1)) = 100000 Hz
 SPI0 CLKDIV = 59
 ```
 
-Do not raise the SPI frequency during this qualification. A later speed increase
-requires a separate evidence run.
+The corrected transport captures the complete maximum response under one CS
+assertion, then derives and validates the declared frame length. It drains a
+pre-existing startup mailbox before the initial probe.
 
 ## Required image identity
 
-The qualification build reports:
-
 ```text
-architecture_version = 0.7.1
-sn32_build_id         = 0x00070001
+architecture_version = 0.7.2
+sn32_build_id         = 0x00070002
 ```
 
 Expected Primer identities:
@@ -93,9 +95,8 @@ Perform all wiring with every board powered off.
 - Connect SN32, P1, P2 and FT232 grounds together.
 - Use 3.3 V logic only.
 - Power each development board through its intended board power input.
-- Do not join independent 3.3 V output rails merely because the grounds are
-  common.
-- Do not connect FT232 VCC to the SN32 or Primer power rail.
+- Do not join independent 3.3 V output rails.
+- Do not connect FT232 VCC to an SN32 or Primer power rail.
 
 ### Shared SPI bus
 
@@ -111,7 +112,7 @@ SN32 P1.1 SPI0_MISO  <- P1 T15 spi_miso_o
 ```
 
 Both Primer MISO outputs share the same wire. Only the selected device may drive
-it. Do not proceed if either board drives MISO while its chip select is high.
+it.
 
 ### Independent selects and IRQ inputs
 
@@ -122,13 +123,11 @@ SN32 P2.3 P1_IRQ_N <- P1 T14 irq_no
 SN32 P2.8 P2_IRQ_N <- P2 T14 irq_no
 ```
 
-Do not swap P2.1/P2.2 or P2.3/P2.8. The host gate verifies fixed P1 and P2 build
-IDs, so a swapped pair must fail rather than being accepted.
+Do not swap P2.1/P2.2 or P2.3/P2.8.
 
-### Primer safety levels for this control-plane-only gate
+### Primer safety levels
 
-Tiny is not connected. Apply fixed safe levels independently to both Primer
-boards:
+Tiny remains disconnected. On both Primer boards:
 
 ```text
 R11 zeroize_ni       -> 3.3 V
@@ -136,52 +135,35 @@ R12 fatal_latched_i  -> GND
 T12 secure_enable_i  -> GND
 ```
 
-`secure_enable_i` must stay low for the entire gate. The SN32 P3.8
-session-commit output remains disconnected from Tiny.
-
-Do not leave R11, R12 or T12 floating.
+`secure_enable_i` must remain low. SN32 P3.8 remains disconnected from Tiny.
 
 ### Direct P1-to-P2 UART isolation
-
-Do not connect P1 R13 to P2 R13 in this dual-SPI control-plane gate.
-
-Because P2 `uart_rx_i` has no internal pull configured, hold the isolated P2 R13
-input at the UART idle-high level through a 10 kΩ pull-up:
 
 ```text
 P1 R13 uart_tx_o -> disconnected
 P2 R13 uart_rx_i -> 3.3 V through 10 kΩ
 ```
 
-Do not tie P2 R13 directly to P1 or to a push-pull test source during this gate.
-The 10 kΩ pull-up prevents a floating UART input without creating a hard drive
-conflict when the later direct-UART connection is restored after power-off.
-
-This isolation does not revoke the earlier independent P1-to-P2 UART hardware
-qualification.
+The pull-up keeps the isolated P2 UART input at idle high. This does not revoke
+the earlier direct-UART qualification.
 
 ## Power and reset sequence
 
-1. Confirm all SPI, safety, P2 UART pull-up and ground wiring with power removed.
+1. Confirm wiring with all boards powered off.
 2. Power P1 and P2 and wait for both FPGA configurations to complete.
-3. Confirm both CS inputs are high before starting SN32.
+3. Confirm both CS inputs are high.
 4. Confirm P2 R13 is idle high and both unselected MISO outputs are released.
-5. Connect/power the FT232 without connecting its VCC pin.
-6. Power or reset SN32 last so its initial `GET_INFO` requests reach configured
-   Primer endpoints.
-7. Abort immediately for abnormal heating, supply droop, MISO contention or a
-   chip-select line stuck low.
+5. Connect/power FT232 without its VCC pin.
+6. Power or reset SN32 last.
+7. Do not reset P1/P2 after SN32 starts.
+8. Abort for abnormal heating, supply droop, MISO contention or a CS stuck low.
 
-Power-cycling P1/P2 before SN32 also prevents an old response mailbox from being
-mistaken for the first SN32 transaction.
-
-## Pre-connection rebuild and flash gate
-
-After pulling the qualification source:
+## Exact rebuild and flash gate
 
 ```bat
 git pull origin main
 git submodule update --init --recursive
+py -m pip install -e .\pc_host
 ```
 
 Rebuild:
@@ -200,67 +182,104 @@ AXF generation: PASS
 HEX generation: PASS
 ```
 
-Flash and verify through SN-LINK. Before connecting P1/P2, repeat:
+Flash and Verify through SN-LINK. Before connecting P1/P2, repeat standalone:
 
 ```bat
 trinity-host --port COM3 ping
 ```
 
-This standalone PING must pass with the new v0.7.1 image.
+That PING must pass with the v0.7.2 image.
 
-## Hardware execution
+## Mandatory side-effect-free diagnostic stage
 
-After wiring and power sequencing, run diagnostic queries:
+After wiring and the clean power sequence, do not start with
+`dual-spi-bringup`. Run only:
+
+```bat
+trinity-host --port COM3 spi-diag --target p1 --command get-info
+trinity-host --port COM3 spi-diag --target p2 --command get-info
+trinity-host --port COM3 spi-diag --target p2 --command get-status
+```
+
+Each trace reports:
+
+```text
+target_id
+command
+target_txid
+request_fingerprint
+request_length
+request_bytes
+request_crc
+response_capture_length
+response_frame_length
+response_bytes
+response_crc_received
+response_crc_calculated
+response_crc_match
+irq_before_request
+irq_after_request
+irq_before_response
+irq_after_response
+error_source
+transport_result
+```
+
+The command is restricted in both host and firmware to target `GET_INFO` and
+`GET_STATUS`; it cannot run self-test, stage/commit a session, zeroize or send
+telemetry.
+
+Audit each trace before continuing. At minimum:
+
+- request begins `A5 01` and contains the printed command and target txid;
+- request CRC matches the last two request bytes;
+- response begins `A5 01` when a mailbox was captured;
+- response command and txid correlate with the request;
+- received and calculated response CRC match;
+- IRQ asserts for the response and releases after the full single-CS read;
+- no second response starts at byte zero inside the captured frame.
+
+## Discovery and complete gate
+
+Only after all three raw diagnostics are coherent:
 
 ```bat
 trinity-host --port COM3 system-info
 trinity-host --port COM3 system-status
 ```
 
-Expected discovery fields:
+Expected fields:
 
 ```text
 protocol_version=1
-architecture_version=0.7.1
-sn32_build_id=0x00070001
+architecture_version=0.7.2
+sn32_build_id=0x00070002
 primer1_build_id=0x50310001
 primer2_build_id=0x50320001
 target_ready_mask includes 0x01 | 0x02 | 0x04
 fault_flags=0x00
 ```
 
-Then run the complete scoped gate:
+Then run once:
 
 ```bat
 trinity-host --port COM3 dual-spi-bringup --timeout 10 --poll 0.1
 ```
 
-The command executes, in order:
-
-```text
-1. PC -> SN32 PING
-2. SN32 -> P1 GET_INFO
-3. SN32 -> P2 GET_INFO
-4. SN32 -> P1 GET_STATUS
-5. SN32 -> P2 GET_STATUS
-6. SN32 -> P1 retained RUN_SELF_TEST, mask 0x013E
-7. SN32 -> P1 GET_TXN_RESULT and RETIRE_TXN_RESULT
-8. SN32 -> P2 retained RUN_SELF_TEST, mask 0x03E3
-9. SN32 -> P2 GET_TXN_RESULT and RETIRE_TXN_RESULT
-10. SN32 -> P1/P2 final GET_STATUS
-```
-
-The two self-tests are deliberately separate because P1 and P2 have different
-functional masks.
+The command executes PING, P1/P2 discovery and status, separate retained P1 KAT
+mask `0x013E`, separate retained P2 KAT mask `0x03E3`, both result retirements,
+and final status verification.
 
 ## Acceptance criteria
 
-Every item must pass:
-
 ```text
-v0.7.1 exact Keil rebuild:               PASS
-v0.7.1 SN-LINK program/verify:            PASS
-v0.7.1 standalone PC UART PING:           PASS
+v0.7.2 exact Keil rebuild:               PASS
+v0.7.2 SN-LINK program/verify:            PASS
+v0.7.2 standalone PC UART PING:           PASS
+P1 GET_INFO raw diagnostic:               PASS
+P2 GET_INFO raw diagnostic:               PASS
+P2 GET_STATUS raw diagnostic:             PASS
+single-CS response capture and CRC:       PASS
 P1 GET_INFO identity:                     PASS
 P2 GET_INFO identity:                     PASS
 P1/P2 ready mask:                         PASS
@@ -274,22 +293,20 @@ P2 uart_rx_i remains idle high:            PASS
 MISO contention or abnormal heating:      NONE
 ```
 
-Expected final CLI marker:
+Expected final marker:
 
 ```text
 [SN32_DUAL_SPI_CONTROL_PLANE]
 result=PASS
 ```
 
-Only then may the scoped statement be recorded:
+Only after complete log audit may the scoped statement be recorded:
 
 ```text
 SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 ```
 
 ## Explicit non-claims
-
-Even after this gate passes, retain:
 
 ```text
 session stage/commit hardware:            PENDING
@@ -304,29 +321,13 @@ full_system_hardware_qualified:            false
 
 ## Evidence to retain
 
-Save the following under:
-
-```text
-sn32/hardware/dual_spi_control_plane/evidence/
-```
-
-Start from:
+Use:
 
 ```text
 sn32/hardware/dual_spi_control_plane/evidence/run_manifest_TEMPLATE.txt
 ```
 
-Required records:
-
-- full exact Keil rebuild log;
-- Program Size line and Flash/RAM calculation;
-- SN-LINK program/verify log;
-- standalone v0.7.1 PING output;
-- complete `system-info`, `system-status` and `dual-spi-bringup` output;
-- wiring photograph showing all shared bus, CS, IRQ, P2 UART pull-up, ground and
-  safety straps;
-- source commit, submodule commit and P1/P2 bitstream identities;
-- failure notes, even if a later retry passes.
-
-Do not write a PASS record from partial output or only the final CLI line. Audit
-the complete command sequence and endpoint identities.
+Retain exact build and SN-LINK logs, standalone PING, all three raw SPI traces,
+`system-info`, `system-status`, full `dual-spi-bringup`, wiring photographs,
+source/submodule/bitstream identities, and every failed attempt. Do not create a
+PASS record from only the final CLI line.
