@@ -45,14 +45,21 @@ jobs:
           test -f sn32/third_party/mlkem-native/upstream/mlkem/mlkem_native.c
           git submodule status --recursive
       - name: Portable ML-KEM wrapper and KAT gate
-        run: make -C sn32/tests/mlkem_gate3 clean test
+        run: |
+          make -C sn32/tests/mlkem_gate3 clean test
+          make -C sn32/tests/mlkem_gate3 clean
       - name: Full controller behavior gate
-        run: make -C sn32/tests/full_controller clean test
+        run: |
+          make -C sn32/tests/full_controller clean test
+          make -C sn32/tests/full_controller clean
       - name: Deploy crypto lifecycle gate
-        run: make -C sn32/tests/deploy_crypto clean test
+        run: |
+          make -C sn32/tests/deploy_crypto clean test
+          make -C sn32/tests/deploy_crypto clean
       - name: Protocol and host regressions
         run: |
           make -C sn32/tests/portable clean test
+          make -C sn32/tests/portable clean
           PYTHONPATH=pc_host/src python -m unittest discover -s pc_host/tests -v
       - name: Deploy project and repository static gates
         run: |
