@@ -33,6 +33,9 @@ typedef struct {
     uint16_t host_txid;
     uint16_t target_txid;
     uint8_t original_host_command;
+    uint8_t result_system_state;
+    uint8_t result_source;
+    uint16_t result_related_target_txid;
     uint32_t request_fingerprint;
     trinity_transaction_state_t state;
     trinity_error_code_t result_code;
