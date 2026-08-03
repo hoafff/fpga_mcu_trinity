@@ -23,7 +23,9 @@ typedef struct {
 typedef struct {
     uint32_t now;
     bool tiny_fault;
-    unsigned commit_toggles;
+    bool commit_level;
+    unsigned commit_low_calls;
+    unsigned commit_high_calls;
     mock_endpoint_t p1;
     mock_endpoint_t p2;
     uint8_t telemetry[32];
