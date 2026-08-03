@@ -57,5 +57,6 @@ static uint16_t g_active_host_txid;
 static error_record_t g_error;
 static host_transaction_t g_host_txn;
 static trinity_controller_t g_controller;
+static trinity_deploy_crypto_t g_crypto;
 
 static endpoint_t g_p1 = {
