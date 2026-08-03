@@ -16,6 +16,7 @@
         return rc;
     }
     spi_init();
+    full_controller_bind();
     progress();
     g_trinity_deploy_marker = DEPLOY_MARKER_OK;
     return TRINITY_OK;
@@ -29,12 +30,8 @@ int main(void) {
         for (;;) __NOP();
     }
 
-    (void)probe(&g_p1);
+    (void)full_probe_all();
     progress();
-#if TRINITY_DEPLOY_P1_BRINGUP_ONLY == 0
-    (void)probe(&g_p2);
-    progress();
-#endif
     last_probe = g_ms;
 
     for (;;) {
@@ -42,12 +39,11 @@ int main(void) {
         pc_poll();
         if (!g_host_txn.valid &&
             (uint32_t)(g_ms - last_probe) >= TRINITY_DEPLOY_ENDPOINT_PROBE_MS) {
-            (void)probe(&g_p1);
+            if (g_controller.p1.ready && g_controller.p2.ready)
+                (void)full_refresh_all();
+            else
+                (void)full_probe_all();
             progress();
-#if TRINITY_DEPLOY_P1_BRINGUP_ONLY == 0
-            (void)probe(&g_p2);
-            progress();
-#endif
             last_probe = g_ms;
         }
     }
