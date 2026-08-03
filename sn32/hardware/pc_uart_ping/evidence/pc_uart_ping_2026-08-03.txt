@@ -1,0 +1,94 @@
+PC <-> SN32F407 UART PING hardware evidence
+Date: 2026-08-03
+Scope: standalone PC UART control-plane PING only
+
+SOURCE IDENTITY
+repository: hoafff/fpga_mcu_trinity
+commit: 40ff6f06ed32d3139899aae291047f35d0740f86
+commit message: ci(sn32): enforce exact 32K Keil size profile
+ML-KEM submodule: 048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
+
+EXACT KEIL BUILD
+ArmClang: 6.24
+Program Size: Code=23228 RO-data=776 RW-data=100 ZI-data=4532
+Flash: 24104 / 32764 bytes
+RAM: 4632 / 8192 bytes
+Build result: 0 Error(s), 0 Warning(s)
+AXF generation: PASS
+HEX generation: PASS
+SN32 flash programming: PASS as reported from the hardware run
+
+HARDWARE BOUNDARY
+SN32F407: connected and running the deploy image
+USB-UART: FT232RL YP-05
+Windows port: COM3
+UART: 115200 8N1
+Primer #1: not connected
+Primer #2: not connected
+Tiny 1P5: not connected
+
+HOST ENVIRONMENT
+Python: 3.11.6
+Install command: py -m pip install -e .\pc_host
+Install result: Successfully installed trinity-host-0.2.0
+Port discovery:
+COM3 | USB Serial Port (COM3) | USB VID:PID=0403:6001 SER=A5069RR4A
+
+PRECONDITIONS CONFIRMED
+PC import points to the current checkout: PASS
+PING wire frame byte-exact: PASS
+FT232 TX <-> RX loopback: PASS
+
+RAW PING
+TX: 03 01 01 01 01 02 01 01 03 f9 bc 00
+TX bytes: 12
+RX chunk: 04
+RX chunk: 01 01 01 01 02 01 02 04 01 05 17 f3 44 7f 00
+RX total: 04 01 01 01 01 02 01 02 04 01 05 17 f3 44 7f 00
+
+Decoded response raw frame:
+01 01 01 00 00 01 00 04 00 00 17 f3 44 7f
+
+Decoded fields:
+version: 0x01
+command: 0x01 PING
+flags: 0x01 RESPONSE
+reserved: 0x00
+transaction_id: 0x0001
+payload_length: 0x0004
+uptime_ms: 0x000017f3 = 6131
+crc16_ccitt_false: 0x447f
+
+OFFICIAL CLI RUNS
+E:\thithithi\fpga_mcu_trinity\pc_host>trinity-host --port COM3 ping
+[PING]
+result=PASS
+uptime_ms=126699
+
+E:\thithithi\fpga_mcu_trinity\pc_host>trinity-host --port COM3 ping
+[PING]
+result=PASS
+uptime_ms=166390
+
+E:\thithithi\fpga_mcu_trinity\pc_host>trinity-host --port COM3 ping
+[PING]
+result=PASS
+uptime_ms=171063
+
+OBSERVED ROOT CAUSE OF EARLIER TIMEOUT
+The initial timeout was caused by a loose/intermittent USB cable connection to
+the USB-to-UART adapter. After replacing the cable, raw PING and the official
+CLI both returned valid responses.
+
+LOCKED DECISION
+PC <-> SN32 UART PING HARDWARE: PASS
+
+PERMITTED CLAIM
+The PC host, FT232RL link, SN32 UART0 receive/transmit path, binary PING framing,
+firmware dispatch, response framing and running millisecond timebase operated
+together on hardware for the PING command.
+
+PROHIBITED CLAIMS
+This record does not qualify Primer #1, Primer #2, either SPI link, ML-KEM or
+Ascon execution on hardware, session establishment, direct P1-to-P2 UART,
+Tiny 1P5 safety behavior, dual-SPI integration or the full system.
