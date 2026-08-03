@@ -5,10 +5,12 @@ import unittest
 
 from trinity_host.protocol import (
     ErrorCode,
+    EventType,
     FrameFlags,
     HostCommand,
     HostFrame,
     Mode,
+    Source,
     SystemState,
     TargetReadyMask,
     TransactionState,
@@ -27,6 +29,23 @@ class FakeSerial:
     def _queue(self, frame: HostFrame) -> None:
         self.rx.extend(frame.encode_wire())
 
+    def _queue_progress(self, related_txid: int, percent: int) -> None:
+        payload = struct.pack(
+            ">HBBHBB",
+            int(EventType.PROGRESS),
+            0,
+            int(Source.SN32),
+            related_txid,
+            percent,
+            0,
+        )
+        self._queue(HostFrame(
+            int(HostCommand.EVENT),
+            int(FrameFlags.EVENT),
+            0,
+            payload,
+        ))
+
     def write(self, data: bytes) -> int:
         request = HostFrame.decode_wire(data)
         self.commands.append(request.command)
@@ -36,11 +55,11 @@ class FakeSerial:
         if command == HostCommand.PING:
             payload = struct.pack(">I", 1234)
         elif command == HostCommand.GET_SYSTEM_INFO:
-            payload = bytes([1, 0, 5, 0]) + struct.pack(">IIII", 0x830, 0x00050100, 0x50310001, 0)
+            payload = bytes([1, 0, 7, 0]) + struct.pack(">IIII", 0x83B, 0x00070000, 0x50310001, 0)
         elif command == HostCommand.GET_SYSTEM_STATUS:
             payload = struct.pack(
                 ">BBBBIQHH",
-                int(SystemState.SELF_TEST_REQUIRED if self.result_queries == 0 else SystemState.READY_NO_SESSION),
+                int(SystemState.SELF_TEST_REQUIRED if self.result_queries == 0 else SystemState.READY_NO_KEYPAIR),
                 int(Mode.KAT),
                 int(TargetReadyMask.SN32 | TargetReadyMask.PRIMER1),
                 0,
@@ -52,12 +71,14 @@ class FakeSerial:
         elif command == HostCommand.RUN_SELF_TEST:
             self.assert_payload(request.payload, b"\x02\x02\x00\x3E")
             self.self_test_host_txid = request.transaction_id
+            self._queue_progress(request.transaction_id, 50)
+            payload = b"\x00\x3E"
         elif command == HostCommand.GET_TXN_RESULT:
             assert self.self_test_host_txid is not None
             self.assert_payload(request.payload, struct.pack(">H", self.self_test_host_txid))
             self.result_queries += 1
             state = TransactionState.RUNNING if self.result_queries == 1 else TransactionState.SUCCEEDED
-            data_field = b"" if state == TransactionState.RUNNING else b"\x01\x3E"
+            data_field = b"" if state == TransactionState.RUNNING else b"\x00\x3E"
             payload = struct.pack(
                 ">HBBHH",
                 self.self_test_host_txid,
@@ -95,14 +116,24 @@ class FakeSerial:
 
 
 class P1BringupClientTests(unittest.TestCase):
-    def test_exact_control_plane_sequence(self) -> None:
+    def test_exact_control_plane_sequence_with_interleaved_progress(self) -> None:
         fake = FakeSerial()
-        client = TrinitySerialClient("COM_TEST", serial_factory=lambda **kwargs: fake)
+        events = []
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: fake,
+            event_handler=events.append,
+        )
         result = client.run_p1_bringup(timeout=0.5, poll_interval=0.0)
         self.assertEqual(result.uptime_ms, 1234)
+        self.assertEqual(result.info.sn32_build_id, 0x00070000)
         self.assertEqual(result.info.primer1_build_id, 0x50310001)
         self.assertEqual(result.transaction.state, TransactionState.SUCCEEDED)
-        self.assertEqual(result.transaction.data, b"\x01\x3E")
+        self.assertEqual(result.transaction.data, b"\x00\x3E")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].event_type, EventType.PROGRESS)
+        self.assertEqual(events[0].progress_percent, 50)
+        self.assertEqual(events[0].related_transaction_id, 4)
         self.assertEqual(
             fake.commands,
             [
