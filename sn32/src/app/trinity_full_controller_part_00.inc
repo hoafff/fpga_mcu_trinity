@@ -69,6 +69,11 @@ static trinity_source_t controller_source(uint8_t target_id) {
                : TRINITY_SOURCE_PRIMER2;
 }
 
+static bool controller_error_is_polling_state(trinity_error_code_t code) {
+    return code == TRINITY_RESULT_NOT_READY || code == TRINITY_BUSY ||
+           code == TRINITY_RESULT_PENDING;
+}
+
 static trinity_error_code_t controller_exchange(
     trinity_controller_t *controller,
     uint8_t target_id,
@@ -92,7 +97,7 @@ static trinity_error_code_t controller_exchange(
                                   payload, payload_length, response,
                                   response_capacity, response_length,
                                   issued_txid);
-    if (rc != TRINITY_OK) {
+    if (rc != TRINITY_OK && !controller_error_is_polling_state(rc)) {
         controller_latch_error(controller, rc, controller_source(target_id),
                                ((uint32_t)command << 16) |
                                (issued_txid != NULL ? *issued_txid : 0u));
