@@ -56,7 +56,7 @@ static void full_handle_diagnostic_test(const trinity_pc_frame_t *req,
     trinity_write_be16(&result[4], test_mask);
     managed_transaction_finish(rc, rc == TRINITY_OK ? result : NULL,
                                rc == TRINITY_OK ? sizeof(result) : 0u);
-    (void)response_send();
+    managed_transaction_respond(req);
 }
 
 static void full_handle_ntt_test(const trinity_pc_frame_t *req) {
