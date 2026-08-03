@@ -56,6 +56,8 @@ trinity_error_code_t trinity_mlkem512_keygen_deterministic(
         public_key[index] = (uint8_t)(coins[index % 64u] ^ (uint8_t)index);
     for (index = 0u; index < 1632u; ++index)
         secret_key[index] = (uint8_t)(coins[index % 64u] + (uint8_t)index);
+    memcpy(&secret_key[TRINITY_MLKEM512_PUBLIC_KEY_IN_SECRET_KEY_OFFSET],
+           public_key, 800u);
     return TRINITY_OK;
 }
 
@@ -126,6 +128,7 @@ int main(void) {
     uint8_t digest[32];
     size_t index;
 
+    assert(sizeof(crypto) <= 2600u);
     for (index = 0u; index < sizeof(seed); ++index)
         seed[index] = (uint8_t)(index + 1u);
 
@@ -139,6 +142,7 @@ int main(void) {
 
     assert(trinity_deploy_crypto_public_key_hash(&crypto, digest) == TRINITY_OK);
     assert(!all_zero(digest, sizeof(digest)));
+    assert(memcmp(digest, crypto.public_key_hash, sizeof(digest)) == 0);
 
     memset(&material, 0, sizeof(material));
     assert(trinity_deploy_crypto_create_session(&crypto, 1u, seed,
@@ -174,7 +178,7 @@ int main(void) {
 
     trinity_deploy_crypto_zeroize(&crypto);
     assert(all_zero(&crypto, sizeof(crypto)));
-    puts("PASS: deploy ML-KEM key state, deterministic and demo session policies");
-    puts("PASS: KEM self-check, mismatch rejection and explicit zeroization");
+    puts("PASS: deploy ML-KEM key state uses embedded public key within <=2600 bytes");
+    puts("PASS: deterministic/demo policies, KEM self-check and explicit zeroization");
     return 0;
 }
