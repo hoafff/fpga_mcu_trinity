@@ -42,7 +42,7 @@
 #error "SPI0 CLKDIV exceeds the supported 8-bit field"
 #endif
 
-#define DEPLOY_BUILD_ID UINT32_C(0x00070001)
+#define DEPLOY_BUILD_ID UINT32_C(0x00070002)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
@@ -64,6 +64,7 @@ static void full_handle_ntt_test(const trinity_pc_frame_t *req);
 static void full_handle_ascon_test(const trinity_pc_frame_t *req);
 static void full_handle_benchmark(const trinity_pc_frame_t *req);
 static void full_handle_transport_stress(const trinity_pc_frame_t *req);
+static void handle_spi_diagnostic(const trinity_pc_frame_t *req);
 
 enum {
     UART0_CLK_EN = 1u << 16,
