@@ -20,10 +20,73 @@
     }
 }
 
+static trinity_error_code_t full_sn32_self_test(uint16_t test_mask) {
+    static const uint8_t crc_vector[9] = {
+        '1','2','3','4','5','6','7','8','9'
+    };
+    uint8_t scratch[16];
+    uint8_t index;
+
+    if ((test_mask & TRINITY_TEST_PROTOCOL) != 0u &&
+        trinity_crc16_ccitt_false(crc_vector, sizeof(crc_vector)) != 0x29B1u)
+        return TRINITY_SELF_TEST_FAILED;
+
+    if ((test_mask & TRINITY_TEST_MEMORY) != 0u) {
+        for (index = 0u; index < sizeof(scratch); ++index)
+            scratch[index] = (uint8_t)(0xA5u ^ index);
+        for (index = 0u; index < sizeof(scratch); ++index) {
+            if (scratch[index] != (uint8_t)(0xA5u ^ index)) {
+                trinity_controller_secure_clear(scratch, sizeof(scratch));
+                return TRINITY_SELF_TEST_FAILED;
+            }
+        }
+    }
+
+    if ((test_mask & TRINITY_TEST_ZEROIZE) != 0u) {
+        memset(scratch, 0xA5, sizeof(scratch));
+        trinity_controller_secure_clear(scratch, sizeof(scratch));
+        for (index = 0u; index < sizeof(scratch); ++index) {
+            if (scratch[index] != 0u) return TRINITY_SELF_TEST_FAILED;
+        }
+    }
+
+    if ((test_mask & TRINITY_TEST_SESSION) != 0u) {
+        if (g_controller.state == TRINITY_SYSTEM_ACTIVE) {
+            if (!g_session_commit_level ||
+                !g_controller.session_material_valid)
+                return TRINITY_SELF_TEST_FAILED;
+        } else if (g_session_commit_level) {
+            return TRINITY_SELF_TEST_FAILED;
+        }
+    }
+
+    if ((test_mask & TRINITY_TEST_HEARTBEAT) != 0u &&
+        (g_fault || (uint32_t)(g_ms - g_progress_ms) > PROGRESS_LEASE_MS))
+        return TRINITY_HEARTBEAT_TIMEOUT;
+
+    if (guard_check() != FPST_P010_VIOLATION_NONE)
+        return TRINITY_FAULT_LOCKED;
+    trinity_controller_secure_clear(scratch, sizeof(scratch));
+    return TRINITY_OK;
+}
+
+static trinity_error_code_t full_tiny_self_test(uint16_t test_mask) {
+    (void)test_mask;
+#if FPST_SN32F407_HARNESS_VERIFIED
+    return full_tiny_fault_active(NULL) ? TRINITY_FAULT_LOCKED : TRINITY_OK;
+#else
+    return TRINITY_NOT_SUPPORTED;
+#endif
+}
+
 static void full_handle_run_self_test(const trinity_pc_frame_t *req) {
-    trinity_error_code_t rc;
+    const uint8_t allowed_targets =
+        TRINITY_READY_SN32 | TRINITY_READY_PRIMER1 |
+        TRINITY_READY_PRIMER2 | TRINITY_READY_TINY1P5;
+    trinity_error_code_t rc = TRINITY_OK;
     uint8_t result[2];
     uint8_t target_mask;
+    uint8_t primer_mask;
     uint16_t test_mask;
     if (!request_length_is(req, 4u) ||
         req->payload[1] > (uint8_t)TRINITY_TEST_PROFILE_DIAGNOSTIC) {
@@ -33,9 +96,25 @@ static void full_handle_run_self_test(const trinity_pc_frame_t *req) {
     }
     target_mask = req->payload[0];
     test_mask = trinity_read_be16(&req->payload[2]);
+    if (target_mask == 0u || (target_mask & (uint8_t)~allowed_targets) != 0u ||
+        test_mask == 0u) {
+        response_error(req, TRINITY_BAD_LENGTH,
+                       TRINITY_SOURCE_HOST_PROTOCOL, target_mask);
+        return;
+    }
     if (!managed_transaction_begin(req)) return;
-    rc = trinity_controller_run_self_test(&g_controller, target_mask,
-                                          test_mask, 8000u);
+
+    if ((target_mask & TRINITY_READY_SN32) != 0u)
+        rc = full_sn32_self_test(test_mask);
+    if (rc == TRINITY_OK &&
+        (target_mask & TRINITY_READY_TINY1P5) != 0u)
+        rc = full_tiny_self_test(test_mask);
+    primer_mask = target_mask &
+                  (TRINITY_READY_PRIMER1 | TRINITY_READY_PRIMER2);
+    if (rc == TRINITY_OK && primer_mask != 0u)
+        rc = trinity_controller_run_self_test(&g_controller, primer_mask,
+                                              test_mask, 8000u);
+
     trinity_write_be16(result, test_mask);
     managed_transaction_finish(rc, rc == TRINITY_OK ? result : NULL,
                                rc == TRINITY_OK ? sizeof(result) : 0u);
