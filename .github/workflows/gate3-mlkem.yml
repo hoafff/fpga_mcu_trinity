@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/gate3-mlkem.yml
       - .gitmodules
+      - ai_context/scripts/**
       - sn32/config/**
       - sn32/docs/FULL_DEPLOY_SOURCE_HANDOFF.md
       - sn32/include/**
