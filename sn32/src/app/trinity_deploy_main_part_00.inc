@@ -3,6 +3,7 @@
 #include "board_profile.h"
 #include "fpst_sn32f407_p010_guard.h"
 #include "trinity_deploy_config.h"
+#include "trinity_full_controller.h"
 #include "trinity_pc_protocol.h"
 #include "trinity_spi_protocol.h"
 
@@ -15,30 +16,39 @@
 #error "Deploy source requires TRINITY_DEPLOY_TARGET=1"
 #endif
 #if TRINITY_DEPLOY_ENABLE_PC_UART != 1 || TRINITY_DEPLOY_ENABLE_SPI != 1
-#error "Minimum deploy requires PC UART and Primer SPI"
+#error "Full deploy requires PC UART and Primer SPI"
 #endif
-#if TRINITY_DEPLOY_ENABLE_PRIMER1 != 1
-#error "Primer #1 control endpoint is mandatory"
+#if TRINITY_DEPLOY_ENABLE_PRIMER1 != 1 || TRINITY_DEPLOY_ENABLE_PRIMER2 != 1
+#error "Full deploy requires both Primer endpoints"
 #endif
-#if TRINITY_DEPLOY_P1_BRINGUP_ONLY != 0 && TRINITY_DEPLOY_P1_BRINGUP_ONLY != 1
-#error "TRINITY_DEPLOY_P1_BRINGUP_ONLY must be 0 or 1"
+#if TRINITY_DEPLOY_P1_BRINGUP_ONLY != 0
+#error "Full deploy must not use P1-only bring-up mode"
 #endif
-#if TRINITY_DEPLOY_P1_BRINGUP_ONLY == 0 && TRINITY_DEPLOY_ENABLE_PRIMER2 != 1
-#error "Full deploy requires Primer #2"
+#if TRINITY_DEPLOY_ENABLE_PAYLOAD_RELAY != 0
+#error "SN32 must not relay the direct P1-to-P2 UART payload"
 #endif
-#if TRINITY_DEPLOY_ENABLE_MLKEM != 0 || TRINITY_DEPLOY_ENABLE_PAYLOAD_RELAY != 0
-#error "ML-KEM and MCU payload relay must remain disabled"
+#if TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT != 1
+#error "Full deploy requires the SN32-to-Tiny SESSION_COMMIT output"
 #endif
-#if TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT != 0 || \
-    TRINITY_DEPLOY_ENABLE_DEMO_SECURE != 0
-#error "Tiny session commit and DEMO_SECURE must remain disabled"
+#if TRINITY_DEPLOY_ENABLE_DEMO_SECURE != 0
+#error "DEMO_SECURE remains disabled until an approved entropy qualification"
 #endif
 
-#define DEPLOY_BUILD_ID UINT32_C(0x00050100)
+#define DEPLOY_BUILD_ID UINT32_C(0x00060000)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254) /* DPBT */
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)   /* DPOK */
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)  /* DPER */
-#define P1_SELF_TEST_RESULT_MAX 16u
+#define P1_SELF_TEST_RESULT_MAX TRINITY_CONTROLLER_MAX_RESULT_BYTES
+
+static void full_controller_bind(void);
+static trinity_error_code_t full_probe_all(void);
+static trinity_error_code_t full_refresh_all(void);
+static void full_handle_run_self_test(const trinity_pc_frame_t *req);
+static void full_handle_close_session(const trinity_pc_frame_t *req);
+static void full_handle_zeroize(const trinity_pc_frame_t *req);
+static void full_handle_send_telemetry(const trinity_pc_frame_t *req);
+static void full_handle_read_last_result(const trinity_pc_frame_t *req);
+static void full_handle_transport_stress(const trinity_pc_frame_t *req);
 
 enum {
     UART0_CLK_EN = 1u << 16,
