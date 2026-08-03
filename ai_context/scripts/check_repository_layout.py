@@ -7,10 +7,41 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = ("pc_host", "sn32", "primer1", "primer2", "tiny1p5")
-ALLOWED_ROOT = {".git", ".github", ".gitignore", "LICENSE", "README.md", "ai_context", *TARGETS}
+ALLOWED_ROOT = {
+    ".git",
+    ".github",
+    ".gitignore",
+    ".gitmodules",
+    "LICENSE",
+    "README.md",
+    "IMPLEMENTATION_STATUS.md",
+    "ai_context",
+    *TARGETS,
+}
 FORBIDDEN_ROOT = {"boards", "constraints", "docs", "rtl", "scripts", "software", "targets", "tb", "tools"}
 FORBIDDEN_TARGET_NAMES = {"README.md", "README", "CONTRIBUTING.md"}
 FORBIDDEN_SUFFIXES = {".axf", ".bin", ".bit", ".fs", ".hex", ".log", ".rpt", ".zip"}
+
+# A Git submodule is an independently governed, immutable dependency tree.
+# Its own documentation and symlink layout are validated by the exact commit
+# pin, not by first-party repository-layout policy.
+OPAQUE_SUBMODULE_ROOTS = {
+    Path("sn32/third_party/mlkem-native/upstream"),
+}
+
+# Existing first-party target documentation/evidence approved by the project.
+# Keep this list narrow so new target-local README/generated artifacts remain
+# rejected unless explicitly reviewed.
+ALLOWED_TARGET_DOCS = {
+    Path("pc_host/README.md"),
+    Path("primer1/tb/README.md"),
+    Path("primer1/hwtest/esp32c3/README.md"),
+    Path("primer2/README.md"),
+    Path("primer2/hardware/esp32c3_standalone_qualification/README.md"),
+}
+ALLOWED_TARGET_ARTIFACTS = {
+    Path("primer1/hwtest/esp32c3/primer1_hardware_test_evidence.zip"),
+}
 
 REQUIRED_CONTEXT = (
     "ai_context/README_AI.md",
@@ -33,6 +64,17 @@ FORBIDDEN_ACTIVE_LEGACY = (
     "ai_context/hardware/FPST-PRE-HARDWARE-SIGNOFF-v1.0.md",
     "ai_context/hardware/FPST-WIRING-GUIDE-v1.1.md",
 )
+
+
+def relative_path(path: Path) -> Path:
+    return path.relative_to(ROOT)
+
+
+def under_opaque_submodule(path: Path) -> bool:
+    relative = relative_path(path)
+    return any(relative == root or root in relative.parents
+               for root in OPAQUE_SUBMODULE_ROOTS)
+
 
 errors: list[str] = []
 root_entries = {p.name for p in ROOT.iterdir()}
@@ -81,16 +123,21 @@ for target in TARGETS:
     if data.get("target") != target:
         errors.append(f"target identity mismatch in {target}/target.toml")
     for path in target_root.rglob("*"):
+        if under_opaque_submodule(path):
+            continue
+        relative = relative_path(path)
         if path.is_symlink():
-            errors.append(f"symlink forbidden: {path.relative_to(ROOT)}")
-        if path.is_file() and path.name in FORBIDDEN_TARGET_NAMES:
-            errors.append(f"target documentation forbidden: {path.relative_to(ROOT)}")
-        if path.is_file() and path.suffix.lower() in FORBIDDEN_SUFFIXES:
-            errors.append(f"generated artifact forbidden: {path.relative_to(ROOT)}")
+            errors.append(f"symlink forbidden: {relative}")
+        if (path.is_file() and path.name in FORBIDDEN_TARGET_NAMES and
+                relative not in ALLOWED_TARGET_DOCS):
+            errors.append(f"target documentation forbidden: {relative}")
+        if (path.is_file() and path.suffix.lower() in FORBIDDEN_SUFFIXES and
+                relative not in ALLOWED_TARGET_ARTIFACTS):
+            errors.append(f"generated artifact forbidden: {relative}")
         if path.is_file():
             text = path.read_text(encoding="utf-8", errors="ignore")
             if "../ai_context" in text or "..\\ai_context" in text:
-                errors.append(f"deployment dependency on ai_context: {path.relative_to(ROOT)}")
+                errors.append(f"deployment dependency on ai_context: {relative}")
 
 required_tiny = [
     "sources.f",
@@ -152,7 +199,7 @@ if errors:
         print(f"ERROR: {error}", file=sys.stderr)
     raise SystemExit(1)
 
-print("PASS: canonical target/ai_context root plus portable-CI exception")
-print("PASS: project-memory v0.4 and approved protocol ICDs are indexed")
-print("PASS: Tiny and SN32 guard candidate files remain present")
-print("PASS: Gate 1 and Gate 2 protocol/common source files are present")
+print("PASS: canonical target/ai_context root plus reviewed root exceptions")
+print("PASS: exact pinned ML-KEM submodule is treated as an opaque dependency")
+print("PASS: only explicitly reviewed target docs/evidence bypass target policy")
+print("PASS: project-memory, Tiny/SN32 guards and protocol sources remain present")
