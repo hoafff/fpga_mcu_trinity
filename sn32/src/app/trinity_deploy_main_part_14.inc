@@ -30,7 +30,7 @@ static void handle_retire_txn_result(const trinity_pc_frame_t *req) {
 static bool serialize_spi_trace(const spi_exchange_trace_t *trace,
                                 uint16_t base, uint16_t *payload_length) {
     uint8_t irq_flags = 0u;
-    uint16_t offset = (uint16_t)(base + 24u);
+    uint16_t offset = (uint16_t)(base + 36u);
     if (trace == NULL || payload_length == NULL || !trace->valid)
         return false;
     if ((uint32_t)offset + trace->request_length +
@@ -61,6 +61,15 @@ static bool serialize_spi_trace(const spi_exchange_trace_t *trace,
                        trace->response_crc_received);
     trinity_write_be16(&g_pc_rsp.payload[base + 22u],
                        trace->response_crc_calculated);
+    g_pc_rsp.payload[base + 24u] = trace->transfer_stage;
+    g_pc_rsp.payload[base + 25u] = trace->transfer_direction;
+    trinity_write_be16(&g_pc_rsp.payload[base + 26u],
+                       trace->transfer_byte_index);
+    trinity_write_be16(&g_pc_rsp.payload[base + 28u],
+                       trace->transfer_length);
+    trinity_write_be16(&g_pc_rsp.payload[base + 30u],
+                       trace->transfer_completed);
+    trinity_write_be32(&g_pc_rsp.payload[base + 32u], trace->spi_status);
 
     memcpy(&g_pc_rsp.payload[offset], trace->request_bytes,
            trace->request_length);
