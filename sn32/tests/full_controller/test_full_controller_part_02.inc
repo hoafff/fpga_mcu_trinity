@@ -1,6 +1,14 @@
-static void mock_commit(void *context) {
+static void mock_commit_low(void *context) {
     mock_bus_t *bus = context;
-    bus->commit_toggles += 1u;
+    bus->commit_level = false;
+    bus->commit_low_calls += 1u;
+}
+
+static void mock_commit_high(void *context) {
+    mock_bus_t *bus = context;
+    assert(!bus->commit_level);
+    bus->commit_level = true;
+    bus->commit_high_calls += 1u;
     bus->p1.session_state = TRINITY_SESSION_ACTIVE;
     bus->p2.session_state = TRINITY_SESSION_ACTIVE;
     bus->p1.secure_flags |= TRINITY_SECURE_ENABLE;
@@ -17,6 +25,7 @@ int main(void) {
     unsigned i;
 
     memset(&bus, 0, sizeof(bus));
+    bus.commit_level = true; /* Prove activation always re-arms a LOW->HIGH edge. */
     bus.p1.session_state = TRINITY_SESSION_SELF_TEST_REQUIRED;
     bus.p2.session_state = TRINITY_SESSION_SELF_TEST_REQUIRED;
     bus.p1.next_txid = 0x1100u;
@@ -26,7 +35,8 @@ int main(void) {
     ops.exchange = mock_exchange;
     ops.now_ms = mock_now;
     ops.progress = mock_progress;
-    ops.session_commit_toggle = mock_commit;
+    ops.session_commit_low = mock_commit_low;
+    ops.session_commit_high = mock_commit_high;
     ops.tiny_fault_active = mock_tiny_fault;
 
     trinity_controller_init(&controller, &ops);
@@ -46,7 +56,9 @@ int main(void) {
     assert(trinity_controller_activate_session(&controller, &session,
         TRINITY_MODE_KAT, 1000u) == TRINITY_OK);
     assert(controller.state == TRINITY_SYSTEM_ACTIVE);
-    assert(bus.commit_toggles == 1u);
+    assert(bus.commit_low_calls == 1u);
+    assert(bus.commit_high_calls == 1u);
+    assert(bus.commit_level);
 
     memset(telemetry, 0, sizeof(telemetry));
     telemetry[0] = 2u;
@@ -75,12 +87,15 @@ int main(void) {
     assert(!controller.session_material_valid);
     assert(!controller.last_result.valid);
     assert(controller.current_sequence == 0u);
+    assert(!bus.commit_level);
+    assert(bus.commit_low_calls >= 2u);
 
     bus.tiny_fault = true;
     assert(trinity_controller_probe_all(&controller) == TRINITY_FAULT_LOCKED);
     assert((trinity_controller_fault_mask(&controller) & TRINITY_FAULT_TINY1P5) != 0u);
 
     puts("PASS: dual-endpoint probe, retained self-test, staged/committed activation");
+    puts("PASS: repeatable Tiny LOW>=2ms to HIGH commit edge and zeroize deassertion");
     puts("PASS: direct P1->P2 telemetry authentication, ACK and pending-result protection");
     puts("PASS: zeroize clears local session/result state and Tiny fault is fail-closed");
     return 0;
