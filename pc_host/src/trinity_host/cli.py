@@ -112,7 +112,10 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     spi_diag.add_argument("--target", choices=("p1", "p2"), required=True)
     spi_diag.add_argument(
-        "--command", choices=("get-info", "get-status"), required=True
+        "--command",
+        dest="spi_command",
+        choices=("get-info", "get-status"),
+        required=True,
     )
 
     # Retained compatibility aliases for the earlier P1-only workflow.
@@ -170,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
                 target = TargetId.PRIMER1 if args.target == "p1" else TargetId.PRIMER2
                 command = (
                     SpiCommand.GET_INFO
-                    if args.command == "get-info"
+                    if args.spi_command == "get-info"
                     else SpiCommand.GET_STATUS
                 )
                 trace = client.spi_diagnostic(target, command)
