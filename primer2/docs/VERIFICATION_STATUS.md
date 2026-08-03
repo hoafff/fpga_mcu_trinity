@@ -5,24 +5,17 @@ Status date: 2026-08-03
 ## Qualification identity
 
 ```text
-source_commit = 7588063e636da225bbe81632efe1060f4c825c37
-source_title  = test(primer2): enforce single positive-edge clock policy
+Primer #2 source commit = 7588063e636da225bbe81632efe1060f4c825c37
+Primer #2 source title  = test(primer2): enforce single positive-edge clock policy
+P1-to-P2 harness commit = 7fcf9171938114f07fb3e21157abbbc77074720c
 ```
 
-The reports and bitstream generated before the `fault_o` correction are
-superseded. Their historical audit remains in
-`EXACT_DEVICE_BUILD_AUDIT_2026-08-02.md` and is not used as current evidence.
+Reports and bitstreams generated before the `fault_o` correction remain
+superseded and are not reused as current evidence.
 
-## Current portable source checks
+## Portable source checks
 
-The following were run on the post-fix source:
-
-```text
-py -3 primer2/scripts/reference_checks.py
-py -3 primer2/scripts/static_rtl_checks.py
-```
-
-Recorded results:
+Recorded post-fix source results:
 
 ```text
 PASS ascon_zero_and_nonzero_decrypt
@@ -33,12 +26,10 @@ PASS uart_frame_layout_66_bytes
 STATIC RTL CHECK PASS (7 files)
 ```
 
-Current nine-bench Icarus evidence was not supplied with this qualification
-record, so RTL simulation remains separately unclaimed.
+A current nine-bench Icarus result was not supplied with the hardware evidence,
+so that specific qualification item remains separately unclaimed.
 
-## Current exact-device clean build
-
-Environment:
+## Exact-device build candidate
 
 ```text
 Gowin EDA:      V1.9.11.03 Education
@@ -48,68 +39,42 @@ Top:            primer2_top
 Clock:          27.000 MHz
 ```
 
-Result:
+Recorded result:
 
 ```text
-Primer #2 exact-device synthesis:      PASS
-EX2664:                                ABSENT
-Primer #2 Place & Route:               PASS
-Primer #2 timing 27 MHz:               PASS
-Primer #2 bitstream generation:        PASS
-Primer #2 power analysis:              COMPLETED
+Synthesis:                    PASS
+EX2664:                       ABSENT
+Place and route:              PASS
+Timing at 27 MHz:             PASS
+Bitstream generation:         PASS
+Power analysis:               COMPLETED
+Actual Fmax:                  41.700 MHz
+Worst setup slack:            +13.056 ns
+Worst hold slack:              +0.425 ns
+Setup/Hold violations:         0 / 0
+Logic/Register/CLS:            79% / 43% / 86%
+PRIMARY/LW:                    3/8 / 8/8
 ```
 
-Timing:
-
-```text
-Actual Fmax:               41.700 MHz
-Worst setup slack:         +13.056 ns
-Worst hold slack:          +0.425 ns
-Setup violated endpoints:  0
-Hold violated endpoints:   0
-Setup TNS:                 0.000 ns
-Hold TNS:                  0.000 ns
-```
-
-Resources:
-
-```text
-Logic:       16,191 / 20,736 = 79%
-Registers:    6,889 / 16,173 = 43%
-CLS:          8,842 / 10,368 = 86%
-Latches:                         0
-PRIMARY:                     3 / 8
-LW:                          8 / 8
-```
-
-The accepted build status is:
+Accepted status:
 
 ```text
 Primer #2 exact-device build candidate: PASS
 ```
 
-The reported bitstream path is:
+The reported bitstream path is
+`primer2/gowin/impl/pnr/trinity_primer2.fs`. Its SHA-256 was not recorded.
+`LW = 8/8` remains an accepted routing-capacity risk.
 
-```text
-primer2/gowin/impl/pnr/trinity_primer2.fs
-```
+## Primer #2 standalone hardware qualification
 
-No bitstream SHA-256 was supplied. The build is therefore not cryptographically
-bound to the source commit in this record.
-
-`LW = 8/8` remains an accepted routing-capacity risk. The clean build has no
-reported unrouted nets, one clock domain and positive timing margin. No global
-promotion setting is disabled merely to reduce the utilization figure.
-
-## ESP32-C3 standalone hardware qualification
-
-The official harness and preserved raw log are under:
+The official standalone harness and raw evidence remain under:
 
 ```text
 primer2/hardware/esp32c3_standalone_qualification/
 ```
 
-Recorded summary:
+Recorded result:
 
 ```text
 PASS count = 23
@@ -117,36 +82,73 @@ FAIL count = 0
 OVERALL    = PASS
 ```
 
-The run qualified the physical Primer #2 board for:
+That run qualified ESP32-C3 SPI control, UART injection, identity, initial
+fail-closed state, CRC rejection, retained transaction handling, Ascon decrypt
+and tag verification, byte-exact plaintext, session lifecycle, replay and
+sequence rejection, pending-result protection, command zeroize, bad-tag fault
+threshold and heartbeat continuation.
 
-- ESP32-C3 SPI control and response-mailbox handling;
-- ESP32-C3 66-byte UART frame injection;
-- target/build identification and initial fail-closed state;
-- SPI CRC rejection and retained transaction reconciliation;
-- Ascon self-test, decrypt, tag verification and byte-exact plaintext;
-- stage, abort, commit, activate and re-provision lifecycle;
-- replay, wrong-session, zero-sequence and forward-gap rejection;
-- authenticated-result overwrite protection;
-- command `ZEROIZE_ALL`;
-- three-bad-tag fault threshold, session/key zeroize and heartbeat continuation.
+The deliberate final standalone test ended in expected
+`SESSION_FAULT_LOCKED`. External `fatal_latched_i` and `zeroize_ni` pins were not
+physically exercised.
 
-The final deliberate destructive test ended at:
+## P1 -> P2 direct UART hardware qualification
+
+The direct physical payload connection:
 
 ```text
-session_state      = 8
-fault_o            = 1
-last_error         = 0x0601
-diagnostic_summary = 0x000001B0
-session_id         = 0
+Primer #1 uart_tx_o -> Primer #2 uart_rx_i
 ```
 
-This is the expected PASS state for `SESSION_FAULT_LOCKED` after the third bad
-tag.
+has now passed on hardware using the dual-SPI ESP32-C3 controller harness.
 
-The first attempt exposed a startup mailbox caused by CS/SCK activity while the
-ESP32 was booting. The official harness now drives `spi_cs_ni` high before Serial
-and SPI initialization, drains any stale mailbox when `irq_no` is already low,
-and keeps the UART GPIO high impedance until `GET_INFO` proves target 2.
+Evidence:
+
+```text
+qualification record =
+  primer2/docs/P1_TO_P2_UART_HARDWARE_QUALIFICATION_2026-08-03.md
+
+raw log =
+  primer2/hardware/p1_to_p2_uart_integration/evidence/
+  serial_monitor_2026-08-03.txt
+
+raw log SHA256 =
+  1a682823c17fde2ab4ea4664c1acd7f7123139756988ab30d8f457d254a00597
+```
+
+Recorded summary:
+
+```text
+PASS count = 11
+FAIL count = 0
+OVERALL = PASS
+P1 -> P2 direct UART integration: PASS
+```
+
+The run proved:
+
+- correct P1 and P2 target/build/capability identity;
+- initial fail-closed state on both targets;
+- retained self-test and transition to `READY_NO_SESSION`;
+- byte-identical session stage material;
+- commit while secure enable was low;
+- both targets reaching `COMMITTED_BLOCKED`, then `ACTIVE`;
+- P1 sequence-1 encryption and 66-byte UART transmission;
+- P2 sequence-1 authentication/decryption and byte-exact plaintext;
+- wrong ACK rejection with `ERR_BAD_SESSION = 0x0402`;
+- P1/P2 sequence-2 byte-exact transfer;
+- pending-result overwrite protection when sequence 3 arrived;
+- `ERR_RESULT_PENDING_DROP = 0x0506`;
+- `DIAG_RESULT_PENDING_DROP = 0x00000080`;
+- preservation and reread of the original sequence-2 plaintext;
+- final active, non-aborted state with both IRQ outputs high and UART idle.
+
+Independent parsing of the full log found 67 complete SPI request/response pairs.
+All 134 complete packets passed magic/version, length and CRC checks; all
+responses matched their request command and transaction ID.
+
+This direct-link run did not newly qualify SN32 or Tiny. It also did not repeat
+the standalone replay, corrupted-tag, command-zeroize or fault-threshold cases.
 
 ## Current status matrix
 
@@ -162,22 +164,39 @@ Ascon decrypt/authentication on FPGA:          PASS
 Session/replay/command-zeroize/fault lifecycle:PASS
 external fatal_latched_i pin:                  NOT RUN, STRAPPED LOW
 external zeroize_ni pin:                       NOT RUN, STRAPPED HIGH
-P1 -> P2 direct UART integration:              NOT RUN
-SN32 -> P2 control plane:                      NOT RUN
+P1 -> P2 direct UART integration:              PASS
+SN32 -> P1/P2 control plane:                   NOT RUN
 Tiny safety integration:                       NOT RUN
 full-system hardware qualification:            NOT RUN
 ```
 
-The physical active-low zeroize pin was not exercised; command `ZEROIZE_ALL` is
-a separate tested path. The physical fatal input was not asserted. The ESP32
-fixture leaves secure enable high during the final fault state, so Tiny behavior
-is not inferred from this standalone run.
+Scoped flags:
 
-`standalone_hardware_qualified` may be true for the recorded ESP32-C3 scope.
-The generic/full-system `hardware_qualified` flag must remain false.
+```text
+standalone_hardware_qualified       = true
+p1_to_p2_uart_hardware_qualified    = true
+hardware_qualified                  = false
+full_system_hardware_qualified      = false
+```
+
+The generic/full-system flag remains false because SN32 and Tiny are separate
+unrun gates.
+
+## Next gate
+
+The recommended next independent gate is:
+
+```text
+SN32 -> P1/P2 dual-SPI control plane
+```
+
+It should retain the qualified direct UART payload path and replace only the
+ESP32-C3 provisioning/result controller. Tiny safety integration remains a later
+separate gate.
 
 See:
 
 - `STANDALONE_HARDWARE_QUALIFICATION_2026-08-03.md`;
 - `P1_TO_P2_UART_INTEGRATION_NEXT_GATE.md`;
+- `P1_TO_P2_UART_HARDWARE_QUALIFICATION_2026-08-03.md`;
 - `../hardware/esp32c3_standalone_qualification/README.md`.

@@ -1,38 +1,52 @@
-# Primer #1 to Primer #2 UART integration — next hardware gate
+# Primer #1 to Primer #2 direct UART integration — hardware-qualified gate
 
-The standalone ESP32-C3 qualification proves Primer #2 receive/decrypt behavior,
-but it does not prove the direct Primer #1 transmitter path. The next gate must
-replace the ESP32 UART injector with Primer #1 `uart_tx_o` while preserving a
-separate control path for provisioning and result inspection.
+Status date: 2026-08-03
 
-## Qualification boundary before this gate
-
-Accepted before starting:
+## Locked result
 
 ```text
-Primer #1 exact-device qualification:                 existing qualified scope
+P1 -> P2 direct UART integration: PASS
+p1_to_p2_uart_hardware_qualified = true
+controller_harness_commit = 7fcf9171938114f07fb3e21157abbbc77074720c
+```
+
+The accepted raw log and detailed audit are preserved at:
+
+```text
+primer2/hardware/p1_to_p2_uart_integration/evidence/serial_monitor_2026-08-03.txt
+primer2/docs/P1_TO_P2_UART_HARDWARE_QUALIFICATION_2026-08-03.md
+```
+
+This gate qualifies only the physical direct payload path. It does not qualify
+SN32, Tiny or the full system.
+
+## Qualification boundary
+
+Accepted state after this run:
+
+```text
+Primer #1 scoped exact-device hardware qualification: PASS
 Primer #2 exact-device build candidate:               PASS
 Primer #2 ESP32-C3 standalone qualification:          PASS
-P1 -> P2 direct UART integration:                     NOT RUN
-SN32 -> P2 control plane:                             NOT RUN
+P1 -> P2 direct UART integration:                     PASS
+SN32 -> P1/P2 control plane:                          NOT RUN
 Tiny safety integration:                              NOT RUN
+full-system hardware qualification:                   NOT RUN
 ```
 
-No result from this procedure may be labeled full-system qualification unless
-SN32 and Tiny are also present and exercised under their own acceptance gates.
-
-## Physical payload connection
-
-Connect only the direct one-way payload path:
+## Locked physical connection
 
 ```text
-Primer #1 uart_tx_o  -> Primer #2 uart_rx_i
-common GND           -> common GND
+Primer #1 R13 uart_tx_o -> Primer #2 R13 uart_rx_i
+common GND              -> common GND
 ```
 
-Both pins must use the locked 3.3 V LVCMOS deployment mapping. Remove or place in
-high impedance the ESP32 GPIO7 UART output before connecting Primer #1. Never
-allow two transmitters to drive Primer #2 `uart_rx_i`.
+Both pins use the locked 3.3 V LVCMOS deployment mapping.
+
+The ESP32-C3 was the shared SPI controller and temporary secure-enable source.
+Its GPIO7 remained `INPUT`/high-impedance for the entire run and acted only as a
+passive UART-level monitor. Primer #1 was the sole driver of Primer #2
+`uart_rx_i`.
 
 ## Locked UART and frame contract
 
@@ -43,110 +57,108 @@ Frame length:     66 bytes
 Frame:            A5 5A || AD[24] || ciphertext[24] || tag[16]
 ```
 
-Primer #1 and Primer #2 must use identical values for:
+The qualified run used:
 
 ```text
-session_id
-Ascon key
-nonce_prefix
-sequence
-AD layout and byte ordering
-ciphertext/tag byte ordering
+session_id   = 0x11223344
+key          = 00112233445566778899AABBCCDDEEFF
+nonce_prefix = 1021324354657687
 ```
 
-The first accepted sequence after a new commit is `1`. Every later accepted
-frame advances contiguously by one. Replay, zero, stale and forward-gap sequence
-values must remain fail-closed.
-
-For deterministic bring-up, the already qualified standalone vector may be used:
-
-```text
-session_id  = 0x11223344
-key         = 00112233445566778899AABBCCDDEEFF
-nonce_prefix= 1021324354657687
-first_seq   = 1
-```
-
-These constants are test material only. They do not establish production key
+These constants are test material only and do not define production key
 management.
 
-## Required provisioning sequence
+## Qualified provisioning sequence
 
-With `secure_enable` low:
+With `secure_enable` low, the harness:
 
-1. confirm Primer #1 and Primer #2 identify the expected target/build;
-2. run and reconcile self-test on both targets;
-3. stage the same session ID, key and nonce prefix on both;
-4. read status from both and confirm `SESSION_STAGED` with the same session ID;
-5. commit Primer #1 and Primer #2;
-6. reconcile retained commit results;
-7. confirm both targets are `SESSION_COMMITTED_BLOCKED`;
-8. raise the controlled `secure_enable` level;
-9. confirm both targets enter `SESSION_ACTIVE`;
-10. only then command Primer #1 to transmit sequence 1.
+1. identified P1 as target 1/build `0x50310001`;
+2. identified P2 as target 2/build `0x50320001`;
+3. confirmed both targets were initially fail-closed;
+4. completed and retired self-test transactions on both targets;
+5. confirmed both reached `SESSION_READY_NO_SESSION`;
+6. sent byte-identical `STAGE_SESSION` material to both targets;
+7. confirmed both reached `SESSION_STAGED`;
+8. committed both targets and reconciled retained results;
+9. confirmed both reached `SESSION_COMMITTED_BLOCKED`;
+10. raised the shared controlled `secure_enable` level;
+11. confirmed both reached `SESSION_ACTIVE`;
+12. confirmed P2 receive acceptance was enabled before P1 sequence 1.
 
-For this scoped gate, the ESP32-C3 may remain as an SPI controller and temporary
-secure-enable source, but it must not drive the payload UART pin. Such a result
-qualifies only the P1-to-P2 payload integration, not SN32 or Tiny integration.
+## Qualified positive and protection paths
 
-## Positive-path acceptance
+The hardware run demonstrated:
 
-Record evidence that:
+- P1 encrypt and 66-byte UART transmission for sequence 1;
+- P2 authentication/decryption and byte-exact plaintext sequence 1;
+- wrong ACK rejection with `ERR_BAD_SESSION = 0x0402`;
+- preservation of the pending sequence-1 result after wrong ACK;
+- correct ACK release;
+- P1 encrypt and 66-byte UART transmission for sequence 2;
+- P2 authentication/decryption and byte-exact plaintext sequence 2;
+- sequence 3 arriving while sequence 2 was pending;
+- `ERR_RESULT_PENDING_DROP = 0x0506`;
+- `DIAG_RESULT_PENDING_DROP = 0x00000080`;
+- preservation and reread of the exact sequence-2 plaintext;
+- correct final ACK release and UART idle.
 
-1. Primer #1 reports successful frame construction/transmission for sequence 1;
-2. Primer #2 reports authenticated result pending;
-3. Primer #2 reports the same session ID and sequence 1;
-4. `READ_AUTH_RESULT` returns the expected 24-byte plaintext exactly;
-5. a wrong ACK is rejected without releasing the result;
-6. the correct ACK releases the result;
-7. sequence 2 is transmitted and authenticated successfully;
-8. no UART framing, timeout, result-drop or authentication diagnostic is set on
-   the clean positive path.
+The independent packet audit found 67 request/response pairs and no CRC, length,
+command or transaction-ID mismatch.
 
-Capture the exact 66 transmitted bytes using a logic analyzer or independent UART
-monitor where possible. The captured bytes must match the Primer #1 frame record
-and the Primer #2 interpretation.
-
-## Negative-path acceptance
-
-After a new clean session, demonstrate without weakening RTL:
-
-- replay of an already accepted frame is rejected;
-- a deliberately corrupted tag does not expose plaintext;
-- a pending authenticated result is not overwritten;
-- session abort or command zeroize clears both targets and requires a new session.
-
-The three-bad-tag destructive threshold need not be repeated in the first direct
-link run because it is already proven on Primer #2 standalone hardware, but it
-must eventually be covered in integrated safety testing.
-
-## Evidence to retain
-
-Record:
+## Recorded result
 
 ```text
-P1 source commit and bitstream SHA-256
-P2 source commit and bitstream SHA-256
-controller/harness source commit
-pin wiring and board identities
-P1 and P2 GET_INFO responses
-staged and active session status from both targets
-captured 66-byte frame(s)
-P2 authenticated plaintext result
-negative-path error/status records
-final git status and qualification scope
+PASS count = 11
+FAIL count = 0
+OVERALL = PASS
+P1 -> P2 direct UART integration: PASS
 ```
 
-Only after these checks may the repository state be updated to:
+Final observed state:
+
+```text
+secure_enable = 1
+P1_irq_n      = 1
+P2_irq_n      = 1
+UART idle     = 1
+aborted       = 0
+```
+
+## Evidence limitations
+
+The run did not include an independent logic-analyzer dump of every UART byte.
+Primer #1 nevertheless reported `bytes_sent=66` for each completed transmit, and
+Primer #2 authenticated the expected session, sequence and plaintext over the
+physical P1-to-P2 net.
+
+The direct-link log did not repeat replay, corrupted-tag, command-zeroize or
+fault-threshold testing. Those remain covered by the separate Primer #2
+standalone qualification and are not claimed as newly tested here.
+
+Primer #2's exact `.fs` SHA-256 was not recorded in the pre-existing build
+evidence. This is retained as an artifact-traceability limitation.
+
+## Locked scope language
+
+Permitted:
 
 ```text
 P1 -> P2 direct UART integration: PASS
 ```
 
-The following remain separate gates:
+Not permitted:
 
 ```text
-SN32 -> P2 control plane
-Tiny safety integration
-full-system hardware qualification
+SN32 integration PASS
+Tiny integration PASS
+full-system qualification PASS
 ```
+
+## Next separate gate
+
+```text
+SN32 -> P1/P2 dual-SPI control plane
+```
+
+Do not implement or claim this next gate until it has its own approved harness
+and hardware evidence.
