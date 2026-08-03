@@ -1,0 +1,8 @@
+#include "trinity_full_controller_part_00.inc"
+#include "trinity_full_controller_part_01.inc"
+#include "trinity_full_controller_part_02.inc"
+#include "trinity_full_controller_part_03.inc"
+#include "trinity_full_controller_part_04.inc"
+#include "trinity_full_controller_part_05.inc"
+#include "trinity_full_controller_part_06.inc"
+#include "trinity_full_controller_part_07.inc"
