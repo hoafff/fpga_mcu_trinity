@@ -5,30 +5,38 @@ trinity_error_code_t trinity_deploy_crypto_create_session(
     trinity_controller_session_material_t *material) {
 #if TRINITY_DEPLOY_ENABLE_MLKEM
     trinity_session_material_t derived;
+    uint8_t effective_seed[32];
     trinity_error_code_t rc;
     if (crypto == NULL || seed == NULL || material == NULL)
         return TRINITY_INTERNAL_FAULT;
     if (mode > 1u) return TRINITY_NOT_SUPPORTED;
     if (!crypto->keypair_valid) return TRINITY_BAD_STATE;
-    if (mode == 1u && seed_is_zero(seed)) return TRINITY_BAD_LENGTH;
+    if (mode == 0u && !seed_is_zero(seed)) return TRINITY_BAD_LENGTH;
 
     memset(&derived, 0, sizeof(derived));
     trinity_secure_zero(&crypto->workspace, sizeof(crypto->workspace));
-    if (mode == 1u) {
-        expand_seed(crypto->workspace.session.encaps_coins,
-                    sizeof(crypto->workspace.session.encaps_coins),
-                    encaps_domain, sizeof(encaps_domain), seed);
-        rc = trinity_mlkem512_encaps_deterministic(
-            crypto->workspace.session.ciphertext,
-            crypto->workspace.session.encapsulated_secret,
-            crypto->public_key,
-            crypto->workspace.session.encaps_coins);
+    if (mode == 0u) {
+        /* Deterministic demo policy: derive the session seed from public
+         * key identity and keypair generation. It is reproducible and is not
+         * represented as DEMO_SECURE entropy. */
+        trinity_sha3_256(effective_seed, crypto->public_key,
+                         sizeof(crypto->public_key));
+        effective_seed[28] ^= (uint8_t)(crypto->keypair_generation >> 24);
+        effective_seed[29] ^= (uint8_t)(crypto->keypair_generation >> 16);
+        effective_seed[30] ^= (uint8_t)(crypto->keypair_generation >> 8);
+        effective_seed[31] ^= (uint8_t)crypto->keypair_generation;
     } else {
-        rc = trinity_mlkem512_encaps(
-            crypto->workspace.session.ciphertext,
-            crypto->workspace.session.encapsulated_secret,
-            crypto->public_key);
+        memcpy(effective_seed, seed, sizeof(effective_seed));
     }
+    expand_seed(crypto->workspace.session.encaps_coins,
+                sizeof(crypto->workspace.session.encaps_coins),
+                encaps_domain, sizeof(encaps_domain), effective_seed);
+    trinity_secure_zero(effective_seed, sizeof(effective_seed));
+    rc = trinity_mlkem512_encaps_deterministic(
+        crypto->workspace.session.ciphertext,
+        crypto->workspace.session.encapsulated_secret,
+        crypto->public_key,
+        crypto->workspace.session.encaps_coins);
     if (rc == TRINITY_OK) {
         rc = trinity_mlkem512_decaps(
             crypto->workspace.session.decapsulated_secret,
