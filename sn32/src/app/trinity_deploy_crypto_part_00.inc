@@ -55,7 +55,7 @@ trinity_error_code_t trinity_deploy_crypto_generate_keypair(
     trinity_error_code_t rc;
     if (crypto == NULL || seed == NULL || mode > 1u)
         return mode > 1u ? TRINITY_NOT_SUPPORTED : TRINITY_INTERNAL_FAULT;
-    if (mode == 1u && seed_is_zero(seed)) return TRINITY_BAD_LENGTH;
+    if (mode == 0u && !seed_is_zero(seed)) return TRINITY_BAD_LENGTH;
 
     trinity_secure_zero(crypto->public_key, sizeof(crypto->public_key));
     trinity_secure_zero(crypto->secret_key, sizeof(crypto->secret_key));
