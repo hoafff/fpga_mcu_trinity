@@ -119,7 +119,12 @@ static trinity_error_code_t controller_get_info(
     if (response_length != sizeof(response) ||
         response[0] != endpoint->target_id ||
         response[1] != TRINITY_PROTOCOL_VERSION ||
-        response[10] != 0u || response[11] != 0u)
+        response[10] != 0u || response[11] != 0u) {
+        controller_latch_error(controller, TRINITY_BAD_STATE,
+                               controller_source(endpoint->target_id),
+                               ((uint32_t)TRINITY_SPI_GET_INFO << 16) |
+                               issued_txid);
         return TRINITY_BAD_STATE;
+    }
     endpoint->capabilities = trinity_read_be32(&response[2]);
     endpoint->build_id = trinity_read_be32(&response[6]);
