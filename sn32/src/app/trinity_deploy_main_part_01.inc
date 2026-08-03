@@ -50,6 +50,8 @@ static volatile uint32_t g_ms;
 static volatile uint32_t g_progress_ms;
 static volatile uint32_t g_heartbeat_ms;
 static volatile uint32_t g_guard_faults;
+static volatile uint32_t g_crypto_lease_deadline_ms;
+static volatile bool g_crypto_lease_active;
 static volatile bool g_fault;
 static volatile bool g_spi_selected;
 static bool g_uart_ready;
