@@ -2,6 +2,16 @@
     return true;
 }
 
+static void spi_guard_delay(void) {
+    volatile uint32_t cycles =
+        (FPST_SN32F407_HCLK_HZ / UINT32_C(1000000)) *
+        TRINITY_DEPLOY_SPI_CS_GUARD_US;
+    while (cycles != 0u) {
+        __NOP();
+        --cycles;
+    }
+}
+
 static trinity_error_code_t spi_bytes(const uint8_t *tx, uint8_t *rx,
                                       size_t len) {
     const uint32_t start = g_ms;
@@ -34,8 +44,11 @@ static trinity_error_code_t spi_select(const endpoint_t *ep) {
     if (ep == NULL || !g_spi_ready || g_spi_selected || g_fault)
         return TRINITY_BAD_STATE;
     cs_all_high();
+    spi_guard_delay();
     SN_SPI0->CTRL0_b.FRESET = 3u;
+    spi_guard_delay();
     gpio_write(ep->cs_port, ep->cs_pin, false);
+    spi_guard_delay();
     g_spi_selected = true;
     return TRINITY_OK;
 }
@@ -46,8 +59,11 @@ static void spi_end(void) {
            !expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS)) {
         progress();
     }
+    if (g_spi_selected) spi_guard_delay();
     cs_all_high();
+    spi_guard_delay();
     SN_SPI0->CTRL0_b.FRESET = 3u;
+    spi_guard_delay();
 }
 
 static bool irq_active(const endpoint_t *ep) {
