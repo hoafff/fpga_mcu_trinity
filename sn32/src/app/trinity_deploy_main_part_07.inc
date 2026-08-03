@@ -87,8 +87,11 @@ static trinity_error_code_t spi_capture_response(endpoint_t *ep,
     }
 
     if (rc == TRINITY_OK) {
-        g_spi_trace.command = g_spi_buf[2];
-        g_spi_trace.target_txid = trinity_read_be16(&g_spi_buf[4]);
+        /* Startup drain has no request metadata, so recover it from the frame. */
+        if (g_spi_trace.request_length == 0u) {
+            g_spi_trace.command = g_spi_buf[2];
+            g_spi_trace.target_txid = trinity_read_be16(&g_spi_buf[4]);
+        }
         if (g_spi_buf[0] != TRINITY_SPI_MAGIC) {
             rc = TRINITY_BAD_MAGIC;
         } else if (g_spi_buf[1] != TRINITY_PROTOCOL_VERSION) {
