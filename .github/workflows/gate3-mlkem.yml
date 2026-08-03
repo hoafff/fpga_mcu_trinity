@@ -1,59 +1,69 @@
-name: gate3-mlkem
+name: sn32-full-deploy-source
 
 on:
   push:
     branches: [main]
     paths:
       - .github/workflows/gate3-mlkem.yml
-      - ai_context/scripts/vendor_mlkem_native.py
+      - .gitmodules
+      - sn32/config/**
+      - sn32/include/**
+      - sn32/src/**
+      - sn32/keil/trinity_sn32f407_deploy.uvprojx
       - sn32/third_party/mlkem-native/VENDOR.lock
-      - sn32/include/trinity_mlkem.h
-      - sn32/include/trinity_mlkem_backend.h
-      - sn32/src/trinity_mlkem.c
-      - sn32/src/trinity_mlkem_backend.c
-      - sn32/tests/mlkem_gate3/**
+      - sn32/third_party/mlkem-native/upstream
+      - sn32/tests/**
+      - pc_host/**
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: gate3-mlkem-main
-  cancel-in-progress: false
+  group: sn32-full-deploy-source-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  vendor-test-commit:
+  source-gates:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
           fetch-depth: 0
+          submodules: recursive
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Import pinned portable source and run upstream KAT
-        run: python ai_context/scripts/vendor_mlkem_native.py --verify-upstream-kat
-      - name: Gate 3 portable wrapper tests
-        run: make -C sn32/tests/mlkem_gate3 clean test
-      - name: Existing portable regression
+      - name: Verify exact ML-KEM submodule pin
+        shell: bash
         run: |
+          set -euo pipefail
+          expected=048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
+          actual=$(git -C sn32/third_party/mlkem-native/upstream rev-parse HEAD)
+          test "$actual" = "$expected"
+          test -f sn32/third_party/mlkem-native/upstream/mlkem/mlkem_native.c
+          git submodule status --recursive
+      - name: Portable ML-KEM wrapper and KAT gate
+        run: make -C sn32/tests/mlkem_gate3 clean test
+      - name: Full controller behavior gate
+        run: make -C sn32/tests/full_controller clean test
+      - name: Deploy crypto lifecycle gate
+        run: make -C sn32/tests/deploy_crypto clean test
+      - name: Protocol and host regressions
+        run: |
+          make -C sn32/tests/portable clean test
+          PYTHONPATH=pc_host/src python -m unittest discover -s pc_host/tests -v
+      - name: Deploy project and repository static gates
+        run: |
+          python sn32/tests/deploy/check_deploy_project.py
+          python sn32/tests/s0/check_s0_project.py
           python ai_context/scripts/check_repository_layout.py
           python ai_context/scripts/check_project_memory_detail.py
           python ai_context/scripts/check_protocol_registry.py
           python ai_context/scripts/check_candidate_hashes.py
-          PYTHONPATH=pc_host/src python -m unittest discover -s pc_host/tests -v
-          make -C sn32/tests/portable clean test
-      - name: Whitespace check
-        run: git diff --check
-      - name: Commit deterministic vendor output
+      - name: Whitespace and submodule cleanliness
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sn32/third_party/mlkem-native
-          if git diff --cached --quiet; then
-            echo "Vendor tree already current"
-          else
-            git commit -m "vendor: pin mlkem-native v1.0.0 for Gate 3"
-            git push origin HEAD:main
-          fi
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain)"
