@@ -8,34 +8,35 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-PROJECT = ROOT / "sn32/keil/trinity_sn32f407_deploy.uvprojx"
-S0_PROJECT = ROOT / "sn32/keil/trinity_sn32f407.uvprojx"
-WRAPPER = ROOT / "sn32/src/app/trinity_deploy_main.c"
-CONFIG = ROOT / "sn32/config/trinity_deploy_config.h"
-BOARD = ROOT / "sn32/firmware/platform/sn32f407/board_profile.h"
-PARTS = [ROOT / f"sn32/src/app/trinity_deploy_main_part_{i:02d}.inc" for i in range(18)]
-CONTROLLER_H = ROOT / "sn32/include/trinity_full_controller.h"
-CONTROLLER_C = ROOT / "sn32/src/app/trinity_full_controller.c"
-CONTROLLER_PARTS = [ROOT / f"sn32/src/app/trinity_full_controller_part_{i:02d}.inc" for i in range(8)]
-BRIDGE = ROOT / "sn32/src/app/trinity_deploy_full_bridge.inc"
-BRIDGE_PARTS = [ROOT / f"sn32/src/app/trinity_deploy_full_bridge_part_{i:02d}.inc" for i in range(5)]
-CRYPTO_H = ROOT / "sn32/include/trinity_deploy_crypto.h"
-CRYPTO_C = ROOT / "sn32/src/app/trinity_deploy_crypto.c"
-CRYPTO_PARTS = [ROOT / f"sn32/src/app/trinity_deploy_crypto_part_{i:02d}.inc" for i in range(2)]
-MLKEM_H = ROOT / "sn32/include/trinity_mlkem.h"
-MLKEM_C = ROOT / "sn32/src/trinity_mlkem.c"
-MLKEM_BACKEND = ROOT / "sn32/src/trinity_mlkem_backend.c"
-FIPS_BRIDGE = ROOT / "sn32/src/trinity_fips202_bridge.c"
-VENDOR_LOCK = ROOT / "sn32/third_party/mlkem-native/VENDOR.lock"
-FULL_TEST = ROOT / "sn32/tests/full_controller/test_full_controller.c"
-FULL_TEST_PARTS = [ROOT / f"sn32/tests/full_controller/test_full_controller_part_{i:02d}.inc" for i in range(3)]
-FULL_TEST_MAKEFILE = ROOT / "sn32/tests/full_controller/Makefile"
-CRYPTO_TEST = ROOT / "sn32/tests/deploy_crypto/test_deploy_crypto.c"
-CRYPTO_TEST_MAKEFILE = ROOT / "sn32/tests/deploy_crypto/Makefile"
-HOST = ROOT / "pc_host/src/trinity_host/serial_client.py"
-CLI = ROOT / "pc_host/src/trinity_host/cli.py"
-PYPROJECT = ROOT / "pc_host/pyproject.toml"
-HOST_TEST = ROOT / "pc_host/tests/test_p1_bringup.py"
+SN32 = ROOT / "sn32"
+PROJECT = SN32 / "keil/trinity_sn32f407_deploy.uvprojx"
+S0_PROJECT = SN32 / "keil/trinity_sn32f407.uvprojx"
+CONFIG = SN32 / "config/trinity_deploy_config.h"
+BOARD = SN32 / "firmware/platform/sn32f407/board_profile.h"
+WRAPPER = SN32 / "src/app/trinity_deploy_main.c"
+MAIN_PARTS = [SN32 / f"src/app/trinity_deploy_main_part_{i:02d}.inc" for i in range(18)]
+CONTROLLER_WRAPPER = SN32 / "src/app/trinity_full_controller.c"
+CONTROLLER_PARTS = [SN32 / f"src/app/trinity_full_controller_part_{i:02d}.inc" for i in range(8)]
+BRIDGE_WRAPPER = SN32 / "src/app/trinity_deploy_full_bridge.inc"
+BRIDGE_PARTS = [SN32 / f"src/app/trinity_deploy_full_bridge_part_{i:02d}.inc" for i in range(5)]
+CRYPTO_WRAPPER = SN32 / "src/app/trinity_deploy_crypto.c"
+CRYPTO_PARTS = [SN32 / f"src/app/trinity_deploy_crypto_part_{i:02d}.inc" for i in range(2)]
+MLKEM_FILES = [
+    SN32 / "include/trinity_mlkem.h",
+    SN32 / "include/trinity_mlkem_backend.h",
+    SN32 / "src/trinity_mlkem.c",
+    SN32 / "src/trinity_mlkem_backend.c",
+    SN32 / "src/trinity_fips202_bridge.c",
+]
+GITMODULES = ROOT / ".gitmodules"
+VENDOR_LOCK = SN32 / "third_party/mlkem-native/VENDOR.lock"
+UPSTREAM_SCU = SN32 / "third_party/mlkem-native/upstream/mlkem/mlkem_native.c"
+FULL_TEST = SN32 / "tests/full_controller/test_full_controller.c"
+FULL_TEST_PARTS = [SN32 / f"tests/full_controller/test_full_controller_part_{i:02d}.inc" for i in range(3)]
+FULL_TEST_MAKEFILE = SN32 / "tests/full_controller/Makefile"
+CRYPTO_TEST = SN32 / "tests/deploy_crypto/test_deploy_crypto.c"
+CRYPTO_TEST_MAKEFILE = SN32 / "tests/deploy_crypto/Makefile"
+GATE3_MAKEFILE = SN32 / "tests/mlkem_gate3/Makefile"
 
 
 def fail(message: str) -> None:
@@ -58,46 +59,43 @@ def require_tokens(text: str, tokens: tuple[str, ...], label: str) -> None:
         require(token in text, f"{label} missing {token}")
 
 
-def check_source_and_tests() -> None:
+def check_wrappers() -> tuple[str, str, str, str]:
     wrapper = read(WRAPPER)
-    config = read(CONFIG)
-    main_source = "".join(read(path) for path in PARTS)
-    controller_wrapper = read(CONTROLLER_C)
-    controller = read(CONTROLLER_H) + "".join(read(path) for path in CONTROLLER_PARTS)
-    bridge_wrapper = read(BRIDGE)
+    main_source = "".join(read(path) for path in MAIN_PARTS)
+    controller_wrapper = read(CONTROLLER_WRAPPER)
+    controller = "".join(read(path) for path in CONTROLLER_PARTS)
+    bridge_wrapper = read(BRIDGE_WRAPPER)
     bridge = "".join(read(path) for path in BRIDGE_PARTS)
-    crypto_wrapper = read(CRYPTO_C)
-    crypto = read(CRYPTO_H) + "".join(read(path) for path in CRYPTO_PARTS)
-    mlkem = read(MLKEM_H) + read(MLKEM_C) + read(MLKEM_BACKEND) + read(FIPS_BRIDGE)
-    vendor_lock = read(VENDOR_LOCK)
-    combined = wrapper + main_source + controller + bridge + crypto + mlkem
+    crypto_wrapper = read(CRYPTO_WRAPPER)
+    crypto = "".join(read(path) for path in CRYPTO_PARTS)
 
-    require_tokens(
-        wrapper,
-        tuple(f'#include "trinity_deploy_main_part_{i:02d}.inc"' for i in range(18)),
-        "deploy wrapper",
-    )
+    require_tokens(wrapper,
+                   tuple(f'#include "trinity_deploy_main_part_{i:02d}.inc"'
+                         for i in range(18)), "deploy wrapper")
     require('#include "trinity_full_controller.c"' in wrapper,
-            "full controller is not compiled by the deploy translation unit")
+            "full controller is not compiled")
     require('#include "trinity_deploy_crypto.c"' in wrapper,
-            "deploy crypto lifecycle is not compiled")
+            "deploy crypto is not compiled")
     require('#include "trinity_deploy_full_bridge.inc"' in wrapper,
-            "hardware/controller bridge is not compiled")
-    require_tokens(
-        controller_wrapper,
-        tuple(f'#include "trinity_full_controller_part_{i:02d}.inc"' for i in range(8)),
-        "controller wrapper",
-    )
-    require_tokens(
-        bridge_wrapper,
-        tuple(f'#include "trinity_deploy_full_bridge_part_{i:02d}.inc"' for i in range(5)),
-        "bridge wrapper",
-    )
-    require_tokens(
-        crypto_wrapper,
-        tuple(f'#include "trinity_deploy_crypto_part_{i:02d}.inc"' for i in range(2)),
-        "crypto wrapper",
-    )
+            "hardware bridge is not compiled")
+    require_tokens(controller_wrapper,
+                   tuple(f'#include "trinity_full_controller_part_{i:02d}.inc"'
+                         for i in range(8)), "controller wrapper")
+    require_tokens(bridge_wrapper,
+                   tuple(f'#include "trinity_deploy_full_bridge_part_{i:02d}.inc"'
+                         for i in range(5)), "bridge wrapper")
+    require_tokens(crypto_wrapper,
+                   tuple(f'#include "trinity_deploy_crypto_part_{i:02d}.inc"'
+                         for i in range(2)), "crypto wrapper")
+    return main_source, controller, bridge, crypto
+
+
+def check_source_and_tests() -> None:
+    config = read(CONFIG)
+    main_source, controller, bridge, crypto = check_wrappers()
+    mlkem = "".join(read(path) for path in MLKEM_FILES)
+    gitmodules = read(GITMODULES)
+    vendor_lock = read(VENDOR_LOCK)
 
     expected = {
         "TRINITY_DEPLOY_ENABLE_PC_UART": "1",
@@ -110,143 +108,88 @@ def check_source_and_tests() -> None:
         "TRINITY_DEPLOY_P1_BRINGUP_ONLY": "0",
     }
     for macro, value in expected.items():
-        require(re.search(rf"^#define\s+{macro}\s+{value}\s*$", config, re.M) is not None,
-                f"wrong full-deploy guard {macro}")
-    require("#ifndef TRINITY_DEPLOY_ENABLE_MLKEM" in config and
-            re.search(r"^#define\s+TRINITY_DEPLOY_ENABLE_MLKEM\s+0\s*$", config, re.M),
-            "ML-KEM default must remain off until the pinned vendor target is selected")
+        require(re.search(rf"^#define\s+{macro}\s+{value}\s*$", config, re.M)
+                is not None, f"wrong full-deploy guard {macro}")
+    require("#ifndef TRINITY_DEPLOY_ENABLE_MLKEM" in config,
+            "ML-KEM build override guard missing")
     require("FPST_SN32F407_SESSION_COMMIT_PORT          3u" in config and
             "FPST_SN32F407_SESSION_COMMIT_PIN           8u" in config,
-            "SESSION_COMMIT is not locked to SN32 P3.8")
+            "SESSION_COMMIT is not locked to P3.8")
 
-    require_tokens(
-        controller,
-        (
-            "trinity_controller_probe_all", "trinity_controller_run_self_test",
-            "trinity_controller_activate_session", "trinity_controller_close_session",
-            "trinity_controller_zeroize", "trinity_controller_send_telemetry",
-            "TRINITY_SPI_STAGE_SESSION", "TRINITY_SPI_COMMIT_SESSION",
-            "TRINITY_SPI_LOAD_TELEMETRY", "TRINITY_SPI_ENCRYPT_AND_SEND",
-            "TRINITY_SPI_GET_RX_STATUS", "TRINITY_SPI_READ_AUTH_RESULT",
-            "TRINITY_SPI_ACK_AUTH_RESULT", "TRINITY_RESULT_PENDING",
-            "TRINITY_AUTH_THRESHOLD",
-        ),
-        "full controller",
-    )
-    require_tokens(
-        bridge,
-        (
-            "full_session_commit_toggle", "full_tiny_fault_active",
-            "full_contain_tiny_fault", "trinity_deploy_crypto_zeroize",
-            "managed_transaction_begin", "managed_transaction_finish",
-            "full_handle_generate_keypair", "full_handle_create_session",
-            "full_handle_send_telemetry", "full_handle_zeroize",
-            "full_handle_transport_stress",
-        ),
-        "deploy bridge",
-    )
-    require_tokens(
-        crypto + mlkem,
-        (
-            "trinity_deploy_crypto_generate_keypair",
-            "trinity_deploy_crypto_create_session",
-            "trinity_mlkem512_keygen_deterministic",
-            "trinity_mlkem512_encaps_deterministic",
-            "trinity_mlkem512_decaps",
-            "trinity_kdf_derive_session",
-            "trinity_deploy_crypto_zeroize",
-            "trinity_sha3_256", "trinity_shake256",
-        ),
-        "deploy crypto",
-    )
-    require_tokens(
-        main_source,
-        (
-            "TRINITY_PC_GENERATE_KEYPAIR", "TRINITY_PC_CREATE_SESSION",
-            "TRINITY_PC_CLOSE_SESSION", "TRINITY_PC_ZEROIZE_SYSTEM",
-            "TRINITY_PC_SEND_ONE_TELEMETRY", "TRINITY_PC_READ_LAST_RESULT",
-            "TRINITY_PC_RUN_TRANSPORT_STRESS", "full_contain_tiny_fault",
-        ),
-        "host dispatcher/main loop",
-    )
-    require("req->payload[0] == 2u" in bridge and "TRINITY_NOT_SUPPORTED" in bridge,
-            "DEMO_SECURE must fail explicitly until entropy qualification")
+    require_tokens(controller, (
+        "trinity_controller_probe_all", "trinity_controller_run_self_test",
+        "trinity_controller_activate_session", "trinity_controller_zeroize",
+        "trinity_controller_send_telemetry", "TRINITY_SPI_STAGE_SESSION",
+        "TRINITY_SPI_COMMIT_SESSION", "TRINITY_SPI_LOAD_TELEMETRY",
+        "TRINITY_SPI_ENCRYPT_AND_SEND", "TRINITY_SPI_READ_AUTH_RESULT",
+        "TRINITY_SPI_ACK_AUTH_RESULT", "TRINITY_AUTH_THRESHOLD",
+    ), "full controller")
+    require_tokens(bridge, (
+        "full_session_commit_toggle", "full_tiny_fault_active",
+        "full_contain_tiny_fault", "managed_transaction_begin",
+        "full_handle_generate_keypair", "full_handle_create_session",
+        "full_handle_send_telemetry", "full_handle_zeroize",
+        "full_handle_transport_stress",
+    ), "deploy bridge")
+    require_tokens(crypto + mlkem, (
+        "trinity_deploy_crypto_generate_keypair",
+        "trinity_deploy_crypto_create_session",
+        "trinity_mlkem512_keygen_deterministic",
+        "trinity_mlkem512_encaps_deterministic",
+        "trinity_mlkem512_decaps", "trinity_kdf_derive_session",
+        "trinity_sha3_256", "trinity_shake256",
+    ), "deploy crypto")
+    require_tokens(main_source, (
+        "TRINITY_PC_GENERATE_KEYPAIR", "TRINITY_PC_CREATE_SESSION",
+        "TRINITY_PC_CLOSE_SESSION", "TRINITY_PC_ZEROIZE_SYSTEM",
+        "TRINITY_PC_SEND_ONE_TELEMETRY", "TRINITY_PC_READ_LAST_RESULT",
+        "TRINITY_PC_RUN_TRANSPORT_STRESS", "full_contain_tiny_fault",
+    ), "dispatcher/main loop")
+    require("req->payload[0] == 2u" in bridge and
+            "TRINITY_NOT_SUPPORTED" in bridge,
+            "DEMO_SECURE must fail explicitly")
     require("TRINITY_PC_REQUEST_FAULT_CLEAR" in main_source and
             "TRINITY_SOURCE_TINY1P5" in main_source,
-            "fault clear must not pretend to clear the Tiny safety latch")
-    require("repository=https://github.com/pq-code-package/mlkem-native" in vendor_lock and
-            "commit=048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa" in vendor_lock,
+            "Tiny fault clear must not be faked")
+
+    require("path = sn32/third_party/mlkem-native/upstream" in gitmodules and
+            "url = https://github.com/pq-code-package/mlkem-native.git" in gitmodules,
+            "pinned ML-KEM submodule declaration missing")
+    require("commit=048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa" in vendor_lock,
             "ML-KEM vendor lock drifted")
 
-    full_test_wrapper = read(FULL_TEST)
-    full_test_source = "".join(read(path) for path in FULL_TEST_PARTS)
-    require_tokens(
-        full_test_wrapper,
-        tuple(f'#include "test_full_controller_part_{i:02d}.inc"' for i in range(3)),
-        "controller test wrapper",
-    )
-    require_tokens(
-        full_test_source,
-        (
-            "trinity_controller_activate_session", "trinity_controller_send_telemetry",
-            "TRINITY_RESULT_PENDING", "trinity_controller_zeroize",
-            "TRINITY_FAULT_TINY1P5",
-        ),
-        "controller test",
-    )
+    full_test_source = read(FULL_TEST) + "".join(read(path) for path in FULL_TEST_PARTS)
+    require_tokens(full_test_source, (
+        "trinity_controller_activate_session", "trinity_controller_send_telemetry",
+        "TRINITY_RESULT_PENDING", "trinity_controller_zeroize",
+        "TRINITY_FAULT_TINY1P5",
+    ), "controller test")
     require("-Wall -Wextra -Werror" in read(FULL_TEST_MAKEFILE),
             "controller test is not warning-clean")
 
     crypto_test = read(CRYPTO_TEST)
-    crypto_makefile = read(CRYPTO_TEST_MAKEFILE)
-    require_tokens(
-        crypto_test,
-        (
-            "trinity_deploy_crypto_generate_keypair",
-            "trinity_deploy_crypto_create_session",
-            "TRINITY_MLKEM_SHARED_SECRET_MISMATCH",
-            "trinity_deploy_crypto_zeroize",
-        ),
-        "deploy crypto test",
-    )
-    require("-DTRINITY_DEPLOY_ENABLE_MLKEM=1" in crypto_makefile and
-            "-Wall -Wextra -Werror" in crypto_makefile,
-            "deploy crypto test does not compile the enabled warning-clean path")
+    require_tokens(crypto_test, (
+        "trinity_deploy_crypto_generate_keypair",
+        "trinity_deploy_crypto_create_session",
+        "TRINITY_MLKEM_SHARED_SECRET_MISMATCH",
+        "trinity_deploy_crypto_zeroize",
+    ), "deploy crypto test")
+    require("-DTRINITY_DEPLOY_ENABLE_MLKEM=1" in read(CRYPTO_TEST_MAKEFILE),
+            "deploy crypto enabled path is not tested")
+    gate3 = read(GATE3_MAKEFILE)
+    require("mlkem_native.c" in gate3 and "MLK_CONFIG_PARAMETER_SET=512" in gate3,
+            "Gate 3 is not using the pinned ML-KEM-512 SCU")
+    require("MLK_CONFIG_NO_ASM" not in gate3,
+            "host Gate 3 must not require an unprovided custom zeroizer")
 
-    host_paths = (HOST, CLI, PYPROJECT, HOST_TEST)
-    host_checked = all(path.is_file() for path in host_paths)
-    if host_checked:
-        host = read(HOST)
-        cli = read(CLI)
-        pyproject = read(PYPROJECT)
-        host_test = read(HOST_TEST)
-        require_tokens(
-            host,
-            ("class TrinitySerialClient", "def ping(", "def get_system_info(",
-             "def get_system_status(", "def get_transaction_result(",
-             "def retire_transaction_result("),
-            "host client",
-        )
-        require('trinity-host = "trinity_host.cli:main"' in pyproject,
-                "host console entrypoint was removed")
-        require("PING" in host_test and "RUN_SELF_TEST" in host_test and
-                "GET_TXN_RESULT" in host_test and "RETIRE_TXN_RESULT" in host_test,
-                "existing host fake-serial regression lost coverage")
-        require('sub.add_parser("p1-bringup"' in cli,
-                "existing P1 hardware bring-up command was removed")
-    else:
-        print("NOTE: PC host regression files absent from partial source-only checkout")
-
+    combined = main_source + controller + bridge + crypto + mlkem
     require(not re.search(r"[A-Za-z]:[\\/]", combined),
             "machine-specific absolute path in SN32 source")
 
-    print("PASS: dual-Primer SPI, Tiny SESSION_COMMIT and direct P1-to-P2 flow are wired")
-    print("PASS: self-test -> keypair -> session ordering and Tiny fault containment are present")
-    print("PASS: retained host transactions, authenticated result ACK and zeroize are present")
-    print("PASS: ML-KEM keygen/encaps/decaps/KDF lifecycle is wired and portable-tested")
-    print("NOTE: default deploy target still has ML-KEM off until pinned vendor sources enter Keil")
-    if host_checked:
-        print("PASS: existing PC host regression remains present")
+    print("PASS: full dual-Primer control, Tiny commit/fault and direct UART flow")
+    print("PASS: self-test, ML-KEM lifecycle, session activation and zeroization")
+    print("PASS: retained transactions, authenticated result ACK and stress paths")
+    print("PASS: exact mlkem-native submodule pin and Gate 3 SCU test configuration")
 
 
 def check_project_and_pins() -> None:
@@ -267,22 +210,34 @@ def check_project_and_pins() -> None:
             "wrong deploy target")
     require(one("./Targets/Target/pCCUsed") == "6240000::V6.24::ARMCLANG",
             "ArmClang lock changed")
-    require(one("./Targets/Target/TargetOption/TargetCommonOption/Device") == "SN32F407F",
-            "device lock changed")
+    require(one("./Targets/Target/TargetOption/TargetCommonOption/Device") ==
+            "SN32F407F", "device lock changed")
     require(one("./Targets/Target/TargetOption/TargetCommonOption/PackID") ==
             "SONiX.SN32F4_DFP.1.0.1", "DFP lock changed")
+
     normalized = project_text.replace("\\", "/").lower()
     require("../src/app/trinity_deploy_main.c" in normalized,
-            "deploy entrypoint missing from Keil project")
-    require("trinity_deploy_enable_mlkem=1" not in normalized,
-            "Keil must not enable ML-KEM before pinned vendor sources are selected")
+            "deploy entrypoint missing")
+    require("trinity_deploy_enable_mlkem=1" in normalized,
+            "Keil deploy target does not enable ML-KEM")
+    require("mlk_config_parameter_set=512" in normalized and
+            "mlk_config_namespace_prefix=trinity_mlkem512" in normalized,
+            "Keil ML-KEM-512 namespace configuration missing")
+    require("../src/trinity_mlkem_backend.c" in normalized and
+            "../src/trinity_mlkem.c" in normalized and
+            "../src/trinity_fips202_bridge.c" in normalized and
+            "../third_party/mlkem-native/upstream/mlkem/mlkem_native.c" in normalized,
+            "Keil ML-KEM source group incomplete")
+    require(UPSTREAM_SCU.is_file(),
+            "initialize submodules before building the Keil deploy target")
     require("FPST_SN32F407_P2_CS_N_PIN              2u" in board and
             "FPST_SN32F407_P2_IRQ_N_PIN              8u" in board,
-            "P2 CS/IRQ pin mapping drifted")
+            "P2 CS/IRQ mapping drifted")
     require("FPST_SN32F407_TINY_FAULT_N_PIN        10u" in board,
-            "Tiny fault input mapping drifted")
-    print("PASS: Keil target remains SN32F407F / ArmClang 6.24 / DFP 1.0.1")
-    print("PASS: deploy entrypoint and P1/P2/Tiny mappings remain selected")
+            "Tiny fault mapping drifted")
+
+    print("PASS: valid Keil XML and locked SN32F407F/ArmClang/DFP target")
+    print("PASS: Keil selects pinned ML-KEM-512 SCU and Trinity wrappers")
 
 
 def main() -> int:
@@ -291,10 +246,10 @@ def main() -> int:
     args = parser.parse_args()
     check_source_and_tests()
     if args.source_only:
-        print("NOTE: Keil XML and board-profile checks skipped by --source-only")
+        print("NOTE: Keil XML, submodule checkout and board checks skipped")
     else:
         check_project_and_pins()
-    print("NOTE: static PASS does not claim ArmClang build, flash, memory fit or hardware PASS")
+    print("NOTE: static PASS does not claim ArmClang link, memory fit, flash or hardware PASS")
     return 0
 
 
