@@ -1,4 +1,4 @@
-    (void)response_send();
+    managed_transaction_respond(req);
 }
 
 static void full_handle_read_last_result(const trinity_pc_frame_t *req) {
@@ -78,5 +78,5 @@ static void full_handle_transport_stress(const trinity_pc_frame_t *req) {
     result[1] = result[2] = result[3] = 0u;
     trinity_write_be32(&result[4], completed);
     managed_transaction_finish(rc, result, sizeof(result));
-    (void)response_send();
+    managed_transaction_respond(req);
 }
