@@ -55,10 +55,25 @@ static bool full_tiny_fault_active(void *context) {
 #endif
 }
 
+static void full_session_commit_low(void *context) {
+    (void)context;
+    g_session_commit_level = false;
+    gpio_write(FPST_SN32F407_SESSION_COMMIT_PORT,
+               FPST_SN32F407_SESSION_COMMIT_PIN, false);
+}
+
+static void full_session_commit_high(void *context) {
+    (void)context;
+    g_session_commit_level = true;
+    gpio_write(FPST_SN32F407_SESSION_COMMIT_PORT,
+               FPST_SN32F407_SESSION_COMMIT_PIN, true);
+}
+
 static void full_contain_tiny_fault(void) {
     if (g_tiny_fault_contained || !full_tiny_fault_active(NULL)) return;
     g_tiny_fault_contained = true;
     g_fault = true;
+    full_session_commit_low(NULL);
     cs_all_high();
     trinity_deploy_crypto_zeroize(&g_crypto);
     trinity_controller_secure_clear(&g_controller.session,
@@ -76,14 +91,6 @@ static void full_contain_tiny_fault(void) {
     set_error(TRINITY_FAULT_LOCKED, TRINITY_SOURCE_TINY1P5,
               FPST_SN32F407_TINY_FAULT_N_PIN);
     g_trinity_deploy_marker = DEPLOY_MARKER_ERR;
-}
-
-static void full_session_commit_toggle(void *context) {
-    (void)context;
-    g_session_commit_level = !g_session_commit_level;
-    gpio_write(FPST_SN32F407_SESSION_COMMIT_PORT,
-               FPST_SN32F407_SESSION_COMMIT_PIN,
-               g_session_commit_level);
 }
 
 static void full_sync_endpoint(endpoint_t *legacy,
