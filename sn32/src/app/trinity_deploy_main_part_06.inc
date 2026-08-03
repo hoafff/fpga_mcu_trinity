@@ -24,49 +24,84 @@ static trinity_error_code_t spi_transfer_timeout(uint8_t stage,
     return TRINITY_FRAME_TIMEOUT;
 }
 
-static trinity_error_code_t spi_bytes(const uint8_t *tx, uint8_t *rx,
-                                      size_t len) {
-    const uint32_t start = g_ms;
+static trinity_error_code_t spi_bytes_segment(
+    const uint8_t *tx,
+    uint8_t *rx,
+    size_t len,
+    size_t byte_offset,
+    size_t transfer_length,
+    bool begin_trace) {
     size_t i;
+    const uint8_t direction =
+        tx != NULL ? SPI_TRANSFER_DIRECTION_REQUEST
+                   : SPI_TRANSFER_DIRECTION_RESPONSE;
+
     if (!g_spi_ready || !g_spi_selected) return TRINITY_BAD_STATE;
+    if (byte_offset > transfer_length || len > transfer_length - byte_offset)
+        return TRINITY_BAD_LENGTH;
+
     if (g_spi_trace.valid) {
-        g_spi_trace.transfer_stage = SPI_TRANSFER_STAGE_NONE;
-        g_spi_trace.transfer_direction =
-            tx != NULL ? SPI_TRANSFER_DIRECTION_REQUEST
-                       : SPI_TRANSFER_DIRECTION_RESPONSE;
-        g_spi_trace.transfer_byte_index = 0u;
-        g_spi_trace.transfer_length = (uint16_t)len;
-        g_spi_trace.transfer_completed = 0u;
+        if (begin_trace) {
+            g_spi_trace.transfer_stage = SPI_TRANSFER_STAGE_NONE;
+            g_spi_trace.transfer_direction = direction;
+            g_spi_trace.transfer_byte_index = 0u;
+            g_spi_trace.transfer_completed = 0u;
+        } else if (g_spi_trace.transfer_direction != direction) {
+            return TRINITY_BAD_STATE;
+        }
+        g_spi_trace.transfer_length = (uint16_t)transfer_length;
         g_spi_trace.spi_status = SN_SPI0->STAT;
     }
+
     for (i = 0u; i < len; ++i) {
+        const size_t trace_index = byte_offset + i;
+        uint32_t stage_start = g_ms;
+        uint8_t value;
+
         while ((SN_SPI0->STAT & SPI_TX_FULL) != 0u) {
             progress();
-            if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
+            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
                 return spi_transfer_timeout(SPI_TRANSFER_STAGE_TX_FULL,
-                                            i, len);
+                                            trace_index, transfer_length);
         }
+
         SN_SPI0->DATA = tx != NULL ? tx[i] : 0u;
-        while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
-            progress();
-            if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY,
-                                            i, len);
-        }
+
+        /*
+         * Drain the received byte as soon as RX_EMPTY clears. Waiting for BUSY
+         * first can deadlock controllers whose receive FIFO back-pressures the
+         * transfer-complete state. RX availability already proves that this
+         * byte was clocked; BUSY is checked afterwards before the next byte.
+         */
+        stage_start = g_ms;
         while ((SN_SPI0->STAT & SPI_RX_EMPTY) != 0u) {
             progress();
-            if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
+            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
                 return spi_transfer_timeout(SPI_TRANSFER_STAGE_RX_EMPTY,
-                                            i, len);
+                                            trace_index, transfer_length);
         }
-        if (rx != NULL) rx[i] = (uint8_t)SN_SPI0->DATA;
-        else (void)SN_SPI0->DATA;
+
+        value = (uint8_t)SN_SPI0->DATA;
+        if (rx != NULL) rx[i] = value;
         if (g_spi_trace.valid) {
-            g_spi_trace.transfer_completed = (uint16_t)(i + 1u);
+            g_spi_trace.transfer_completed = (uint16_t)(trace_index + 1u);
             g_spi_trace.spi_status = SN_SPI0->STAT;
+        }
+
+        stage_start = g_ms;
+        while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
+            progress();
+            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
+                return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY,
+                                            trace_index, transfer_length);
         }
     }
     return TRINITY_OK;
+}
+
+static trinity_error_code_t spi_bytes(const uint8_t *tx, uint8_t *rx,
+                                      size_t len) {
+    return spi_bytes_segment(tx, rx, len, 0u, len, true);
 }
 
 static trinity_error_code_t spi_select(const endpoint_t *ep) {
