@@ -42,6 +42,8 @@ static trinity_error_code_t hardware_init(void) {
     g_trinity_deploy_marker = DEPLOY_MARKER_BOOT;
     g_trinity_deploy_last_error = 0u;
     g_ms = g_progress_ms = g_heartbeat_ms = g_guard_faults = 0u;
+    g_crypto_lease_deadline_ms = 0u;
+    g_crypto_lease_active = false;
     g_fault = g_spi_selected = false;
     g_uart_ready = g_spi_ready = g_heartbeat_level = false;
     g_spi_txid = 1u;
