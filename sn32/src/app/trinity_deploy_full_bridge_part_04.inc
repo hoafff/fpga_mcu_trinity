@@ -1,7 +1,15 @@
+static bool full_seed_is_zero(const uint8_t seed[32]) {
+    uint8_t aggregate = 0u;
+    uint8_t index;
+    for (index = 0u; index < 32u; ++index) aggregate |= seed[index];
+    return aggregate == 0u;
+}
+
 static void full_handle_generate_keypair(const trinity_pc_frame_t *req) {
     trinity_error_code_t rc;
     uint8_t digest[32];
-    if (!request_length_is(req, 33u) || req->payload[0] > 1u) {
+    if (!request_length_is(req, 33u) || req->payload[0] > 1u ||
+        (req->payload[0] == 0u && !full_seed_is_zero(&req->payload[1]))) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_HOST_PROTOCOL, 0u);
         return;
@@ -21,7 +29,7 @@ static void full_handle_generate_keypair(const trinity_pc_frame_t *req) {
     managed_transaction_finish(rc, rc == TRINITY_OK ? digest : NULL,
                                rc == TRINITY_OK ? sizeof(digest) : 0u);
     trinity_controller_secure_clear(digest, sizeof(digest));
-    (void)response_send();
+    managed_transaction_respond(req);
 }
 
 static void full_handle_create_session(const trinity_pc_frame_t *req) {
@@ -29,7 +37,8 @@ static void full_handle_create_session(const trinity_pc_frame_t *req) {
     trinity_error_code_t rc;
     trinity_mode_t mode;
     uint8_t result[12];
-    if (!request_length_is(req, 33u) || req->payload[0] > 2u) {
+    if (!request_length_is(req, 33u) || req->payload[0] > 2u ||
+        (req->payload[0] != 1u && !full_seed_is_zero(&req->payload[1]))) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_HOST_PROTOCOL, 0u);
         return;
@@ -61,5 +70,5 @@ static void full_handle_create_session(const trinity_pc_frame_t *req) {
     managed_transaction_finish(rc, rc == TRINITY_OK ? result : NULL,
                                rc == TRINITY_OK ? sizeof(result) : 0u);
     trinity_controller_secure_clear(result, sizeof(result));
-    (void)response_send();
+    managed_transaction_respond(req);
 }
