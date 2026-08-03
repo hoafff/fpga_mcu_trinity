@@ -35,7 +35,7 @@
 #error "DEMO_SECURE remains disabled until an approved entropy qualification"
 #endif
 
-#define DEPLOY_BUILD_ID UINT32_C(0x00060000)
+#define DEPLOY_BUILD_ID UINT32_C(0x00070000)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
