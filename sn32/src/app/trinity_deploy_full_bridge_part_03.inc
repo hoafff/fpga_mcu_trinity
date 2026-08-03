@@ -27,6 +27,7 @@ static void full_handle_transport_stress(const trinity_pc_frame_t *req) {
     trinity_error_code_t rc = TRINITY_OK;
     uint8_t telemetry[32];
     uint8_t result[8];
+    uint8_t last_percent = 0u;
     uint32_t count;
     uint32_t completed = 0u;
     uint8_t index;
@@ -56,10 +57,19 @@ static void full_handle_transport_stress(const trinity_pc_frame_t *req) {
         return;
     }
     if (!managed_transaction_begin(req)) return;
+    full_send_progress_event(req, 0u);
+
     if (req->payload[0] == 2u || req->payload[0] == 3u) {
-        rc = trinity_controller_transport_stress(&g_controller,
-                                                  req->payload[0], count);
-        if (rc == TRINITY_OK) completed = count;
+        while (completed < count && rc == TRINITY_OK) {
+            rc = trinity_controller_transport_stress(&g_controller,
+                                                      req->payload[0], 1u);
+            if (rc == TRINITY_OK) {
+                ++completed;
+                full_progress_event_maybe(req, completed, count,
+                                          &last_percent);
+            }
+            progress();
+        }
     } else {
         memset(telemetry, 0, sizeof(telemetry));
         telemetry[0] = 0x02u;
@@ -70,7 +80,11 @@ static void full_handle_transport_stress(const trinity_pc_frame_t *req) {
                 telemetry[8u + index] = (uint8_t)(completed + index);
             rc = trinity_controller_send_telemetry(&g_controller, telemetry,
                                                    2000u, &auth);
-            if (rc == TRINITY_OK) ++completed;
+            if (rc == TRINITY_OK) {
+                ++completed;
+                full_progress_event_maybe(req, completed, count,
+                                          &last_percent);
+            }
             progress();
         }
     }
