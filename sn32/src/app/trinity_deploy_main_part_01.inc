@@ -92,6 +92,7 @@ static uint8_t g_spi_trace_context;
 static error_record_t g_error;
 static spi_exchange_trace_t g_spi_trace;
 static spi_exchange_trace_t g_spi_first_failure;
+static spi_exchange_trace_t g_spi_startup_residue;
 static host_transaction_t g_host_txn;
 static trinity_controller_t g_controller;
 static trinity_deploy_crypto_t g_crypto;
