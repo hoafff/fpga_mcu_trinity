@@ -53,8 +53,19 @@ static void cs_all_high(void) {
     g_spi_selected = false;
 }
 
+static bool safety_error_latched(trinity_error_code_t code) {
+    return code == TRINITY_AUTH_THRESHOLD ||
+           code == TRINITY_COMMIT_REJECTED ||
+           code == TRINITY_SESSION_COMMIT_FAILED ||
+           code == TRINITY_HEARTBEAT_TIMEOUT ||
+           code == TRINITY_FAULT_LOCKED ||
+           code == TRINITY_INTERNAL_FAULT;
+}
+
 static void set_error(trinity_error_code_t code, trinity_source_t source,
                       uint32_t detail) {
+    if (safety_error_latched(g_error.code) && !safety_error_latched(code))
+        return;
     g_error.code = code;
     g_error.source = source;
     g_error.detail = detail;
