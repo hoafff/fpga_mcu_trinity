@@ -34,8 +34,15 @@
 #if TRINITY_DEPLOY_ENABLE_DEMO_SECURE != 0
 #error "DEMO_SECURE remains disabled until an approved entropy qualification"
 #endif
+#if TRINITY_DEPLOY_SPI_HZ != \
+    (FPST_SN32F407_HCLK_HZ / (2u * (TRINITY_DEPLOY_SPI_CLKDIV + 1u)))
+#error "SPI qualification clock and CLKDIV disagree"
+#endif
+#if TRINITY_DEPLOY_SPI_CLKDIV > 255u
+#error "SPI0 CLKDIV exceeds the supported 8-bit field"
+#endif
 
-#define DEPLOY_BUILD_ID UINT32_C(0x00070000)
+#define DEPLOY_BUILD_ID UINT32_C(0x00070001)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
