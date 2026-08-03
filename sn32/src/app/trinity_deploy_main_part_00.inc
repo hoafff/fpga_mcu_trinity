@@ -51,7 +51,11 @@ static void full_handle_create_session(const trinity_pc_frame_t *req);
 static void full_handle_close_session(const trinity_pc_frame_t *req);
 static void full_handle_zeroize(const trinity_pc_frame_t *req);
 static void full_handle_send_telemetry(const trinity_pc_frame_t *req);
+static void full_handle_run_demo(const trinity_pc_frame_t *req);
 static void full_handle_read_last_result(const trinity_pc_frame_t *req);
+static void full_handle_ntt_test(const trinity_pc_frame_t *req);
+static void full_handle_ascon_test(const trinity_pc_frame_t *req);
+static void full_handle_benchmark(const trinity_pc_frame_t *req);
 static void full_handle_transport_stress(const trinity_pc_frame_t *req);
 
 enum {
