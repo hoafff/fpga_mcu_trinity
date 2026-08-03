@@ -3,12 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
 
-from .protocol import ErrorCode, HostCommand, SystemStatus, TransactionState
+from .protocol import HostCommand, SpiCommand, SystemStatus, TargetId
 from .serial_client import (
     HostProtocolError,
     RemoteError,
+    SpiDiagnosticTrace,
     SystemInfo,
     TrinitySerialClient,
     available_ports,
@@ -52,6 +52,35 @@ def _transaction_dict(result) -> dict[str, object]:
     }
 
 
+def _spi_trace_dict(trace: SpiDiagnosticTrace) -> dict[str, object]:
+    return {
+        "target_id": trace.target_id,
+        "command": f"0x{trace.command:02X}",
+        "error_source": trace.source,
+        "transport_result": (
+            f"{trace.result_code.name}(0x{int(trace.result_code):04X})"
+        ),
+        "target_txid": f"0x{trace.target_transaction_id:04X}",
+        "request_fingerprint": f"0x{trace.request_fingerprint:08X}",
+        "request_length": trace.request_length,
+        "response_capture_length": trace.response_capture_length,
+        "response_frame_length": trace.response_frame_length,
+        "request_crc": f"0x{trace.request_crc:04X}",
+        "response_crc_received": f"0x{trace.response_crc_received:04X}",
+        "response_crc_calculated": f"0x{trace.response_crc_calculated:04X}",
+        "response_crc_match": (
+            trace.response_frame_length != 0
+            and trace.response_crc_received == trace.response_crc_calculated
+        ),
+        "irq_before_request": int(trace.irq_before_request),
+        "irq_after_request": int(trace.irq_after_request),
+        "irq_before_response": int(trace.irq_before_response),
+        "irq_after_response": int(trace.irq_after_response),
+        "request_bytes": trace.request_bytes.hex(" "),
+        "response_bytes": trace.response_bytes.hex(" "),
+    }
+
+
 def _emit(data: dict[str, object], as_json: bool) -> None:
     if as_json:
         print(json.dumps(data, sort_keys=True))
@@ -76,6 +105,15 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("ping", help="send standalone PC→SN32 PING")
     sub.add_parser("system-info", help="probe both Primer SPI endpoints and show build IDs")
     sub.add_parser("system-status", help="refresh both Primer SPI endpoints and show status")
+
+    spi_diag = sub.add_parser(
+        "spi-diag",
+        help="capture one side-effect-free raw Primer GET_INFO/GET_STATUS exchange",
+    )
+    spi_diag.add_argument("--target", choices=("p1", "p2"), required=True)
+    spi_diag.add_argument(
+        "--command", choices=("get-info", "get-status"), required=True
+    )
 
     # Retained compatibility aliases for the earlier P1-only workflow.
     sub.add_parser("p1-info", help="compatibility alias for system-info")
@@ -128,6 +166,18 @@ def main(argv: list[str] | None = None) -> int:
             elif args.command in {"system-status", "p1-status"}:
                 status = client.get_system_status()
                 _emit({"step": "SYSTEM_STATUS", "result": "PASS", **_status_dict(status)}, args.json)
+            elif args.command == "spi-diag":
+                target = TargetId.PRIMER1 if args.target == "p1" else TargetId.PRIMER2
+                command = (
+                    SpiCommand.GET_INFO
+                    if args.command == "get-info"
+                    else SpiCommand.GET_STATUS
+                )
+                trace = client.spi_diagnostic(target, command)
+                _emit(
+                    {"step": "SPI_DIAGNOSTIC", **_spi_trace_dict(trace)},
+                    args.json,
+                )
             elif args.command == "p1-self-test-start":
                 txid = client.start_p1_self_test()
                 _emit({
