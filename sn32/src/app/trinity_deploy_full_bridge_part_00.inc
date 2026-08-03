@@ -1,6 +1,7 @@
 /* Full dual-Primer controller binding for the SN32F407 deploy target. */
 
 static bool g_session_commit_level;
+static bool g_tiny_fault_contained;
 
 static endpoint_t *full_endpoint(uint8_t target_id) {
     if (target_id == TRINITY_TARGET_PRIMER1) return &g_p1;
@@ -52,6 +53,29 @@ static bool full_tiny_fault_active(void *context) {
 #else
     return false;
 #endif
+}
+
+static void full_contain_tiny_fault(void) {
+    if (g_tiny_fault_contained || !full_tiny_fault_active(NULL)) return;
+    g_tiny_fault_contained = true;
+    g_fault = true;
+    cs_all_high();
+    trinity_deploy_crypto_zeroize(&g_crypto);
+    trinity_controller_secure_clear(&g_controller.session,
+                                    sizeof(g_controller.session));
+    trinity_controller_forget_last_result(&g_controller);
+    g_controller.session_material_valid = false;
+    g_controller.commit_issued = false;
+    g_controller.current_sequence = 0u;
+    g_controller.state = TRINITY_SYSTEM_FAULT_LOCKED;
+    g_controller.last_error = TRINITY_FAULT_LOCKED;
+    g_controller.last_error_source = TRINITY_SOURCE_TINY1P5;
+    g_controller.last_error_detail = FPST_SN32F407_TINY_FAULT_N_PIN;
+    memset(&g_host_txn, 0, sizeof(g_host_txn));
+    g_active_host_txid = 0u;
+    set_error(TRINITY_FAULT_LOCKED, TRINITY_SOURCE_TINY1P5,
+              FPST_SN32F407_TINY_FAULT_N_PIN);
+    g_trinity_deploy_marker = DEPLOY_MARKER_ERR;
 }
 
 static void full_session_commit_toggle(void *context) {
