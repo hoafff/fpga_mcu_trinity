@@ -83,7 +83,7 @@ static void full_handle_benchmark(const trinity_pc_frame_t *req) {
     trinity_write_be32(&result[8], (uint32_t)(g_ms - started));
     trinity_write_be32(&result[12], (uint32_t)g_controller.current_sequence);
     managed_transaction_finish(rc, result, sizeof(result));
-    (void)response_send();
+    managed_transaction_respond(req);
 }
 
 static void full_handle_run_demo(const trinity_pc_frame_t *req) {
@@ -158,5 +158,5 @@ static void full_handle_run_demo(const trinity_pc_frame_t *req) {
                            ? g_controller.session.session_id : 0u);
     trinity_write_be64(&result[6], g_controller.current_sequence);
     managed_transaction_finish(rc, result, sizeof(result));
-    (void)response_send();
+    managed_transaction_respond(req);
 }
