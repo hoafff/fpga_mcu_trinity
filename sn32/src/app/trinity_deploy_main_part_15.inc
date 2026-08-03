@@ -27,6 +27,9 @@ static void handle_request(const trinity_pc_frame_t *req) {
         case TRINITY_PC_RETIRE_TXN_RESULT:
             handle_retire_txn_result(req);
             break;
+        case TRINITY_PC_SPI_DIAGNOSTIC:
+            handle_spi_diagnostic(req);
+            break;
         case TRINITY_PC_GENERATE_KEYPAIR:
             full_handle_generate_keypair(req);
             break;
