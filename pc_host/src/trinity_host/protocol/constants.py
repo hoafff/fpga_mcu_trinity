@@ -16,6 +16,7 @@ class FrameFlags(IntFlag):
     MORE = 0x4
     EVENT = 0x8
 
+
 class ErrorCode(IntEnum):
     OK = 0x0
     BAD_MAGIC = 0x101
@@ -52,6 +53,7 @@ class ErrorCode(IntEnum):
     INTERNAL_FAULT = 0x701
     NOT_SUPPORTED = 0x702
 
+
 class HostCommand(IntEnum):
     PING = 0x1
     GET_SYSTEM_INFO = 0x2
@@ -59,6 +61,7 @@ class HostCommand(IntEnum):
     GET_LAST_ERROR = 0x4
     GET_TXN_RESULT = 0x5
     RETIRE_TXN_RESULT = 0x6
+    SPI_DIAGNOSTIC = 0x7
     RUN_SELF_TEST = 0x10
     GENERATE_KEYPAIR = 0x11
     CREATE_SESSION = 0x12
@@ -75,6 +78,7 @@ class HostCommand(IntEnum):
     REQUEST_FAULT_CLEAR = 0x41
     EVENT = 0xE0
 
+
 class SystemState(IntEnum):
     BOOT = 0x0
     SELF_TEST_REQUIRED = 0x1
@@ -87,16 +91,19 @@ class SystemState(IntEnum):
     FAULT_LOCKED = 0x8
     ERROR = 0x9
 
+
 class Mode(IntEnum):
     KAT = 0x0
     DEMO_DETERMINISTIC = 0x1
     DEMO_SECURE = 0x2
+
 
 class TargetReadyMask(IntFlag):
     SN32 = 0x1
     PRIMER1 = 0x2
     PRIMER2 = 0x4
     TINY1P5 = 0x8
+
 
 class FaultFlags(IntFlag):
     SN32 = 0x1
@@ -108,12 +115,14 @@ class FaultFlags(IntFlag):
     AUTH_THRESHOLD = 0x40
     TRANSPORT = 0x80
 
+
 class Source(IntEnum):
     SN32 = 0x0
     PRIMER1 = 0x1
     PRIMER2 = 0x2
     TINY1P5 = 0x3
     HOST_PROTOCOL = 0x4
+
 
 class EventType(IntEnum):
     PROGRESS = 0x1
@@ -123,6 +132,7 @@ class EventType(IntEnum):
     RECOVERY_REQUIRED = 0x5
     LOG = 0x6
     TRANSACTION_COMPLETED = 0x7
+
 
 class SystemCapability(IntFlag):
     KAT = 0x1
@@ -138,6 +148,7 @@ class SystemCapability(IntFlag):
     TRANSPORT_STRESS = 0x400
     TRANSACTION_RECONCILIATION = 0x800
 
+
 class FaultInjectionId(IntEnum):
     DROP_SN32_HEARTBEAT = 0x1
     DROP_P1_HEARTBEAT = 0x2
@@ -149,6 +160,7 @@ class FaultInjectionId(IntEnum):
     FORCE_TARGET_RESET = 0x8
     FORCE_COMMIT_REJECTED = 0x9
     FORCE_ZEROIZE = 0xA
+
 
 class BenchmarkOperationMask(IntFlag):
     NTT = 0x1
@@ -162,6 +174,7 @@ class BenchmarkOperationMask(IntFlag):
     SPI = 0x100
     PAYLOAD_UART = 0x200
     END_TO_END = 0x400
+
 
 class SpiCommand(IntEnum):
     GET_INFO = 0x1
@@ -185,9 +198,11 @@ class SpiCommand(IntEnum):
     ACK_AUTH_RESULT = 0x42
     CLEAR_DIAGNOSTIC_COUNTERS = 0x43
 
+
 class TargetId(IntEnum):
     PRIMER1 = 0x1
     PRIMER2 = 0x2
+
 
 class SessionState(IntEnum):
     BOOT = 0x0
@@ -200,12 +215,14 @@ class SessionState(IntEnum):
     ZEROIZE_BUSY = 0x7
     FAULT_LOCKED = 0x8
 
+
 class OperationState(IntEnum):
     IDLE = 0x0
     LOAD_INPUT = 0x1
     READY_TO_EXECUTE = 0x2
     EXECUTING = 0x3
     RESULT_READY = 0x4
+
 
 class TransactionState(IntEnum):
     NONE = 0x0
@@ -216,12 +233,14 @@ class TransactionState(IntEnum):
     ZEROIZED = 0x5
     OUTCOME_UNKNOWN = 0x6
 
+
 class RxState(IntEnum):
     HUNT_SYNC = 0x0
     RECEIVE_BODY = 0x1
     VALIDATE = 0x2
     VERIFY_TAG = 0x3
     RESULT_PENDING = 0x4
+
 
 class SpiCapability(IntFlag):
     SELF_TEST = 0x1
@@ -238,10 +257,12 @@ class SpiCapability(IntFlag):
     AUTH_RESULT_BUFFER = 0x800
     DIAGNOSTICS = 0x1000
 
+
 class PendingFlags(IntFlag):
     RESPONSE_MAILBOX = 0x1
     SIDE_EFFECT_RESULT = 0x2
     AUTHENTICATED_RESULT = 0x4
+
 
 class SecureFlags(IntFlag):
     SELF_TEST_PASS = 0x1
@@ -250,11 +271,13 @@ class SecureFlags(IntFlag):
     ZEROIZE_BUSY = 0x8
     FAULT_LOCKED = 0x10
 
+
 class TestProfile(IntEnum):
     QUICK = 0x0
     FULL = 0x1
     KAT = 0x2
     DIAGNOSTIC = 0x3
+
 
 class TestMask(IntFlag):
     PROTOCOL = 0x1
@@ -268,6 +291,7 @@ class TestMask(IntFlag):
     ZEROIZE = 0x100
     HEARTBEAT = 0x200
 
+
 class ZeroizeScope(IntFlag):
     ACTIVE_SESSION = 0x1
     STAGED_SESSION = 0x2
@@ -276,6 +300,7 @@ class ZeroizeScope(IntFlag):
     TRANSACTION_STATE = 0x10
     DIAGNOSTIC_TRANSIENT = 0x20
     ALL = 0xFF
+
 
 class DiagnosticCounterMask(IntFlag):
     TRANSPORT = 0x1
