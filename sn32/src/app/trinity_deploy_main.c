@@ -1,3 +1,4 @@
+#include "trinity_full_controller.c"
 #include "trinity_deploy_main_part_00.inc"
 #include "trinity_deploy_main_part_01.inc"
 #include "trinity_deploy_main_part_02.inc"
@@ -16,3 +17,4 @@
 #include "trinity_deploy_main_part_15.inc"
 #include "trinity_deploy_main_part_16.inc"
 #include "trinity_deploy_main_part_17.inc"
+#include "trinity_deploy_full_bridge.inc"
