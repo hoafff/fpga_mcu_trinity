@@ -1,6 +1,9 @@
 static void full_sync_legacy_status(void) {
     full_sync_endpoint(&g_p1, &g_controller.p1);
     full_sync_endpoint(&g_p2, &g_controller.p2);
+    if (g_controller.state == TRINITY_SYSTEM_READY_NO_SESSION &&
+        !g_crypto.keypair_valid)
+        g_controller.state = TRINITY_SYSTEM_READY_NO_KEYPAIR;
     if (g_controller.last_error != TRINITY_OK)
         set_error(g_controller.last_error, g_controller.last_error_source,
                   g_controller.last_error_detail);
@@ -59,7 +62,7 @@ static bool managed_transaction_begin(const trinity_pc_frame_t *req) {
     memset(&g_host_txn, 0, sizeof(g_host_txn));
     g_host_txn.valid = true;
     g_host_txn.host_txid = req->transaction_id;
-    g_host_txn.target_txid = 0u; /* SN32-managed multi-target transaction. */
+    g_host_txn.target_txid = 0u;
     g_host_txn.original_host_command = req->command;
     g_host_txn.request_fingerprint = fingerprint;
     g_host_txn.state = TRINITY_TXN_RUNNING;
