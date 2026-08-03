@@ -18,7 +18,7 @@ MAIN_PARTS = [SN32 / f"src/app/trinity_deploy_main_part_{i:02d}.inc" for i in ra
 CONTROLLER_WRAPPER = SN32 / "src/app/trinity_full_controller.c"
 CONTROLLER_PARTS = [SN32 / f"src/app/trinity_full_controller_part_{i:02d}.inc" for i in range(8)]
 BRIDGE_WRAPPER = SN32 / "src/app/trinity_deploy_full_bridge.inc"
-BRIDGE_PARTS = [SN32 / f"src/app/trinity_deploy_full_bridge_part_{i:02d}.inc" for i in range(5)]
+BRIDGE_PARTS = [SN32 / f"src/app/trinity_deploy_full_bridge_part_{i:02d}.inc" for i in range(7)]
 CRYPTO_WRAPPER = SN32 / "src/app/trinity_deploy_crypto.c"
 CRYPTO_PARTS = [SN32 / f"src/app/trinity_deploy_crypto_part_{i:02d}.inc" for i in range(2)]
 MLKEM_FILES = [
@@ -83,7 +83,7 @@ def check_wrappers() -> tuple[str, str, str, str]:
                          for i in range(8)), "controller wrapper")
     require_tokens(bridge_wrapper,
                    tuple(f'#include "trinity_deploy_full_bridge_part_{i:02d}.inc"'
-                         for i in range(5)), "bridge wrapper")
+                         for i in range(7)), "bridge wrapper")
     require_tokens(crypto_wrapper,
                    tuple(f'#include "trinity_deploy_crypto_part_{i:02d}.inc"'
                          for i in range(2)), "crypto wrapper")
@@ -123,12 +123,16 @@ def check_source_and_tests() -> None:
         "TRINITY_SPI_COMMIT_SESSION", "TRINITY_SPI_LOAD_TELEMETRY",
         "TRINITY_SPI_ENCRYPT_AND_SEND", "TRINITY_SPI_READ_AUTH_RESULT",
         "TRINITY_SPI_ACK_AUTH_RESULT", "TRINITY_AUTH_THRESHOLD",
+        "session_commit_low", "session_commit_high",
     ), "full controller")
     require_tokens(bridge, (
-        "full_session_commit_toggle", "full_tiny_fault_active",
-        "full_contain_tiny_fault", "managed_transaction_begin",
+        "full_session_commit_low", "full_session_commit_high",
+        "full_tiny_fault_active", "full_contain_tiny_fault",
+        "managed_transaction_begin", "managed_transaction_respond",
         "full_handle_generate_keypair", "full_handle_create_session",
-        "full_handle_send_telemetry", "full_handle_zeroize",
+        "full_handle_send_telemetry", "full_handle_run_demo",
+        "full_handle_ntt_test", "full_handle_ascon_test",
+        "full_handle_benchmark", "full_handle_zeroize",
         "full_handle_transport_stress",
     ), "deploy bridge")
     require_tokens(crypto + mlkem, (
@@ -142,7 +146,9 @@ def check_source_and_tests() -> None:
     require_tokens(main_source, (
         "TRINITY_PC_GENERATE_KEYPAIR", "TRINITY_PC_CREATE_SESSION",
         "TRINITY_PC_CLOSE_SESSION", "TRINITY_PC_ZEROIZE_SYSTEM",
-        "TRINITY_PC_SEND_ONE_TELEMETRY", "TRINITY_PC_READ_LAST_RESULT",
+        "TRINITY_PC_SEND_ONE_TELEMETRY", "TRINITY_PC_RUN_DEMO",
+        "TRINITY_PC_READ_LAST_RESULT", "TRINITY_PC_RUN_NTT_TEST",
+        "TRINITY_PC_RUN_ASCON_TEST", "TRINITY_PC_RUN_BENCHMARK",
         "TRINITY_PC_RUN_TRANSPORT_STRESS", "full_contain_tiny_fault",
     ), "dispatcher/main loop")
     require("req->payload[0] == 2u" in bridge and
@@ -187,9 +193,9 @@ def check_source_and_tests() -> None:
             "machine-specific absolute path in SN32 source")
 
     print("PASS: full dual-Primer control, Tiny commit/fault and direct UART flow")
-    print("PASS: self-test, ML-KEM lifecycle, session activation and zeroization")
-    print("PASS: retained transactions, authenticated result ACK and stress paths")
-    print("PASS: exact mlkem-native submodule pin and Gate 3 SCU test configuration")
+    print("PASS: ML-KEM keypair/session, deterministic demo and diagnostics")
+    print("PASS: immutable retained results, benchmark, stress and zeroization")
+    print("PASS: exact mlkem-native submodule pin and Gate 3 SCU configuration")
 
 
 def check_project_and_pins() -> None:
