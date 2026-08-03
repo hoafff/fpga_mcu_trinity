@@ -15,7 +15,7 @@ This gate does not establish a live session, enable secure operation, send
 telemetry, exercise the direct P1-to-P2 UART payload, integrate Tiny, execute
 ML-KEM as part of a live session, or qualify the full system.
 
-## Locked prior results
+## Locked prior results and reset-order evidence
 
 Already qualified separately:
 
@@ -23,48 +23,42 @@ Already qualified separately:
 PC <-> SN32 UART PING HARDWARE: PASS
 ```
 
-The v0.7.1 dual-SPI image failed because SN32 split each Primer response across
-two CS assertions. Primer restarts mailbox transmission at byte zero on every
-CS falling edge. That root cause is fixed by the single-CS response read.
+The v0.7.1 split-response defect is fixed: every Primer response is now read
+under one CS assertion. The v0.7.2 manual raw transactions passed command/txid
+correlation, CRC and IRQ release.
 
-The v0.7.2 image then established that all three manual raw transactions work:
-
-```text
-P1 GET_INFO:   PASS
-P2 GET_INFO:   PASS
-P2 GET_STATUS: PASS
-```
-
-For those transactions, command and target txid correlated, received CRC equaled
-calculated CRC, and IRQ followed `0 -> 1 -> 1 -> 0`.
-
-However, an immediate first-boot capture used manual target txid `0x0004` and
-showed that P2 had already recorded:
+The v0.7.3 immutable latch then captured the actual pre-controller mailbox:
 
 ```text
-last_error         = BAD_FLAGS 0x0105
-diagnostic_summary = DIAG_TRANSPORT | DIAG_CRC = 0x00000003
+context        = STARTUP_DRAIN_P1 or STARTUP_DRAIN_P2
+command        = 0x00
+target_txid    = 0x0000
+result         = BAD_LENGTH 0x0103
+request_length = 0
+frame_length   = 16
+CRC            = valid
+response       = A5 01 00 03 00 00 00 06 01 03 01 00 00 00 A4 65
 ```
 
-Therefore the v0.7.2 automatic startup drain/probe path is not qualified. The
-failure happened before periodic refresh. Do not use v0.7.1 or v0.7.2 for this
-gate.
-
-Failure evidence remains retained at:
+Reset order proved that this mailbox follows the Primer reset last:
 
 ```text
-sn32/docs/SN32_DUAL_SPI_CLEAN_BOOT_FAILURE_2026-08-03.md
-sn32/hardware/dual_spi_control_plane/evidence/clean_boot_failure_2026-08-03.txt
+reset P1 then P2 -> STARTUP_DRAIN_P2
+reset P2 then P1 -> STARTUP_DRAIN_P1
 ```
 
-## Required v0.7.3 image
+Therefore this exact frame is a pre-controller reset residue, not a failed
+active GET_INFO/GET_STATUS transaction and not a P2-specific wiring defect.
+Every non-matching startup-drain error remains a failure.
+
+## Required v0.7.4 image
 
 ```text
-architecture_version = 0.7.3
-sn32_build_id         = 0x00070003
+architecture_version = 0.7.4
+sn32_build_id         = 0x00070004
 ```
 
-The image keeps the locked transport:
+Locked transport:
 
 ```text
 SPI frequency = 100000 Hz
@@ -72,90 +66,89 @@ SPI mode      = 0
 bit order     = MSB first
 word length   = 8 bits
 SPI0 CLKDIV   = 59
+CS/FIFO guard = 10 us nominal
+startup settle= 5 ms
 ```
 
-It adds:
-
-```text
-CS/FIFO software guard nominal value = 10 us
-startup settle before drain/probe     = 5 ms
-complete response read under one CS   = retained
-first failed SPI trace                = immutable until SN32 reset
-```
-
-The software guard loop intentionally lasts at least the nominal value on the
-12 MHz SN32 qualification image.
-
-The new PC command:
+The PC command remains:
 
 ```bat
 trinity-host --port COM3 spi-first-failure
 ```
 
-reads SN32 RAM only. It does not assert either Primer CS and does not allocate a
-target transaction ID.
+It reads SN32 RAM only. It does not assert either Primer CS and does not allocate
+a target transaction ID.
 
-Trace contexts are:
+### v0.7.4 classification contract
 
-```text
-NONE
-STARTUP_DRAIN_P1
-STARTUP_DRAIN_P2
-STARTUP_PROBE
-PERIODIC_PROBE
-HOST_DIAGNOSTIC
-```
-
-Expected Primer identities remain:
+Only the following exact trace may be reported as startup residue rather than an
+active SPI failure:
 
 ```text
-Primer #1 target_id = 1
-Primer #1 build_id  = 0x50310001
-Primer #2 target_id = 2
-Primer #2 build_id  = 0x50320001
-protocol_version    = 1
+context in {STARTUP_DRAIN_P1, STARTUP_DRAIN_P2}
+command = 0x00
+target_txid = 0x0000
+request_length = 0
+transport_result = BAD_LENGTH 0x0103
+response_frame_length = 16
+response flags = RESPONSE | ERROR
+response payload length = 6
+session_state = SELF_TEST_REQUIRED
+operation_state = IDLE
+detail = 0
+response CRC received = response CRC calculated
 ```
+
+Expected CLI form:
+
+```text
+[SPI_FIRST_FAILURE]
+latched=False
+startup_residue=True
+context=STARTUP_DRAIN_P1
+```
+
+or:
+
+```text
+[SPI_FIRST_FAILURE]
+latched=False
+startup_residue=True
+context=STARTUP_DRAIN_P2
+```
+
+A completely clean startup may instead report:
+
+```text
+[SPI_FIRST_FAILURE]
+latched=False
+startup_residue=False
+context=NONE
+```
+
+Any other trace must report `latched=True` and stops the gate. The reset residue
+is retained as evidence; it is not silently discarded. The Primer target may
+continue to expose historical `BAD_LENGTH/DIAG_TRANSPORT` in its own GET_STATUS.
+That historical bit alone is not treated as a new active-transport failure.
 
 ## Wiring preflight
 
 Perform all wiring with every board powered off.
 
-### Shared ground and power boundary
-
-- Connect SN32, P1, P2 and FT232 grounds together.
-- Use 3.3 V logic only.
-- Power each board through its intended board power input.
-- Do not join independent 3.3 V output rails.
-- Do not connect FT232 VCC to an SN32 or Primer power rail.
-
-### Shared SPI bus
-
 ```text
-SN32 P1.0 SPI0_SCK   -> P1 P16 spi_sck_i
-                      -> P2 P16 spi_sck_i
-
-SN32 P1.2 SPI0_MOSI  -> P1 P15 spi_mosi_i
-                      -> P2 P15 spi_mosi_i
-
-SN32 P1.1 SPI0_MISO  <- P1 T15 spi_miso_o
-                      <- P2 T15 spi_miso_o
+SN32 P1.0 SPI0_SCK   -> P1 P16 and P2 P16
+SN32 P1.2 SPI0_MOSI  -> P1 P15 and P2 P15
+SN32 P1.1 SPI0_MISO  <- P1 T15 and P2 T15
+SN32 P2.1 P1_CS_N    -> P1 R14
+SN32 P2.2 P2_CS_N    -> P2 R14
+SN32 P2.3 P1_IRQ_N   <- P1 T14
+SN32 P2.8 P2_IRQ_N   <- P2 T14
 ```
 
-Both Primer MISO outputs share the same wire. Only the selected device may drive
-it.
+Use common ground and 3.3 V logic. Do not join independent 3.3 V output rails.
+FT232 VCC remains disconnected.
 
-### Independent selects and IRQ inputs
-
-```text
-SN32 P2.1 P1_CS_N  -> P1 R14 spi_cs_ni
-SN32 P2.2 P2_CS_N  -> P2 R14 spi_cs_ni
-SN32 P2.3 P1_IRQ_N <- P1 T14 irq_no
-SN32 P2.8 P2_IRQ_N <- P2 T14 irq_no
-```
-
-### Primer safety levels
-
-Tiny remains disconnected. On both Primer boards:
+Tiny remains disconnected. On both Primers:
 
 ```text
 R11 zeroize_ni       -> 3.3 V
@@ -163,17 +156,12 @@ R12 fatal_latched_i  -> GND
 T12 secure_enable_i  -> GND
 ```
 
-SN32 P3.8 remains disconnected from Tiny.
-
-### Direct P1-to-P2 UART isolation
+Direct UART isolation for this gate:
 
 ```text
 P1 R13 uart_tx_o -> disconnected
 P2 R13 uart_rx_i -> 3.3 V through 10 kΩ
 ```
-
-The pull-up keeps P2 UART RX at idle high and does not revoke the earlier direct
-UART qualification.
 
 ## Exact rebuild and flash gate
 
@@ -200,132 +188,107 @@ AXF generation: PASS
 HEX generation: PASS
 ```
 
-Flash and Verify through SN-LINK. Do not reuse the v0.7.2 HEX.
-
-## Clean power and reset sequence
-
-1. Power off or disconnect SN32.
-2. Reset P1 and P2 and wait for both FPGA configurations to complete.
-3. Confirm both CS inputs are high.
-4. Confirm P2 R13 is idle high and unselected MISO is released.
-5. Start the PC command sequence below.
-6. Power or reset SN32 last.
-7. Do not reset P1/P2 after SN32 starts.
-8. Abort for abnormal heating, supply droop, contention or a CS stuck low.
+Flash and Verify through SN-LINK. Do not reuse a v0.7.2 or v0.7.3 HEX.
 
 ## Mandatory first-boot sequence
 
-Run only:
+After a controlled reset/power sequence, run only:
 
 ```bat
 trinity-host --port COM3 ping
 trinity-host --port COM3 spi-first-failure
 ```
 
-The clean result is:
+Proceed only when:
 
 ```text
-[SPI_FIRST_FAILURE]
 latched=False
-context=NONE
 ```
 
-A latched trace is not automatically discarded. Record the complete block. Its
-context, target, command, txid, request bytes, response bytes, CRC fields and IRQ
-levels identify the first observed failure before any manual Primer transaction.
+`startup_residue=False` is clean. `startup_residue=True` is accepted only when
+the complete trace matches the exact reset-residue contract above. Record the
+whole block.
 
-If `latched=True`, stop this gate. Do not run `system-info`, `system-status` or
+If `latched=True`, stop. Do not run `system-info`, `system-status` or
 `dual-spi-bringup` in that boot.
 
 ## Mandatory raw diagnostic stage
 
-Only after `latched=False`, run:
+After the latch audit:
 
 ```bat
 trinity-host --port COM3 spi-diag --target p1 --command get-info
 trinity-host --port COM3 spi-diag --target p2 --command get-info
 trinity-host --port COM3 spi-diag --target p2 --command get-status
-```
-
-Each request must have length 10. Expected response frame lengths are 22, 22 and
-26 bytes. `response_capture_length=76` is intentional; only
-`response_frame_length` bytes belong to the frame.
-
-Audit each trace:
-
-- request begins `A5 01` and contains the printed command and target txid;
-- request flags are zero;
-- request CRC equals the final two request bytes;
-- response begins `A5 01`;
-- response command and txid match the request;
-- received and calculated response CRC match;
-- IRQ asserts for the mailbox and releases after the complete read;
-- `transport_result=OK`.
-
-After those three traces, read the latch again:
-
-```bat
 trinity-host --port COM3 spi-first-failure
 ```
 
-It must still report `latched=False`. This verifies that manual diagnostics did
-not introduce the first failure.
+Each active trace must satisfy:
+
+```text
+request flags = 0
+request CRC valid
+response command and txid correlate
+response CRC received = calculated
+IRQ sequence = 0 -> 1 -> 1 -> 0
+transport_result = OK
+```
+
+Expected active response frame lengths are 22, 22 and 26 bytes.
+`response_capture_length=76` is intentional.
+
+The final `spi-first-failure` read must still show `latched=False`. A previously
+recorded `startup_residue=True` may remain visible unchanged; it must not be
+replaced by an active failure.
 
 ## Discovery and retained KAT gate
 
-Only after the startup latch and raw diagnostics are clean:
+Only after raw active transactions pass:
 
 ```bat
 trinity-host --port COM3 system-info
 trinity-host --port COM3 system-status
+trinity-host --port COM3 dual-spi-bringup --timeout 10 --poll 0.1
+trinity-host --port COM3 spi-first-failure
 ```
 
-Expected identity fields:
+Expected identity:
 
 ```text
 protocol_version=1
-architecture_version=0.7.3
-sn32_build_id=0x00070003
+architecture_version=0.7.4
+sn32_build_id=0x00070004
 primer1_build_id=0x50310001
 primer2_build_id=0x50320001
 ```
 
-Then run once:
+The retained KAT masks remain:
 
-```bat
-trinity-host --port COM3 dual-spi-bringup --timeout 10 --poll 0.1
+```text
+P1 = 0x013E
+P2 = 0x03E3
 ```
-
-This executes PING, P1/P2 discovery and status, the retained P1 KAT mask
-`0x013E`, the retained P2 KAT mask `0x03E3`, both result retirements, and final
-status verification.
-
-Read the first-failure latch once more after the gate. It must remain clear.
 
 ## Acceptance criteria
 
 ```text
-v0.7.3 exact Keil rebuild:                    PASS
-v0.7.3 SN-LINK program/verify:                PASS
-v0.7.3 standalone PC UART PING:               PASS
-first SPI failure latch immediately postboot: CLEAR
-P1 GET_INFO raw diagnostic:                   PASS
-P2 GET_INFO raw diagnostic:                   PASS
-P2 GET_STATUS raw diagnostic:                 PASS
-first SPI failure latch after raw diagnostics:CLEAR
-single-CS response capture and CRC:           PASS
-P1 GET_INFO identity:                         PASS
-P2 GET_INFO identity:                         PASS
-P1/P2 ready mask:                             PASS
-P1 retained KAT mask 0x013E:                  PASS
-P1 result retirement:                         PASS
-P2 retained KAT mask 0x03E3:                  PASS
-P2 result retirement:                         PASS
-final ready mask includes SN32/P1/P2:         PASS
-final fault_flags = 0:                        PASS
-first SPI failure latch after complete gate:  CLEAR
-P2 uart_rx_i remains idle high:               PASS
-MISO contention or abnormal heating:          NONE
+v0.7.4 exact Keil rebuild:                         PASS
+v0.7.4 SN-LINK program/verify:                     PASS
+v0.7.4 standalone PC UART PING:                    PASS
+first active SPI failure latch immediately postboot:CLEAR
+startup reset residue:                             NONE or EXACT-MATCH ONLY
+P1 GET_INFO raw active diagnostic:                 PASS
+P2 GET_INFO raw active diagnostic:                 PASS
+P2 GET_STATUS raw active diagnostic:               PASS
+first active SPI failure after raw diagnostics:    CLEAR
+P1/P2 identity and ready mask:                     PASS
+P1 retained KAT mask 0x013E and retirement:        PASS
+P2 retained KAT mask 0x03E3 and retirement:        PASS
+final ready mask includes SN32/P1/P2:              PASS
+final fault_flags = 0:                             PASS
+first active SPI failure after complete gate:      CLEAR
+P2 uart_rx_i remains idle high:                    PASS
+MISO contention or abnormal heating:               NONE
 ```
 
 Expected final marker:
@@ -334,8 +297,6 @@ Expected final marker:
 [SN32_DUAL_SPI_CONTROL_PLANE]
 result=PASS
 ```
-
-Only after complete log audit may the scoped statement be recorded.
 
 ## Explicit non-claims
 
@@ -358,8 +319,6 @@ Use:
 sn32/hardware/dual_spi_control_plane/evidence/run_manifest_TEMPLATE.txt
 ```
 
-Retain exact build and SN-LINK logs, all three first-failure-latch reads, the
-three raw SPI traces, `system-info`, `system-status`, full
-`dual-spi-bringup`, wiring photographs, source/submodule/bitstream identities,
-and every failed attempt. Do not create a PASS record from only the final CLI
-line.
+Retain the exact build and SN-LINK logs, startup residue or first-failure trace,
+all raw SPI traces, discovery/status logs, full retained-KAT run, wiring photos,
+source/submodule/bitstream identities and every failed attempt.
