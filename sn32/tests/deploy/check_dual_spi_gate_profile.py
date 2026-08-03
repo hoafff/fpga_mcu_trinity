@@ -102,13 +102,18 @@ def main() -> int:
 
     require(uart_doc, "PC <-> SN32 UART PING HARDWARE: PASS", "UART qualification")
     require(uart_evidence, "PC <-> SN32 UART PING HARDWARE: PASS", "UART evidence")
-    require(gate_doc, "SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS", "dual-SPI gate")
-    require(gate_doc, "secure_enable_i  -> GND", "dual-SPI gate")
-    require(gate_doc, "SPI0 CLKDIV = 59", "dual-SPI gate")
+    for token in (
+        "SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS",
+        "secure_enable_i  -> GND",
+        "SPI0 CLKDIV = 59",
+        "P2 R13 uart_rx_i -> 3.3 V through 10 kΩ",
+    ):
+        require(gate_doc, token, "dual-SPI gate")
     for token in (
         "repository_commit:",
         "sn32_build_id: 0x00070001",
         "spi_frequency_hz: 100000",
+        "p2_uart_rx_r13_pulled_up_to_3v3_through_10k:",
         "p1_retained_kat_0x013e:",
         "p2_retained_kat_0x03e3:",
         "full_system_hardware_qualified: false",
@@ -118,6 +123,7 @@ def main() -> int:
     print("PASS: scoped PC-to-SN32 UART evidence is locked without broader claims")
     print("PASS: v0.7.1 dual-SPI gate is fixed at 100 kHz mode 0 with build ID 0x00070001")
     print("PASS: PC host probes P1/P2 and runs separate retained KAT self-tests")
+    print("PASS: P2 UART RX is held idle high while the direct payload wire is isolated")
     print("PASS: dual-SPI evidence manifest records identities, wiring and non-claims")
     print("NOTE: static PASS does not claim a current exact Keil rebuild or dual-SPI hardware PASS")
     return 0
