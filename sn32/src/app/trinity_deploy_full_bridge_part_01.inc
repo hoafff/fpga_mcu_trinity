@@ -43,13 +43,36 @@ static trinity_error_code_t full_refresh_all(void) {
     return rc;
 }
 
+static void managed_transaction_respond(const trinity_pc_frame_t *req) {
+    trinity_source_t source = TRINITY_SOURCE_SN32;
+    if (g_host_txn.state == TRINITY_TXN_ACCEPTED ||
+        g_host_txn.state == TRINITY_TXN_RUNNING) {
+        response_error(req, TRINITY_RESULT_PENDING,
+                       TRINITY_SOURCE_SN32, g_host_txn.target_txid);
+        return;
+    }
+    if (g_host_txn.result_code != TRINITY_OK) {
+        if (g_controller.last_error == g_host_txn.result_code)
+            source = g_controller.last_error_source;
+        response_error(req, g_host_txn.result_code, source,
+                       g_host_txn.target_txid);
+        return;
+    }
+    response_begin(req);
+    g_pc_rsp.payload_length = g_host_txn.result_length;
+    if (g_host_txn.result_length != 0u)
+        memcpy(g_pc_rsp.payload, g_host_txn.result_data,
+               g_host_txn.result_length);
+    (void)response_send();
+}
+
 static bool managed_transaction_begin(const trinity_pc_frame_t *req) {
     const uint32_t fingerprint = pc_request_fingerprint(req);
     if (g_host_txn.valid) {
         if (g_host_txn.host_txid == req->transaction_id &&
             g_host_txn.original_host_command == req->command &&
             g_host_txn.request_fingerprint == fingerprint) {
-            (void)response_send();
+            managed_transaction_respond(req);
         } else if (g_host_txn.host_txid == req->transaction_id) {
             response_error(req, TRINITY_TRANSACTION_CONFLICT,
                            TRINITY_SOURCE_HOST_PROTOCOL,
