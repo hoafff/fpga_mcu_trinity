@@ -44,21 +44,27 @@ static trinity_error_code_t full_refresh_all(void) {
 }
 
 static void managed_transaction_respond(const trinity_pc_frame_t *req) {
-    trinity_source_t source = TRINITY_SOURCE_SN32;
     if (g_host_txn.state == TRINITY_TXN_ACCEPTED ||
         g_host_txn.state == TRINITY_TXN_RUNNING) {
         response_error(req, TRINITY_RESULT_PENDING,
                        TRINITY_SOURCE_SN32, g_host_txn.target_txid);
         return;
     }
+
+    response_begin(req);
     if (g_host_txn.result_code != TRINITY_OK) {
-        if (g_controller.last_error == g_host_txn.result_code)
-            source = g_controller.last_error_source;
-        response_error(req, g_host_txn.result_code, source,
-                       g_host_txn.target_txid);
+        g_pc_rsp.flags |= TRINITY_FLAG_ERROR;
+        g_pc_rsp.payload_length = 6u;
+        trinity_write_be16(&g_pc_rsp.payload[0],
+                           (uint16_t)g_host_txn.result_code);
+        g_pc_rsp.payload[2] = g_host_txn.result_system_state;
+        g_pc_rsp.payload[3] = g_host_txn.result_source;
+        trinity_write_be16(&g_pc_rsp.payload[4],
+                           g_host_txn.result_related_target_txid);
+        (void)response_send();
         return;
     }
-    response_begin(req);
+
     g_pc_rsp.payload_length = g_host_txn.result_length;
     if (g_host_txn.result_length != 0u)
         memcpy(g_pc_rsp.payload, g_host_txn.result_data,
