@@ -10,6 +10,7 @@
       "GET_LAST_ERROR": 4,
       "GET_TXN_RESULT": 5,
       "RETIRE_TXN_RESULT": 6,
+      "SPI_DIAGNOSTIC": 7,
       "RUN_SELF_TEST": 16,
       "GENERATE_KEYPAIR": 17,
       "CREATE_SESSION": 18,
