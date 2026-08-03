@@ -39,8 +39,18 @@ trinity_error_code_t trinity_controller_activate_session(
         return TRINITY_BAD_SESSION;
     if (!controller->p1.ready || !controller->p2.ready)
         return TRINITY_BAD_STATE;
+    if (controller->ops.session_commit_low == NULL ||
+        controller->ops.session_commit_high == NULL)
+        return TRINITY_SESSION_COMMIT_FAILED;
+
     controller->state = TRINITY_SYSTEM_SESSION_ESTABLISHING;
     controller->commit_issued = false;
+    controller->ops.session_commit_low(controller->ops.context);
+    controller_wait_ms(controller, CONTROLLER_SESSION_COMMIT_LOW_MS);
+    if (controller_tiny_fault(controller)) {
+        rc = TRINITY_FAULT_LOCKED;
+        goto fail_abort;
+    }
 
     rc = controller_stage_one(controller, TRINITY_TARGET_PRIMER1, material);
     if (rc == TRINITY_OK)
@@ -65,11 +75,7 @@ trinity_error_code_t trinity_controller_activate_session(
                                        CONTROLLER_SESSION_STAGE_TIMEOUT_MS);
     if (rc != TRINITY_OK) goto fail_abort;
 
-    if (controller->ops.session_commit_toggle == NULL) {
-        rc = TRINITY_SESSION_COMMIT_FAILED;
-        goto fail_abort;
-    }
-    controller->ops.session_commit_toggle(controller->ops.context);
+    controller->ops.session_commit_high(controller->ops.context);
     controller->commit_issued = true;
     controller_progress(controller);
 
@@ -89,14 +95,18 @@ trinity_error_code_t trinity_controller_activate_session(
     controller->mode = mode;
     controller->state = TRINITY_SYSTEM_ACTIVE;
     controller->last_error = TRINITY_OK;
+    controller->last_error_source = TRINITY_SOURCE_SN32;
+    controller->last_error_detail = 0u;
     return TRINITY_OK;
 
 fail_abort:
+    controller->ops.session_commit_low(controller->ops.context);
     (void)controller_abort_one(controller, TRINITY_TARGET_PRIMER1,
                                material->session_id);
     (void)controller_abort_one(controller, TRINITY_TARGET_PRIMER2,
                                material->session_id);
 fail_zeroize:
+    controller->ops.session_commit_low(controller->ops.context);
     (void)trinity_controller_zeroize(controller, TRINITY_ZEROIZE_ALL,
                                      timeout_ms);
     controller_latch_error(controller, rc, TRINITY_SOURCE_SN32,
