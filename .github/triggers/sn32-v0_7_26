@@ -1,0 +1,3 @@
+trigger=2026-08-05T03:25:00+07:00
+baseline=f5807247ae1f4e71517f57545d8d341093d09f7a
+reason=hardware_map_proved_0x200_stack_overflow_into_spi_trace
