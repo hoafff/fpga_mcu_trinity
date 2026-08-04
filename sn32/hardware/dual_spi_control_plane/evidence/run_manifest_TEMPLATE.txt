@@ -8,8 +8,8 @@ SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 SOURCE IDENTITY
 repository_commit:
 mlkem_submodule_commit: 048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
-sn32_architecture_version: 0.7.9
-sn32_build_id: 0x00070009
+sn32_architecture_version: 0.7.10
+sn32_build_id: 0x0007000A
 
 SN32 BUILD AND FLASH
 armclang_version: 6.24
@@ -43,6 +43,9 @@ com_port:
 spi_frequency_hz: 100000
 spi_mode: 0
 spi_bit_order: MSB_FIRST
+spi_word_length_bits: 8
+spi_fifo_organization: 16_X_8_BIT
+spi_fifo_new_th_en: 1
 spi_cs_guard_us: 10
 spi_startup_warmup_ms: 2000
 spi_response_settle_ms: 15
@@ -68,54 +71,44 @@ sn32_p2_3_irq_from_p1_t14:
 sn32_p2_8_irq_from_p2_t14:
 miso_released_when_each_cs_high:
 
-V0.7.9 TRANSPORT IMPLEMENTATION AUDIT
+V0.7.10 TRANSPORT IMPLEMENTATION AUDIT
+new_th_en_16x8_fifo_enabled:
+reset_default_8x16_fifo_forbidden:
 spi_enabled_during_freset:
 freset_self_clear_wait_confirmed:
 single_freset_before_each_cs:
 no_freset_in_spi_end:
 spi_completed_frame_read_order:
 spi_data_low_byte_read:
-normal_same_mailbox_retry_without_new_request:
-normal_mailbox_retry_attempt_limit_two:
-startup_get_info_prime_function_present:
-startup_get_info_prime_length_10:
-startup_get_info_prime_requires_irq_active:
-startup_get_info_prime_context_only:
-startup_get_info_prime_command_only:
-startup_get_info_prime_no_new_request:
-startup_get_info_prime_no_new_txid:
-final_fresh_cs_capture_after_prime:
+mailbox_retry_without_new_request:
+mailbox_retry_attempt_limit_two:
+startup_mailbox_prime_removed:
 probe_fail_fast_p1_before_p2:
 exact_frame_length_capture_retained:
 single_cs_header_and_remainder_retained:
 system_info_side_effect_free:
 
-LOCKED V0.7.8 FAILURE/RECOVERY EVIDENCE
-v0_7_8_identity_verified:
-v0_7_8_startup_request_txid_1_crc_3598:
-v0_7_8_first_response_bad_magic_irq_active:
-v0_7_8_host_diag_txid_2_transaction_conflict:
-v0_7_8_recovered_original_txid_1_response:
-v0_7_8_recovered_response_crc_d26c:
-v0_7_8_recovered_response_capture_length_22:
-v0_7_8_recovered_irq_after_response_zero:
+LOCKED PREVIOUS FAILURE EVIDENCE
+v0_7_8_valid_old_p1_response_crc_match:
+v0_7_9_first_header_run_1: 2C 08 00 00 00 00 00 06
+v0_7_9_first_header_run_2: 2C 08 00 00 00 01 00 0C
+v0_7_9_trailing_txid_and_length_fields_correct:
+v0_7_9_mailbox_prime_disproven:
 
 COMMAND EVIDENCE
 standalone_ping_log:
 local_system_info_log:
 first_spi_failure_log:
-startup_reset_residue_log:
 p1_get_info_spi_diag_log:
 p1_get_status_spi_diag_log:
 p2_get_info_spi_diag_log:
 p2_get_status_spi_diag_log:
-system_info_after_probe_log:
 system_status_before_log:
 dual_spi_bringup_log:
 system_status_after_log:
 wiring_photo:
 
-FIRST-ACTIVE-FAILURE AND STARTUP-RESIDUE AUDIT
+FIRST-ACTIVE-FAILURE AUDIT
 first_spi_failure_latched:
 startup_residue_present:
 trace_context:
@@ -129,8 +122,6 @@ trace_response_capture_length:
 trace_response_frame_length:
 trace_response_bytes:
 trace_response_crc_match:
-exact_reset_residue_signature_match:
-reset_order_used:
 first_failure_transfer_stage:
 first_failure_transfer_direction:
 first_failure_transfer_byte_index:
@@ -140,27 +131,15 @@ first_failure_spi_status:
 periodic_probe_frozen_after_first_failure:
 
 RAW SPI DIAGNOSTIC AUDIT
-p1_get_info_target_txid:
-p1_get_info_request_fingerprint:
-p1_get_info_request_crc:
 p1_get_info_response_capture_length_22:
 p1_get_info_response_crc_match:
 p1_get_info_irq_sequence_valid:
-p1_get_status_target_txid:
-p1_get_status_request_fingerprint:
-p1_get_status_request_crc:
 p1_get_status_response_capture_length_26:
 p1_get_status_response_crc_match:
 p1_get_status_irq_sequence_valid:
-p2_get_info_target_txid:
-p2_get_info_request_fingerprint:
-p2_get_info_request_crc:
 p2_get_info_response_capture_length_22:
 p2_get_info_response_crc_match:
 p2_get_info_irq_sequence_valid:
-p2_get_status_target_txid:
-p2_get_status_request_fingerprint:
-p2_get_status_request_crc:
 p2_get_status_response_capture_length_26:
 p2_get_status_response_crc_match:
 p2_get_status_irq_sequence_valid:
@@ -168,12 +147,11 @@ response_command_and_txid_correlation_confirmed:
 first_active_spi_failure_after_raw_diagnostics:
 
 ACCEPTANCE RESULTS
-v0_7_9_exact_keil_rebuild:
-v0_7_9_snlink_program_verify:
-v0_7_9_local_identity_readback:
-v0_7_9_standalone_uart_ping:
-v0_7_9_first_active_spi_failure_latch_clear:
-v0_7_9_startup_reset_residue_none_or_exact_match:
+v0_7_10_exact_keil_rebuild:
+v0_7_10_snlink_program_verify:
+v0_7_10_local_identity_readback:
+v0_7_10_standalone_uart_ping:
+v0_7_10_first_active_spi_failure_latch_clear:
 p1_get_info_raw_diagnostic:
 p1_get_status_raw_diagnostic:
 p2_get_info_raw_diagnostic:
@@ -200,8 +178,3 @@ tiny_safety_integration: PENDING
 full_system_qualification: PENDING
 hardware_qualified: false
 full_system_hardware_qualified: false
-
-FAILURE NOTES
-Retain the v0.7.8 log proving the original startup GET_INFO txid-1 mailbox was
-valid and recovered after the diagnostic phase clocked ten selected-CS bytes.
-Confirm the loaded image is 0.7.9 / 0x00070009 before interpreting the rerun.
