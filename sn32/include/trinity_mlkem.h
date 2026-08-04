@@ -24,11 +24,28 @@ extern "C" {
 #define TRINITY_SESSION_ID_BYTES 4u
 #define TRINITY_KDF_OUTPUT_BYTES 28u
 
+#define TRINITY_MLKEM512_LOW_RAM_WORKSPACE_BYTES 1792u
+#define TRINITY_MLKEM512_LOW_RAM_WORKSPACE_ALIGNMENT 32u
+
+#if defined(__GNUC__) || defined(__clang__)
+#define TRINITY_MLKEM_WORKSPACE_ALIGN \
+    __attribute__((aligned(TRINITY_MLKEM512_LOW_RAM_WORKSPACE_ALIGNMENT)))
+#else
+#define TRINITY_MLKEM_WORKSPACE_ALIGN
+#endif
+
+typedef struct TRINITY_MLKEM_WORKSPACE_ALIGN {
+    uint8_t bytes[TRINITY_MLKEM512_LOW_RAM_WORKSPACE_BYTES];
+} trinity_mlkem512_low_ram_workspace_t;
+
 typedef struct {
     uint8_t ascon_key[TRINITY_ASCON_KEY_BYTES];
     uint8_t nonce_prefix[TRINITY_NONCE_PREFIX_BYTES];
     uint32_t session_id;
 } trinity_session_material_t;
+
+void trinity_mlkem512_bind_low_ram_workspace(
+    trinity_mlkem512_low_ram_workspace_t *workspace);
 
 void trinity_sha3_256(uint8_t output[32],
                       const uint8_t *input,
