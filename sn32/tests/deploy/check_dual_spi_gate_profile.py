@@ -20,6 +20,7 @@ PART15 = ROOT / "sn32/src/app/trinity_deploy_main_part_15.inc"
 PART17 = ROOT / "sn32/src/app/trinity_deploy_main_part_17.inc"
 CONTROLLER00 = ROOT / "sn32/src/app/trinity_full_controller_part_00.inc"
 CONTROLLER01 = ROOT / "sn32/src/app/trinity_full_controller_part_01.inc"
+CONTROLLER03 = ROOT / "sn32/src/app/trinity_full_controller_part_03.inc"
 PC_CONSTANTS = ROOT / "pc_host/src/trinity_host/protocol/constants.py"
 CLIENT = ROOT / "pc_host/src/trinity_host/serial_client.py"
 CLI = ROOT / "pc_host/src/trinity_host/cli.py"
@@ -88,6 +89,7 @@ def main() -> int:
     part15 = read(PART15)
     part17 = read(PART17)
     controller = read(CONTROLLER00) + read(CONTROLLER01)
+    controller03 = read(CONTROLLER03)
     constants = read(PC_CONSTANTS)
     client = read(CLIENT)
     cli = read(CLI)
@@ -107,8 +109,8 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 6):
-        fail(f"exact-frame transport image must be version 0.7.6, got {version}")
+    if version != (0, 7, 7):
+        fail(f"mailbox recovery image must be version 0.7.7, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("dual-SPI qualification must remain at 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
@@ -120,7 +122,7 @@ def main() -> int:
     if macro(config, "TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS") != 1:
         fail("inter-exchange mailbox guard must remain 1 ms")
 
-    require(part00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070006)", "deploy identity")
+    require(part00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070007)", "deploy identity")
     require(part00, "SPI qualification clock and CLKDIV disagree", "deploy clock lock")
     require(part05, "SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;", "SPI init")
     forbid(part05, "SN_SPI0->CLKDIV_b.DIV = 5u", "SPI init")
@@ -139,15 +141,16 @@ def main() -> int:
         require(part01, token, "first-failure state")
 
     for token in (
-        "spi_bytes_segment",
-        "spi_transfer_timeout",
-        "byte_offset",
-        "transfer_length",
-        "Drain the received byte as soon as RX_EMPTY clears",
-        "g_spi_trace.transfer_completed",
+        "spi_reset_idle",
+        "SN_SPI0->CTRL0_b.SPIEN = 0u;",
         "SN_SPI0->CTRL0_b.FRESET = 3u;",
+        "SN_SPI0->CTRL0_b.SPIEN = 1u;",
+        "while ((SN_SPI0->STAT & SPI_RX_EMPTY) == 0u && drained < 8u)",
+        "spi_bytes_segment",
+        "SONiX polling sequence: complete the frame before reading DATA",
+        "g_spi_trace.transfer_completed",
     ):
-        require(part06, token, "segmented SPI transport")
+        require(part06, token, "v0.7.7 SPI transport")
 
     transfer = function_slice(
         part06,
@@ -156,37 +159,36 @@ def main() -> int:
         "spi_bytes_segment",
     )
     tx_write = transfer.find("SN_SPI0->DATA =")
+    busy_wait = transfer.find("while ((SN_SPI0->STAT & SPI_BUSY)")
     rx_wait = transfer.find("while ((SN_SPI0->STAT & SPI_RX_EMPTY)")
     rx_read = transfer.find("value = (uint8_t)SN_SPI0->DATA;")
-    busy_wait = transfer.find("while ((SN_SPI0->STAT & SPI_BUSY)")
-    if min(tx_write, rx_wait, rx_read, busy_wait) < 0 or not (
-        tx_write < rx_wait < rx_read < busy_wait
+    if min(tx_write, busy_wait, rx_wait, rx_read) < 0 or not (
+        tx_write < busy_wait < rx_wait < rx_read
     ):
-        fail("SPI byte order must be TX write -> RX wait/read -> BUSY wait")
-    if transfer.count("const uint32_t start = g_ms") != 0:
-        fail("whole-packet timeout returned; each wait stage needs a fresh deadline")
+        fail("SPI byte order must be TX write -> BUSY clear -> RX ready -> DATA read")
     if transfer.count("stage_start = g_ms") < 3:
-        fail("TX_FULL, RX_EMPTY and BUSY waits do not have independent deadlines")
+        fail("TX_FULL, BUSY and RX_EMPTY waits need independent deadlines")
 
     for token in (
+        "spi_capture_response_once",
+        "spi_response_read_retryable",
         "spi_capture_response",
-        "Read the eight-byte header and its declared payload/CRC",
-        "spi_bytes_segment(NULL, g_spi_buf",
+        "retry the same pending response under a fresh CS",
+        "attempt < 2u",
+        "irq_active(ep)",
         "frame_len - TRINITY_SPI_HEADER_SIZE",
-        "Clocking only the declared frame",
-        "trace->response_capture_length != 16u",
         "g_spi_trace.response_capture_length = (uint16_t)captured",
         "if (issued_txid != NULL) *issued_txid = txid;",
         "g_spi_trace.context = g_spi_trace_context",
     ):
-        require(part07, token, "exact-frame single-CS transport")
+        require(part07, token, "single-request mailbox recovery")
     forbid(part07, "spi_bytes(NULL, g_spi_buf, TRINITY_SPI_MAX_PACKET)", "response capture")
 
     capture = function_slice(
         part07,
-        "static trinity_error_code_t spi_capture_response(",
-        "static trinity_error_code_t spi_drain_startup_mailbox(",
-        "spi_capture_response",
+        "static trinity_error_code_t spi_capture_response_once(",
+        "static bool spi_response_read_retryable(",
+        "spi_capture_response_once",
     )
     if capture.count("spi_select(ep)") != 1 or capture.count("spi_end();") != 1:
         fail("response header and remainder must share exactly one CS assertion")
@@ -194,6 +196,17 @@ def main() -> int:
         fail("response capture must contain exactly header and remainder segments")
     if capture.find("spi_end();") < capture.rfind("spi_bytes_segment("):
         fail("CS is released before the declared response remainder is captured")
+
+    retry = function_slice(
+        part07,
+        "static trinity_error_code_t spi_capture_response(",
+        "static trinity_error_code_t spi_drain_startup_mailbox(",
+        "spi_capture_response retry wrapper",
+    )
+    if retry.count("spi_capture_response_once(ep, response_len)") != 1:
+        fail("mailbox retry wrapper must call exactly one capture per attempt")
+    if "endpoint_exchange" in retry:
+        fail("mailbox retry must not issue another request")
 
     for token in (
         "response_crc_received",
@@ -203,6 +216,19 @@ def main() -> int:
         "spi_latch_first_failure();",
     ):
         require(part08, token, "response validation")
+
+    for token in (
+        "Probe fail-fast",
+        "controller_probe_endpoint(controller, &controller->p1)",
+        "controller->p2.ready = false",
+        "controller_probe_endpoint(controller, &controller->p2)",
+    ):
+        require(controller03, token, "fail-fast endpoint discovery")
+    p1_probe = controller03.find("controller_probe_endpoint(controller, &controller->p1)")
+    p1_return = controller03.find("return rc;", p1_probe)
+    p2_probe = controller03.find("controller_probe_endpoint(controller, &controller->p2)")
+    if min(p1_probe, p1_return, p2_probe) < 0 or not (p1_probe < p1_return < p2_probe):
+        fail("P2 probe can still execute before a P1 failure returns")
 
     for token in (
         "handle_spi_diagnostic",
@@ -260,7 +286,7 @@ def main() -> int:
         require(dual_test, token, "dual-SPI regression")
     for token in (
         "test_p2_get_info_trace_is_byte_exact",
-        "HostCommand.SPI_DIAGNOSTIC",
+        "response_capture_length, 22",
         "not side-effect-free",
     ):
         require(diag_test, token, "raw diagnostic regression")
@@ -294,42 +320,41 @@ def main() -> int:
             require(text, token, label)
 
     for token in (
-        "architecture_version = 0.7.6",
-        "sn32_build_id         = 0x00070006",
-        "header + declared remainder",
-        "RX FIFO drain",
-        "response_capture_length=22",
-        "response_capture_length=26",
-        "v0.7.6 exact Keil rebuild",
+        "architecture_version = 0.7.7",
+        "sn32_build_id         = 0x00070007",
+        "reset SPI/FIFO before every CS",
+        "BUSY clear before DATA read",
+        "retry the same pending mailbox",
+        "fail-fast P1 before P2",
+        "v0.7.7 exact Keil rebuild",
         "full_system_hardware_qualified:            false",
     ):
         require(gate_doc, token, "dual-SPI gate")
     for token in (
-        'implementation_status = "V0_7_6_EXACT_FRAME_SINGLE_CS_RX_DRAIN_SOURCE_READY"',
-        'qualification_build_id = "0x00070006"',
-        'qualification_architecture_version = "0.7.6"',
-        'qualification_response_capture = "HEADER_THEN_DECLARED_REMAINDER_UNDER_ONE_CS_EXACT_FRAME_LENGTH"',
-        'deploy_translation_unit_compile = "PENDING_CI_FOR_V0_7_6"',
+        'implementation_status = "V0_7_7_FIFO_RESET_COMPLETED_FRAME_MAILBOX_RETRY_SOURCE_READY"',
+        'qualification_build_id = "0x00070007"',
+        'qualification_architecture_version = "0.7.7"',
+        'qualification_mailbox_retry = "TWO_READ_ATTEMPTS_WITHOUT_REISSUING_REQUEST_WHILE_IRQ_ACTIVE"',
+        'deploy_translation_unit_compile = "PENDING_CI_FOR_V0_7_7"',
     ):
         require(target, token, "SN32 target metadata")
     for token in (
-        "sn32_architecture_version: 0.7.6",
-        "sn32_build_id: 0x00070006",
-        "trace_response_capture_length:",
-        "p1_get_info_response_capture_length_22:",
-        "p1_get_status_response_capture_length_26:",
-        "single_cs_header_and_remainder_confirmed:",
-        "rx_fifo_drained_before_busy_wait_confirmed:",
-        "v0_7_6_exact_keil_rebuild:",
+        "sn32_architecture_version: 0.7.7",
+        "sn32_build_id: 0x00070007",
+        "spi_fifo_reset_before_each_cs:",
+        "spi_completed_frame_read_order:",
+        "same_mailbox_retry_without_new_request:",
+        "probe_fail_fast_p1_before_p2:",
+        "v0_7_7_exact_keil_rebuild:",
         "full_system_hardware_qualified: false",
     ):
         require(evidence_template, token, "dual-SPI evidence template")
 
-    print("PASS: v0.7.6 identity and 100 kHz qualification profile are locked")
-    print("PASS: response header and declared remainder use one continuous CS")
-    print("PASS: response capture length equals the declared frame length")
-    print("PASS: RX FIFO is drained before the BUSY completion wait")
-    print("PASS: timeout telemetry and immutable first-failure latch remain enabled")
+    print("PASS: v0.7.7 identity and 100 kHz qualification profile are locked")
+    print("PASS: SPI/FIFO reset occurs while disabled before each CS window")
+    print("PASS: completed-frame BUSY/RX/DATA polling order matches the SONiX driver")
+    print("PASS: malformed first header retries the same pending mailbox only")
+    print("PASS: endpoint discovery returns on P1 failure before probing P2")
     print("NOTE: static PASS does not claim exact Keil rebuild, flash or hardware PASS")
     return 0
 
