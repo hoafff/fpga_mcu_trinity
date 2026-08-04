@@ -1,4 +1,6 @@
-module primer1_top (
+module primer1_top #(
+    parameter logic [31:0] BUILD_ID = 32'h5031_D003
+) (
     input  logic sys_clk_i,
     input  logic rst_ni,
     input  logic spi_sck_i,
@@ -76,7 +78,7 @@ module primer1_top (
     .response_ready_o(response_ready), .mailbox_pending_o(mailbox_pending)
   );
 
-  primer1_command_core u_core (
+  primer1_command_core #(.BUILD_ID(BUILD_ID)) u_core (
     .clk_i(sys_clk_i), .rst_ni(rst_ni),
     .secure_enable_i(secure_sync), .zeroize_ni(zeroize_sync),
     .fatal_latched_i(fatal_sync),
