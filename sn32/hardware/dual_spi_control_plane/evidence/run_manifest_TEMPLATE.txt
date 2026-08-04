@@ -8,8 +8,8 @@ SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 SOURCE IDENTITY
 repository_commit:
 mlkem_submodule_commit: 048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
-sn32_architecture_version: 0.7.10
-sn32_build_id: 0x0007000A
+sn32_architecture_version: 0.7.11
+sn32_build_id: 0x0007000B
 
 SN32 BUILD AND FLASH
 armclang_version: 6.24
@@ -44,8 +44,7 @@ spi_frequency_hz: 100000
 spi_mode: 0
 spi_bit_order: MSB_FIRST
 spi_word_length_bits: 8
-spi_fifo_organization: 16_X_8_BIT
-spi_fifo_new_th_en: 1
+spi_fifo_th_expected: 0x80000000
 spi_cs_guard_us: 10
 spi_startup_warmup_ms: 2000
 spi_response_settle_ms: 15
@@ -61,51 +60,31 @@ sn32_p3_8_session_commit_disconnected:
 p1_r13_to_p2_r13_uart_disconnected:
 p2_uart_rx_r13_pulled_up_to_3v3_through_10k:
 
-WIRING
-sn32_p1_0_sck_to_p1_p16_and_p2_p16:
-sn32_p1_2_mosi_to_p1_p15_and_p2_p15:
-sn32_p1_1_miso_from_p1_t15_and_p2_t15:
-sn32_p2_1_cs_to_p1_r14:
-sn32_p2_2_cs_to_p2_r14:
-sn32_p2_3_irq_from_p1_t14:
-sn32_p2_8_irq_from_p2_t14:
-miso_released_when_each_cs_high:
-
-V0.7.10 TRANSPORT IMPLEMENTATION AUDIT
-new_th_en_16x8_fifo_enabled:
-reset_default_8x16_fifo_forbidden:
-spi_enabled_during_freset:
-freset_self_clear_wait_confirmed:
-single_freset_before_each_cs:
-no_freset_in_spi_end:
-spi_completed_frame_read_order:
-spi_data_low_byte_read:
-mailbox_retry_without_new_request:
-mailbox_retry_attempt_limit_two:
-startup_mailbox_prime_removed:
-probe_fail_fast_p1_before_p2:
-exact_frame_length_capture_retained:
-single_cs_header_and_remainder_retained:
+V0.7.11 TELEMETRY IMPLEMENTATION AUDIT
+response_sample_max_8:
+full_32bit_data_register_captured:
+status_before_each_data_read_captured:
+status_after_each_data_read_captured:
+ctrl0_readback_captured:
+ctrl1_readback_captured:
+clkdiv_readback_captured:
+fifo_th_readback_captured:
+legacy_first_failure_decoder_compatible:
 system_info_side_effect_free:
+mailbox_not_consumed_by_host_diagnostic:
 
 LOCKED PREVIOUS FAILURE EVIDENCE
 v0_7_8_valid_old_p1_response_crc_match:
 v0_7_9_first_header_run_1: 2C 08 00 00 00 00 00 06
 v0_7_9_first_header_run_2: 2C 08 00 00 00 01 00 0C
-v0_7_9_trailing_txid_and_length_fields_correct:
-v0_7_9_mailbox_prime_disproven:
+v0_7_10_first_header_run_1: F9 07 00 00 00 01 00 0C
+v0_7_10_first_header_run_2: 1C 08 00 00 00 01 00 0C
+v0_7_10_new_th_en_did_not_fix_prefix:
 
 COMMAND EVIDENCE
 standalone_ping_log:
 local_system_info_log:
 first_spi_failure_log:
-p1_get_info_spi_diag_log:
-p1_get_status_spi_diag_log:
-p2_get_info_spi_diag_log:
-p2_get_status_spi_diag_log:
-system_status_before_log:
-dual_spi_bringup_log:
-system_status_after_log:
 wiring_photo:
 
 FIRST-ACTIVE-FAILURE AUDIT
@@ -128,46 +107,34 @@ first_failure_transfer_byte_index:
 first_failure_transfer_length:
 first_failure_transfer_completed:
 first_failure_spi_status:
-periodic_probe_frozen_after_first_failure:
 
-RAW SPI DIAGNOSTIC AUDIT
-p1_get_info_response_capture_length_22:
-p1_get_info_response_crc_match:
-p1_get_info_irq_sequence_valid:
-p1_get_status_response_capture_length_26:
-p1_get_status_response_crc_match:
-p1_get_status_irq_sequence_valid:
-p2_get_info_response_capture_length_22:
-p2_get_info_response_crc_match:
-p2_get_info_irq_sequence_valid:
-p2_get_status_response_capture_length_26:
-p2_get_status_response_crc_match:
-p2_get_status_irq_sequence_valid:
-response_command_and_txid_correlation_confirmed:
-first_active_spi_failure_after_raw_diagnostics:
+RAW REGISTER TELEMETRY
+spi_ctrl0:
+spi_ctrl1:
+spi_clkdiv:
+spi_fifo_th:
+response_sample_count:
+response_status_before_read:
+response_data_words:
+response_status_after_read:
+upper_data_lane_contains_expected_header_bytes:
+status_changes_after_data_read:
+fifo_th_runtime_matches_expected:
+ctrl_runtime_matches_locked_profile:
+measured_root_cause:
+approved_corrective_change:
 
 ACCEPTANCE RESULTS
-v0_7_10_exact_keil_rebuild:
-v0_7_10_snlink_program_verify:
-v0_7_10_local_identity_readback:
-v0_7_10_standalone_uart_ping:
-v0_7_10_first_active_spi_failure_latch_clear:
-p1_get_info_raw_diagnostic:
-p1_get_status_raw_diagnostic:
-p2_get_info_raw_diagnostic:
-p2_get_status_raw_diagnostic:
-p1_get_info_identity:
-p2_get_info_identity:
-p1_p2_ready_mask:
-p1_retained_kat_0x013e:
-p1_result_retirement:
-p2_retained_kat_0x03e3:
-p2_result_retirement:
-final_ready_mask_sn32_p1_p2:
-final_fault_flags_zero:
-p2_uart_rx_idle_high:
-miso_contention_absent:
-abnormal_heating_absent:
+v0_7_11_exact_keil_rebuild:
+v0_7_11_snlink_program_verify:
+v0_7_11_local_identity_readback:
+v0_7_11_standalone_uart_ping:
+v0_7_11_register_telemetry_present:
+v0_7_11_first_8_raw_data_words_present:
+v0_7_11_status_before_after_present:
+root_cause_selected_from_measurement:
+raw_spi_diagnostics_blocked_pending_root_cause: true
+dual_spi_hardware_gate_blocked: true
 
 EXPLICIT NON-CLAIMS
 session_stage_commit_hardware: PENDING
