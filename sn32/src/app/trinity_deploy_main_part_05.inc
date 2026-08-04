@@ -26,7 +26,14 @@ static void spi_init(void) {
     SN_SPI0->CTRL0_b.MS = 0u;
     SN_SPI0->CTRL0_b.LOOPBACK = 0u;
     SN_SPI0->CTRL0_b.SDODIS = 0u;
-    SN_SPI0->FIFO_TH = 0u;
+
+    /*
+     * NEW_TH_EN selects the SN32F407 16 x 8-bit FIFO organization.
+     * Leaving it clear keeps the reset-default 8 x 16-bit organization and
+     * corrupts byte-oriented SPI traffic by packing/skipping received bytes.
+     */
+    SN_SPI0->FIFO_TH = (1u << 31);
+
     SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;
     SN_SPI0->CTRL1 = 0u; /* Mode 0, MSB first. */
     SN_SPI0->CTRL0_b.SELDIS = 1u;
