@@ -51,28 +51,26 @@ module tb_fault_output;
 
   primer2_command_core #(.CLOCK_HZ(1000)) dut (.*);
 
-  task automatic expect_known_fault(input logic expected,
-                                    input string context);
-    begin
-      #1;
-      if ($isunknown(fault_o))
-        $fatal(1, "fault_o unknown during %s", context);
-      if (fault_o !== expected)
-        $fatal(1, "fault_o=%b expected=%b during %s",
-               fault_o, expected, context);
-    end
-  endtask
+  task automatic expect_known_fault(input logic expected_value);
+      begin
+        #1;
+        if ($isunknown(fault_o))
+          $fatal(1, "fault_o is unknown");
+        if (fault_o !== expected_value)
+          $fatal(1, "fault_o=%b expected=%b", fault_o, expected_value);
+      end
+    endtask
 
   initial begin
     repeat (3) @(posedge clk_i);
-    expect_known_fault(1'b0, "reset asserted");
+    expect_known_fault(1'b0);
     if (rx_accept_enable_o !== 1'b0)
       $fatal(1, "receiver enabled during reset");
     $display("PASS reset_fault_output_deterministic");
 
     rst_ni = 1'b1;
     repeat (3) @(posedge clk_i);
-    expect_known_fault(1'b0, "normal fail-closed idle");
+    expect_known_fault(1'b0);
     if (session_state_o != SESSION_SELF_TEST_REQUIRED ||
         rx_accept_enable_o !== 1'b0)
       $fatal(1, "normal reset-idle state mismatch");
@@ -81,7 +79,7 @@ module tb_fault_output;
     @(negedge clk_i);
     fatal_latched_i = 1'b1;
     @(posedge clk_i);
-    expect_known_fault(1'b1, "external fatal assertion");
+    expect_known_fault(1'b1);
     if (!dut.fault_latched || dut.core_state != 3'd4)
       $fatal(1, "external fatal did not latch fault and start zeroize");
     $display("PASS external_fatal_asserts_fault_and_zeroize");
@@ -95,7 +93,7 @@ module tb_fault_output;
     end
     if (session_state_o != SESSION_FAULT_LOCKED)
       $fatal(1, "fault zeroize did not finish in FAULT_LOCKED");
-    expect_known_fault(1'b1, "fatal input removed after fault latch");
+    expect_known_fault(1'b1);
     if (dut.active_key != 0 || dut.staged_key != 0 || dut.active_valid ||
         dut.staged_valid || result_pending_o || rx_accept_enable_o)
       $fatal(1, "fault lifecycle did not remain zeroized and fail-closed");
@@ -103,17 +101,17 @@ module tb_fault_output;
 
     zeroize_ni = 1'b0;
     repeat (4) @(posedge clk_i);
-    expect_known_fault(1'b1, "zeroize input while fault locked");
+    expect_known_fault(1'b1);
     if (session_state_o != SESSION_FAULT_LOCKED)
       $fatal(1, "zeroize input illegally cleared FAULT_LOCKED");
     zeroize_ni = 1'b1;
     repeat (4) @(posedge clk_i);
-    expect_known_fault(1'b1, "zeroize released while fault locked");
+    expect_known_fault(1'b1);
     $display("PASS zeroize_does_not_clear_latched_fault");
 
     rst_ni = 1'b0;
     #1;
-    expect_known_fault(1'b0, "trusted reset clears fault lifecycle");
+    expect_known_fault(1'b0);
     if (session_state_o != SESSION_SELF_TEST_REQUIRED || dut.fault_latched)
       $fatal(1, "reset did not restore SELF_TEST_REQUIRED and clear fault latch");
     $display("PASS reset_clears_fault_and_requires_selftest");

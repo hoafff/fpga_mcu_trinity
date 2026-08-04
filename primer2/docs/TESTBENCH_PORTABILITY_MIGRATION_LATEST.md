@@ -1,0 +1,126 @@
+# Primer #2 testbench portability migration
+
+- Trigger commit: `cfd28cb7deb81a293386f0322d7cb5e4cd1771c2`
+- Workflow run: `30942625878`
+- Generated UTC: `2026-08-04T19:18:05.159373+00:00`
+- Result: **PASS**
+- Exit code: `0`
+
+The candidate changes affect testbench syntax and race-free stimulus
+only. RTL implementation files are unchanged by this migration.
+
+```text
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_reset_states.sv:65: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_reset_states.sv:70: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+STATIC RTL CHECK PASS (7 files)
+KAT_CT E6896DFDE9C67FB12505040A2B87C401917A1A93C02CAE64
+KAT_TAG E85FD9296FE784086CC5665283819E4B
+PASS ascon_zero_and_nonzero_decrypt
+PASS ad_ciphertext_tag_bit_flip_rejection
+PASS wrong_key_and_nonce_rejection
+PASS official_count817_sender_compatibility
+PASS uart_frame_layout_66_bytes
+AD=010212341122334400000000000000010018334400000000
+PT=0102030405060708090A0B0C0D0E0F101112131415161700
+CT=0C320E28037E35D1B855C290826D379B13703BA378B2CC30
+TAG=6571AF37ED854B37A89E92C0D861901A
+FRAME=A55A0102123411223344000000000000000100183344000000000C320E28037E35D1B855C290826D379B13703BA378B2CC306571AF37ED854B37A89E92C0D861901A
+
+=== COMPILE tb_ascon_aead128_decrypt ===
+=== RUN tb_ascon_aead128_decrypt ===
+PASS ascon_zero_kat_decrypt
+PASS ascon_nonzero_p1_compatible_vector
+PASS ascon_tag_flip_rejected
+PASS ascon_ad_flip_rejected
+PASS ascon_ciphertext_flip_rejected
+PASS ascon_wrong_key_rejected
+PASS ascon_wrong_nonce_rejected
+PASS ascon_abort_zeroizes_candidate
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_ascon_aead128_decrypt.sv:86: $finish called at 4055000 (1ps)
+
+=== COMPILE tb_uart_rx_byte ===
+=== RUN tb_uart_rx_byte ===
+PASS uart_rx_8n1_byte
+PASS uart_rx_framing_error
+PASS uart_rx_abort
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_uart_rx_byte.sv:30: $finish called at 2475000 (1ps)
+
+=== COMPILE tb_uart_frame_receiver ===
+=== RUN tb_uart_frame_receiver ===
+PASS frame_66_bytes_body_sync_not_resync
+PASS frame_interbyte_timeout_drop
+PASS frame_uart_error_drop
+PASS result_pending_drop_once_per_candidate_window
+PASS inactive_session_frame_blocked
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_uart_frame_receiver.sv:34: $finish called at 13100000 (1ps)
+
+=== COMPILE tb_spi_packet_endpoint ===
+=== RUN tb_spi_packet_endpoint ===
+PASS spi_mode0_request
+PASS spi_bad_crc_rejected
+PASS spi_non_magic_window_silent
+PASS spi_response_mailbox_build
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_spi_packet_endpoint.sv:39: $finish called at 25775000 (1ps)
+
+=== COMPILE tb_primer2_command_core ===
+=== RUN tb_primer2_command_core ===
+PASS reset_idle_fail_closed
+PASS get_info
+PASS no_plaintext_before_authentication
+PASS retained_duplicate_retry_and_conflict
+PASS self_test_retained_result
+PASS stage_commit_activate
+PASS wrong_session_frame_rejected
+PASS decrypt_datapath_scrubbed_after_result_retention
+PASS authenticated_result_read_ack_idempotent
+PASS replay_rejected_without_sequence_commit
+PASS tag_flip_no_result_no_sequence_advance
+PASS zero_sequence_rejected
+PASS wrong_ad_message_type_rejected
+PASS forward_sequence_gap_rejected
+PASS pending_result_not_overwritten
+PASS next_frame_and_pending_protection
+PASS stale_sequence_rejected
+PASS abort_during_decrypt_zeroizes_candidate
+PASS zeroize_all_during_decrypt
+PASS secure_enable_drop_requires_new_selftest_session
+PASS fatal_latch_fault_locked
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_primer2_command_core.sv:166: $finish called at 7165000 (1ps)
+
+=== COMPILE tb_bad_tag_threshold ===
+=== RUN tb_bad_tag_threshold ===
+PASS three_consecutive_bad_tags_fault_and_zeroize
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_bad_tag_threshold.sv:305: $finish called at 3435000 (1ps)
+
+=== COMPILE tb_fault_output ===
+=== RUN tb_fault_output ===
+PASS reset_fault_output_deterministic
+PASS normal_idle_fault_output_clear
+PASS external_fatal_asserts_fault_and_zeroize
+PASS fault_persists_after_external_fatal_removed
+PASS zeroize_does_not_clear_latched_fault
+PASS reset_clears_fault_and_requires_selftest
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_fault_output.sv:119: $finish called at 408000 (1ps)
+
+=== COMPILE tb_reset_states ===
+=== RUN tb_reset_states ===
+PASS reset_from_critical_state_1
+PASS reset_from_critical_state_2
+PASS reset_from_critical_state_3
+PASS reset_from_critical_state_4
+PASS reset_from_critical_state_5
+PASS reset_from_critical_state_6
+PASS reset_from_critical_state_7
+PASS reset_from_critical_state_8
+PASS reset_all_critical_states_zeroize_secrets
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_reset_states.sv:206: $finish called at 195000 (1ps)
+
+=== COMPILE tb_primer2_top ===
+=== RUN tb_primer2_top ===
+PASS top_idle_miso_irq_safety
+PASS top_heartbeat
+PASS top_fatal_fail_closed
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_primer2_top.sv:22: $finish called at 1595000 (1ps)
+
+PRIMER2 RTL REGRESSION PASS
+```

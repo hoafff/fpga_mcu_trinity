@@ -15,9 +15,9 @@ module tb_primer2_top;
     $display("PASS top_idle_miso_irq_safety");
     hb0=heartbeat;repeat(120)@(posedge clk);if(heartbeat===hb0)$fatal(1,"heartbeat did not toggle");
     $display("PASS top_heartbeat");
-    fatal=1;repeat(4)@(posedge clk);fatal=0;cycles=0;
-    while(!fault&&cycles<80)begin @(posedge clk);cycles=cycles+1;end
-    if(!fault||dut.session_state!=4'd8)$fatal(1,"fatal did not enter fault locked");
+    @(negedge clk);fatal=1;repeat(6)@(posedge clk);@(negedge clk);fatal=0;cycles=0;
+      while((!fault||dut.session_state!=4'd8)&&cycles<100)begin @(posedge clk);cycles=cycles+1;end
+      if(!fault||dut.session_state!=4'd8)$fatal(1,"fatal did not enter fault locked");
     $display("PASS top_fatal_fail_closed");
     $finish;
   end

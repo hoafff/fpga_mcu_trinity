@@ -207,7 +207,7 @@ module tb_bad_tag_threshold;
     end
   endtask
 
-  task automatic ack_sequence(input logic [63:0] sequence,
+  task automatic ack_sequence(input logic [63:0] sequence_value,
                               input logic [15:0] txid);
     begin
       payload = '0;
@@ -216,7 +216,7 @@ module tb_bad_tag_threshold;
       payload[23:16] = 8'h33;
       payload[31:24] = 8'h44;
       for (i = 0; i < 8; i = i + 1)
-        payload[8*(4+i) +: 8] = sequence[63-8*i -: 8];
+        payload[8*(4+i) +: 8] = sequence_value[63-8*i -: 8];
       issue(CMD_ACK_AUTH_RESULT, txid, 16'd12, payload,
             32'h7300_0000 | txid);
     end

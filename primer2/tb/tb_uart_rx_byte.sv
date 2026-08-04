@@ -20,8 +20,12 @@ module tb_uart_rx_byte;
     $display("PASS uart_rx_8n1_byte");
     fork send_byte(8'h5A,0); begin wait(err); end join
     $display("PASS uart_rx_framing_error");
-    fork send_byte(8'h33,1); begin repeat(20)@(posedge clk);abort=1;@(posedge clk);abort=0; end join
-    repeat(5)@(posedge clk); if(busy)$fatal(1,"abort left UART busy");
+    @(negedge clk); rx=0;
+      repeat(15)@(posedge clk);
+      @(negedge clk); abort=1; rx=1;
+      @(posedge clk);
+      @(negedge clk); abort=0;
+      repeat(5)@(posedge clk); if(busy)$fatal(1,"abort left UART busy");
     $display("PASS uart_rx_abort");
     $finish;
   end

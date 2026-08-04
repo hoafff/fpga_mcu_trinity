@@ -49,7 +49,7 @@ module tb_reset_states;
 
   primer2_command_core #(.CLOCK_HZ(1000)) dut (.*);
 
-  task automatic poison_and_reset(input integer case_id);
+  task poison_and_reset(input integer case_id);
     begin
       @(negedge clk_i);
       case (case_id)
