@@ -13,20 +13,44 @@ Start with `ai_context/README_AI.md`.
 
 ## Current implementation milestone
 
-- architecture and implementation contracts v0.4 remain the system baseline;
-- common PC/SN32/SPI protocol foundations are present;
-- Primer #1 qualified source is locked at
-  `c8135b5304c0318c7ec24787484dc8a4c4aa0278`, with qualification documentation
-  at `36822a09c234f509adfa5dace6aa05e4bbd40d54`;
-- Primer #2 now contains a self-contained deployment source target for the
-  66-byte P1 UART frame, session lifecycle, replay/continuity checks,
-  Ascon-AEAD128 authenticated receive, retained result, SPI reconciliation,
-  zeroize and safety interfaces;
-- Primer #2 portable static/reference checks PASS;
-- Primer #2 SystemVerilog simulation is not yet executed because `iverilog` and
-  `vvp` are unavailable in the current execution environment;
-- Primer #2 Gowin synthesis, P&R, STA, `.fs` generation and physical hardware
-  qualification remain OPEN;
-- no integrated P1-to-P2 hardware PASS is claimed.
+The current corrective control-plane source follows
+`ai_context/interfaces/SPI_CONTROL_PLANE_ICD_v0.2.md`:
 
-See `IMPLEMENTATION_STATUS.md` and `primer2/README.md` for the evidence boundary.
+- Primer `IRQ_N` is LOW only while a complete SPI response mailbox is ready;
+- retained side-effect and authenticated-result state is queried explicitly and
+  no longer holds IRQ LOW after a mailbox has been consumed;
+- a non-magic/dummy CS window is discarded silently and cannot create a new
+  `BAD_MAGIC`/`BAD_LENGTH` mailbox;
+- P1/P2 MISO outputs remain high-impedance while deselected and their Gowin
+  constraints explicitly disable internal pulls;
+- the existing shared SCK/MOSI/MISO wiring, separate CS/IRQ lines and direct
+  P1-to-P2 UART payload link are unchanged.
+
+Corrected source identities:
+
+```text
+Primer #1 build ID = 0x5031D003
+Primer #2 build ID = 0x50320002
+SN32 version/build = 0.7.25 / 0x00070019
+PC host version    = 0.3.8
+```
+
+Current evidence boundary:
+
+```text
+Primer #1 corrected RTL regression:     PASS
+Primer #2 corrected full RTL regression: PASS
+PC-host unit tests:                       PASS
+P1/P2 exact-device Gowin rebuild:         REQUIRED
+P1/P2 corrected bitstreams programmed:    NOT YET
+SN32 v0.7.25 rebuilt/flashed by user:      NOT YET
+corrected shared-SPI hardware gate:        NOT RUN
+full-system hardware qualified:            false
+```
+
+Historical ESP32-C3 and P1-to-P2 UART hardware results do not automatically
+qualify the corrected Primer images. The next action is exact-device Gowin
+build/programming of both Primers, followed by the SN32 v0.7.25 rebuild/flash
+and one cold-boot control-plane qualification.
+
+See `IMPLEMENTATION_STATUS.md` for the exact evidence and non-claim boundary.
