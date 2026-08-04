@@ -25,6 +25,10 @@ module tb_spi_packet_endpoint;
   integer packet_length;
   integer index;
   integer bad_crc_seen;
+  integer bad_length_seen;
+  logic [15:0] bad_length_detail_seen;
+  logic [7:0] bad_length_command_seen;
+  logic [15:0] bad_length_txid_seen;
 
   always #5 clk = ~clk;
 
@@ -106,10 +110,20 @@ module tb_spi_packet_endpoint;
   always @(posedge clk) begin
     if (transport_error_valid && transport_error_code == ERR_BAD_CRC)
       bad_crc_seen <= 1;
+    if (transport_error_valid && transport_error_code == ERR_BAD_LENGTH) begin
+      bad_length_seen <= 1;
+      bad_length_detail_seen <= request_payload_length;
+      bad_length_command_seen <= transport_error_command;
+      bad_length_txid_seen <= transport_error_txid;
+    end
   end
 
   initial begin
     bad_crc_seen = 0;
+    bad_length_seen = 0;
+    bad_length_detail_seen = 0;
+    bad_length_command_seen = 0;
+    bad_length_txid_seen = 0;
     repeat (4) @(posedge clk);
     rst_n = 1;
     repeat (4) @(posedge clk);
@@ -134,6 +148,19 @@ module tb_spi_packet_endpoint;
     repeat (100) @(posedge clk);
     if (!bad_crc_seen) $fatal(1, "bad SPI CRC was not reported");
     $display("PASS spi_bad_crc_rejected");
+
+    build_packet(CMD_GET_STATUS, 16'h0203, 0);
+    packet_length = 9;
+    send_packet();
+    repeat (100) @(posedge clk);
+    if (!bad_length_seen) $fatal(1, "short SPI packet was not reported");
+    if (bad_length_command_seen != CMD_GET_STATUS ||
+        bad_length_txid_seen != 16'h0203 ||
+        bad_length_detail_seen != 16'h1200)
+      $fatal(1, "BAD_LENGTH detail mismatch: cmd=%02x txid=%04x detail=%04x",
+             bad_length_command_seen, bad_length_txid_seen,
+             bad_length_detail_seen);
+    $display("PASS spi_bad_length_detail_count9_length0");
 
     if (!response_ready) $fatal(1, "response builder not ready");
     @(negedge clk);
