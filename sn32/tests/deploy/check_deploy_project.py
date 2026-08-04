@@ -162,13 +162,20 @@ def check_source() -> None:
         "trinity_sha3_256", "trinity_shake256",
     ), "deploy crypto")
     require_tokens(main, (
-        "g_transport_scratch", "g_spi_packet",
+        "g_pc_raw", "g_spi_request_wire", "g_spi_response_wire",
+        "g_spi_req", "g_spi_rsp",
+        "spi_write_request_bytes", "spi_read_response_segment",
+        "spi_prepare_request_window",
         "crypto_progress_lease_begin", "crypto_progress_lease_end",
         "safety_error_latched", "TRINITY_PC_GENERATE_KEYPAIR",
         "TRINITY_PC_CREATE_SESSION", "TRINITY_PC_RUN_DEMO",
         "TRINITY_PC_RUN_NTT_TEST", "TRINITY_PC_RUN_ASCON_TEST",
         "TRINITY_PC_RUN_BENCHMARK", "TRINITY_PC_RUN_TRANSPORT_STRESS",
     ), "deploy main")
+    require("g_transport_scratch" not in main,
+            "shared PC/SPI transport union returned")
+    require("g_spi_packet" not in main,
+            "shared SPI request/response packet union returned")
     require("g_pc_tx" not in main, "duplicate PC TX buffer returned")
     require("uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES];" not in
             read(CRYPTO_H).split("union", 1)[0],
@@ -208,7 +215,7 @@ def check_source() -> None:
             "machine-specific path in source")
     print("PASS: full dual-Primer, Tiny, ML-KEM and PC EVENT paths are wired")
     print("PASS: immutable retries, retained polling, progress and zeroization are wired")
-    print("PASS: RAM overlays, embedded public key and bounded crypto lease are present")
+    print("PASS: disjoint PC/request/response buffers and bounded crypto lease are present")
 
 
 def check_project() -> None:
