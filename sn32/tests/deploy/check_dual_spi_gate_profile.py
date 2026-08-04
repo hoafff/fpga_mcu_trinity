@@ -83,13 +83,22 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 17):
-        fail(f"bounded residue recovery image must be v0.7.17, got {version}")
+    if version != (0, 7, 18):
+        fail(f"P1 CS setup diagnostic image must be v0.7.18, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("qualification SPI clock divider must remain 59")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070011)", "identity")
+    if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 200:
+        fail("v0.7.18 must hold CS for the 200 us diagnostic guard")
+    if macro(config, "TRINITY_DEPLOY_P1_CS_SETUP_US") != 200:
+        fail("P1 diagnostic setup marker must remain 200 us")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070012)", "identity")
+    require(
+        p00,
+        "#if TRINITY_DEPLOY_P1_CS_SETUP_US < TRINITY_DEPLOY_SPI_CS_GUARD_US",
+        "CS setup contract",
+    )
 
     for token in (
         "static bool g_pc_service_enabled;",
@@ -171,6 +180,12 @@ def main() -> int:
     ):
         require(response_rx, token, "response RX")
     forbid(p06, "spi_bytes_segment", "split transport")
+    require(
+        p06,
+        "TRINITY_DEPLOY_SPI_CS_GUARD_US;",
+        "200 us guard implementation",
+    )
+    require(p06, "spi_guard_delay();", "CS guard use")
 
     for token in (
         "static void spi_trace_rotate_work_slot(void)",
@@ -287,8 +302,8 @@ def main() -> int:
     ):
         require(p17, token, "main-level startup/periodic service")
 
-    print("PASS: v0.7.17 identity and 100 kHz profile are locked")
-    print("PASS: exact CRC-valid short-CS residue is recognized from response bytes")
+    print("PASS: v0.7.18 identity and 100 kHz profile are locked")
+    print("PASS: every CS guard is extended to 200 us for the P1 start-edge diagnostic")
     print("PASS: only zero-payload GET_INFO/GET_STATUS may retry once")
     print("PASS: side-effect commands remain non-replayed")
     print("PASS: non-recursive PC service and split SPI transport remain locked")
