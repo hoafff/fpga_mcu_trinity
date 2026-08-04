@@ -1,0 +1,132 @@
+SN32 dual-SPI v0.7.20 hardware rerun — 2026-08-04
+
+Source commit:
+dd3cf1b406e633096cc0ce5ddd402b6fbdba27a2
+
+Exact target build/flash reported from Keil:
+Program Size: Code=25972 RO-data=752 RW-data=100 ZI-data=5396
+0 Error(s), 0 Warning(s)
+Programming Done.
+Verify OK.
+
+Qualification decision:
+PC <-> SN32 UART recovery: PASS, scope-limited
+SN32 dual-SPI clean boot: FAIL
+Full-system qualification: NOT RUN
+
+First startup trace:
+
+[PING]
+result=PASS
+uptime_ms=13255
+
+[SPI_FIRST_FAILURE]
+latched=True
+startup_residue=False
+context=STARTUP_PROBE
+target_id=1
+command=0x01
+error_source=1
+transport_result=BAD_CRC(0x0104)
+target_txid=0x0001
+request_fingerprint=0x9522E17F
+request_length=10
+response_capture_length=10
+response_frame_length=10
+request_crc=0x3598
+response_crc_received=0x0006
+response_crc_calculated=0x1620
+response_crc_match=False
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=1
+request_bytes=a5 01 01 00 00 01 00 00 35 98
+response_bytes=a5 01 a5 01 00 03 00 00 00 06
+transfer_stage=NONE
+transfer_direction=RESPONSE
+transfer_byte_index=0
+transfer_length=10
+transfer_completed=10
+spi_status=0x00000025
+spi_ctrl0=0x00040701
+spi_ctrl1=0x00000000
+spi_clkdiv=0x0000003B
+spi_fifo_th=0x80000000
+response_sample_count=8
+response_status_before_read=0x00000061 0x00000061 0x00000061 0x00000061 0x00000061 0x00000061 0x00000061 0x00000061
+response_data_words=0x000000A5 0x00000001 0x000000A5 0x00000001 0x00000000 0x00000003 0x00000000 0x00000000
+response_status_after_read=0x00000025 0x00000025 0x00000025 0x00000025 0x00000025 0x00000025 0x00000025 0x00000025
+
+[SYSTEM_INFO]
+result=PASS
+protocol_version=1
+architecture_version=0.7.20
+capabilities=0x00000EFB
+sn32_build_id=0x00070014
+primer1_build_id=0x00000000
+primer2_build_id=0x00000000
+
+The following SYSTEM_STATUS and immediate PING both timed out. A later PING
+returned uptime_ms=18789, proving that PC-UART service became responsive again.
+Without a continuously sampled reset indicator, the two uptime values alone do
+not exclude an unreported reset between command groups.
+
+Later retained periodic trace:
+
+[SPI_FIRST_FAILURE]
+latched=True
+startup_residue=False
+context=PERIODIC_PROBE
+target_id=1
+command=0x02
+error_source=1
+transport_result=BAD_LENGTH(0x0103)
+target_txid=0x000C
+request_fingerprint=0xF7006846
+request_length=10
+response_capture_length=16
+response_frame_length=16
+request_crc=0xB929
+response_crc_received=0xBA95
+response_crc_calculated=0xBA95
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 02 00 00 0c 00 00 b9 29
+response_bytes=a5 01 00 03 00 00 00 06 01 03 01 00 00 ff ba 95
+transfer_stage=NONE
+transfer_direction=RESPONSE
+transfer_byte_index=0
+transfer_length=16
+transfer_completed=16
+spi_status=0x00000025
+spi_ctrl0=0x00040701
+spi_ctrl1=0x00000000
+spi_clkdiv=0x0000003B
+spi_fifo_th=0x80000000
+
+[SYSTEM_INFO]
+result=PASS
+protocol_version=1
+architecture_version=0.7.20
+capabilities=0x00000EFB
+sn32_build_id=0x00070014
+primer1_build_id=0x5031D002
+primer2_build_id=0x50320001
+
+The final SYSTEM_STATUS attempt also timed out.
+
+Interpretation locked for the v0.7.21 correction:
+
+1. The startup response header declared a ten-byte frame, but its CRC was
+   invalid and P1 IRQ remained active. v0.7.20 accepted the mailbox length
+   before full CRC/decode validation and therefore did not perform the existing
+   fresh-CS mailbox reread.
+2. The periodic trace is a CRC-valid command=0/txid=0 BAD_LENGTH response with
+   detail=0x00FF. It is the short/empty request signature. target_txid=0x000C is
+   the final v0.7.20 read-only reissue, proving that one reissue was exhausted.
+3. The PC timeouts are not accepted as an SN32 reset claim. v0.7.21 extends the
+   host wait budget so a queued local command can survive bounded SPI recovery.

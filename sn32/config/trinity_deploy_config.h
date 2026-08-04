@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 20u
+#define TRINITY_DEPLOY_VERSION_PATCH 21u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -33,14 +33,16 @@
 #define TRINITY_DEPLOY_ENDPOINT_PROBE_MS         2000u
 /* P1 diagnostic D002 returned fields matching the request after its first six
  * bits were removed. At 100 kHz that is 60 us. v0.7.18 expanded the existing
- * CS guard to 200 us before and after every transaction. v0.7.20 retains that
- * timing and adds one bounded read-only retry when diagnostic BAD_LENGTH detail
- * proves that Primer captured fewer bytes than the encoded request. Applying
- * the same guard and recovery policy to P2 avoids a target-dependent transport
- * path; packet bytes, SPI mode and clock rate remain unchanged. */
+ * CS guard to 200 us before and after every transaction. v0.7.21 retains that
+ * timing, validates a complete mailbox before accepting it and permits two
+ * bounded reissues of side-effect-free discovery/status reads after transport
+ * corruption. Applying the same policy to P2 avoids a target-dependent path;
+ * packet bytes, SPI mode and clock rate remain unchanged. */
 #define TRINITY_DEPLOY_SPI_CS_GUARD_US            200u
 #define TRINITY_DEPLOY_P1_CS_SETUP_US              200u
 #define TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS        5u
+#define TRINITY_DEPLOY_SPI_READ_REISSUE_MAX          2u
+#define TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS    20u
 /* Allow the Primer mailbox/IRQ synchronizers to settle after a complete
  * response before issuing the next command to either endpoint. */
 #define TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS        1u

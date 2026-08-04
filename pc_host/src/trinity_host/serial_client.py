@@ -284,7 +284,7 @@ class TrinitySerialClient:
         command: HostCommand | int,
         payload: bytes = b"",
         *,
-        timeout: float = 0.5,
+        timeout: float = 2.0,
     ) -> HostFrame:
         command_value = int(command)
         txid = self._allocate_txid()
@@ -322,12 +322,12 @@ class TrinitySerialClient:
 
     def get_system_info(self) -> SystemInfo:
         return SystemInfo.decode(
-            self.request(HostCommand.GET_SYSTEM_INFO, timeout=1.0).payload
+            self.request(HostCommand.GET_SYSTEM_INFO, timeout=2.0).payload
         )
 
     def get_system_status(self) -> SystemStatus:
         return SystemStatus.decode(
-            self.request(HostCommand.GET_SYSTEM_STATUS, timeout=1.0).payload
+            self.request(HostCommand.GET_SYSTEM_STATUS, timeout=5.0).payload
         )
 
     def spi_diagnostic(

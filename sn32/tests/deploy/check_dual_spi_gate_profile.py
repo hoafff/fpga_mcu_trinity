@@ -91,17 +91,21 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 20):
-        fail(f"truncated-read recovery image must be v0.7.20, got {version}")
+    if version != (0, 7, 21):
+        fail(f"validated-mailbox recovery image must be v0.7.21, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("qualification SPI clock divider must remain 59")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 200:
-        fail("v0.7.20 must retain the 200 us diagnostic CS guard")
+        fail("v0.7.21 must retain the 200 us diagnostic CS guard")
     if macro(config, "TRINITY_DEPLOY_P1_CS_SETUP_US") != 200:
         fail("P1 diagnostic setup marker must remain 200 us")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070014)", "identity")
+    if macro(config, "TRINITY_DEPLOY_SPI_READ_REISSUE_MAX") != 2:
+        fail("read-only recovery must permit exactly two bounded reissues")
+    if macro(config, "TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS") != 20:
+        fail("read-only recovery backoff must remain 20 ms")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070015)", "identity")
     require(
         p00,
         "#if TRINITY_DEPLOY_P1_CS_SETUP_US < TRINITY_DEPLOY_SPI_CS_GUARD_US",
@@ -202,12 +206,14 @@ def main() -> int:
         "static bool spi_decoded_proves_truncated_request(",
         "trinity_spi_bad_length_detail_proves_truncation(",
         "static bool spi_command_allows_read_retry(",
+        "static bool spi_error_allows_read_retry(",
+        "rc == TRINITY_BAD_CRC",
         "command == TRINITY_SPI_GET_INFO",
         "command == TRINITY_SPI_GET_STATUS",
-        "unsigned read_retry = 0u;",
+        "unsigned read_reissues = 0u;",
         "retry_request:",
     ):
-        require(p07, token, "bounded read truncation recovery")
+        require(p07, token, "bounded read transport recovery")
     if p07.count("trinity_spi_bad_length_detail_is_short_cs(") != 2:
         fail("startup drain and decoded retry must share the short-CS helper")
     forbid(p07, "rsp[12] == 0u && rsp[13] == 0u",
@@ -223,20 +229,34 @@ def main() -> int:
            "residue retry command scope")
 
     for token in (
-        "g_spi_response_wire[0] != TRINITY_SPI_MAGIC",
         "trinity_crc16_ccitt_false(g_spi_response_wire",
         "trinity_spi_decode(g_spi_response_wire",
+        "rc == TRINITY_BAD_CRC",
+        "if (rc == TRINITY_OK) return TRINITY_OK;",
+    ):
+        require(p07, token, "complete mailbox validation retry")
+
+    for token in (
         "spi_decoded_proves_truncated_request(request_len)",
         "spi_command_allows_read_retry(command, payload_length)",
-        "read_retry == 0u",
+        "spi_error_allows_read_retry(rc)",
+        "read_reissues < TRINITY_DEPLOY_SPI_READ_REISSUE_MAX",
         "g_spi_trace.result_code = TRINITY_BAD_LENGTH;",
         "spi_record_startup_residue();",
-        "read_retry = 1u;",
+        "retry_read_request:",
+        "++read_reissues;",
+        "wait_ms(TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS);",
         "rc = TRINITY_BAD_LENGTH;",
         "goto retry_request;",
     ):
-        require(p08, token, "single read-only truncation retry")
-    forbid(p08, "read_retry++", "bounded read retry")
+        require(p07 + p08, token, "bounded read-only transport recovery")
+    require(p07, "if (rc != TRINITY_OK) goto retry_read_request;",
+            "capture failure recovery routing")
+    if p08.count("spi_error_allows_read_retry(rc)") != 1:
+        fail("all response failures must share one read-only retry decision")
+    if p08.count("read_reissues < TRINITY_DEPLOY_SPI_READ_REISSUE_MAX") != 1:
+        fail("all response failures must share one reissue bound")
+    forbid(p07 + p08, "read_reissues = 1u", "bounded read retry")
     forbid(p08, "endpoint_exchange(", "non-recursive read retry")
 
     for token in (
@@ -338,15 +358,18 @@ def main() -> int:
         "pc_poll();",
         "g_automatic_probe_active = false;",
         "g_automatic_probe_active = true;",
-        "!g_spi_retained_failure",
     ):
         require(p17, token, "main-level startup/periodic service")
+    forbid(p17, "!g_spi_retained_failure",
+           "periodic read-only recovery after retained history")
 
-    print("PASS: v0.7.20 identity and 100 kHz profile are locked")
+    print("PASS: v0.7.21 identity and 100 kHz profile are locked")
     print("PASS: encoded four/nine-byte BAD_LENGTH captures prove truncation")
     print("PASS: every CS guard remains 200 us for the P1 start-edge diagnostic")
-    print("PASS: only zero-payload GET_INFO/GET_STATUS may be reissued once")
+    print("PASS: CRC-invalid active mailboxes are reread before request replay")
+    print("PASS: only zero-payload GET_INFO/GET_STATUS may be reissued twice")
     print("PASS: side-effect commands remain non-replayed")
+    print("PASS: periodic read-only recovery continues after retained history")
     print("PASS: retained failure bytes use a dedicated copy snapshot")
     print("PASS: a full refresh clears active transport fault but keeps history")
     print("PASS: non-recursive PC service and split SPI transport remain locked")

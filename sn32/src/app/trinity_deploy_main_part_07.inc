@@ -101,6 +101,14 @@ static bool spi_command_allows_read_retry(uint8_t command,
             command == TRINITY_SPI_GET_STATUS);
 }
 
+static bool spi_error_allows_read_retry(trinity_error_code_t rc) {
+    return rc == TRINITY_BAD_MAGIC || rc == TRINITY_BAD_VERSION ||
+           rc == TRINITY_BAD_LENGTH || rc == TRINITY_BAD_CRC ||
+           rc == TRINITY_BAD_FLAGS || rc == TRINITY_MALFORMED_FRAME ||
+           rc == TRINITY_FRAME_TIMEOUT ||
+           rc == TRINITY_TRANSACTION_CONFLICT;
+}
+
 static trinity_error_code_t spi_capture_response_once(endpoint_t *ep,
                                                        size_t *response_len) {
     trinity_error_code_t rc;
@@ -112,6 +120,10 @@ static trinity_error_code_t spi_capture_response_once(endpoint_t *ep,
     if (ep == NULL || response_len == NULL || !g_spi_trace.valid)
         return TRINITY_BAD_STATE;
     *response_len = 0u;
+    g_spi_trace.response_capture_length = 0u;
+    g_spi_trace.response_frame_length = 0u;
+    g_spi_trace.response_crc_received = 0u;
+    g_spi_trace.response_crc_calculated = 0u;
     for (i = 0u; i < TRINITY_SPI_MAX_PACKET; ++i) {
         g_spi_response_wire[i] = 0u;
         g_spi_trace.response_bytes[i] = 0u;
@@ -167,16 +179,34 @@ static bool spi_response_read_retryable(const endpoint_t *ep,
     return rc == TRINITY_BAD_MAGIC ||
            rc == TRINITY_BAD_VERSION ||
            rc == TRINITY_BAD_LENGTH ||
+           rc == TRINITY_BAD_CRC ||
+           rc == TRINITY_BAD_FLAGS ||
            rc == TRINITY_FRAME_TIMEOUT;
 }
 
+/*
+ * A mailbox is accepted only after the complete frame passes CRC and protocol
+ * decode. If a corrupt prefix caused SN32 to stop at the wrong apparent frame
+ * length while IRQ remains active, one fresh-CS read restarts at mailbox byte
+ * zero without reissuing the request.
+ */
 static trinity_error_code_t spi_capture_response(endpoint_t *ep,
                                                   size_t *response_len) {
     trinity_error_code_t rc = TRINITY_INTERNAL_FAULT;
     unsigned attempt;
     for (attempt = 0u; attempt < 2u; ++attempt) {
         rc = spi_capture_response_once(ep, response_len);
-        if (rc == TRINITY_OK) return TRINITY_OK;
+        if (rc == TRINITY_OK) {
+            g_spi_trace.response_crc_received =
+                trinity_read_be16(
+                    &g_spi_response_wire[*response_len - 2u]);
+            g_spi_trace.response_crc_calculated =
+                trinity_crc16_ccitt_false(g_spi_response_wire,
+                                          *response_len - 2u);
+            rc = trinity_spi_decode(g_spi_response_wire, *response_len,
+                                    &g_spi_rsp);
+            if (rc == TRINITY_OK) return TRINITY_OK;
+        }
         if (!spi_response_read_retryable(ep, rc)) return rc;
         wait_ms(TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS);
     }
@@ -185,7 +215,6 @@ static trinity_error_code_t spi_capture_response(endpoint_t *ep,
 
 static trinity_error_code_t spi_drain_startup_mailbox(endpoint_t *ep) {
     trinity_error_code_t rc;
-    trinity_error_code_t decode_rc;
     size_t response_len;
     unsigned attempt;
     if (ep == NULL) return TRINITY_BAD_STATE;
@@ -200,17 +229,7 @@ static trinity_error_code_t spi_drain_startup_mailbox(endpoint_t *ep) {
             return rc;
         }
 
-        g_spi_trace.response_crc_received =
-            trinity_read_be16(&g_spi_response_wire[response_len - 2u]);
-        g_spi_trace.response_crc_calculated =
-            trinity_crc16_ccitt_false(g_spi_response_wire,
-                                      response_len - 2u);
-        decode_rc = trinity_spi_decode(g_spi_response_wire, response_len,
-                                       &g_spi_rsp);
-        if (decode_rc != TRINITY_OK) {
-            g_spi_trace.result_code = decode_rc;
-            spi_latch_first_failure();
-        } else if ((g_spi_rsp.flags & TRINITY_FLAG_ERROR) != 0u) {
+        if ((g_spi_rsp.flags & TRINITY_FLAG_ERROR) != 0u) {
             g_spi_trace.result_code =
                 g_spi_rsp.payload_length >= 2u
                     ? (trinity_error_code_t)trinity_read_be16(
@@ -264,10 +283,9 @@ static trinity_error_code_t endpoint_exchange(
     size_t request_len = 0u;
     size_t response_len;
     size_t i;
-    uint16_t response_payload_length;
     uint16_t txid;
     uint32_t wait_start;
-    unsigned read_retry = 0u;
+    unsigned read_reissues = 0u;
 
     if (issued_txid != NULL) *issued_txid = 0u;
     if (payload_length > TRINITY_SPI_MAX_PAYLOAD ||
@@ -322,4 +340,4 @@ retry_request:
         }
 
         rc = spi_capture_response(ep, &response_len);
-        if (rc != TRINITY_OK) goto failed;
+        if (rc != TRINITY_OK) goto retry_read_request;
