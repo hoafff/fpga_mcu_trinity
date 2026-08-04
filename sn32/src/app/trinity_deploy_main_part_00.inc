@@ -41,8 +41,11 @@
 #if TRINITY_DEPLOY_SPI_CLKDIV > 255u
 #error "SPI0 CLKDIV exceeds the supported 8-bit field"
 #endif
+#if TRINITY_DEPLOY_P1_CS_SETUP_US < TRINITY_DEPLOY_SPI_CS_GUARD_US
+#error "P1 diagnostic CS setup must not be shorter than the common guard"
+#endif
 
-#define DEPLOY_BUILD_ID UINT32_C(0x00070011)
+#define DEPLOY_BUILD_ID UINT32_C(0x00070012)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
