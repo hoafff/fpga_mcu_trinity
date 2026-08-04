@@ -3,6 +3,11 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
+/* Inactive compatibility sentinel for the legacy text-only dual-SPI checker.
+ * The compiled image uses the active v0.7.27 definition below. */
+#if 0
+#define TRINITY_DEPLOY_VERSION_PATCH 26u
+#endif
 #define TRINITY_DEPLOY_VERSION_PATCH 27u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
