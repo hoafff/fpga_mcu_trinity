@@ -4,6 +4,7 @@
     SPI_RESPONSE_SETTLE_MS = 15u,
     /* Allow Primer startup scrub and SN32 SPI/pinmux settling before probe 1. */
     SPI_STARTUP_WARMUP_MS = 2000u,
+    SPI_RESPONSE_SAMPLE_MAX = 8u,
     SPI_TRANSFER_STAGE_NONE = 0u,
     SPI_TRANSFER_STAGE_TX_FULL = 1u,
     SPI_TRANSFER_STAGE_BUSY = 2u,
@@ -69,6 +70,14 @@ typedef struct {
     uint16_t transfer_length;
     uint16_t transfer_completed;
     uint32_t spi_status;
+    uint32_t spi_ctrl0;
+    uint32_t spi_ctrl1;
+    uint32_t spi_clkdiv;
+    uint32_t spi_fifo_th;
+    uint8_t response_sample_count;
+    uint32_t response_status_before_read[SPI_RESPONSE_SAMPLE_MAX];
+    uint32_t response_data_words[SPI_RESPONSE_SAMPLE_MAX];
+    uint32_t response_status_after_read[SPI_RESPONSE_SAMPLE_MAX];
     uint8_t request_bytes[TRINITY_SPI_MAX_PACKET];
     uint8_t response_bytes[TRINITY_SPI_MAX_PACKET];
 } spi_exchange_trace_t;
