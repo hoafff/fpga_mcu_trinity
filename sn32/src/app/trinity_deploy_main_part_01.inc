@@ -1,6 +1,9 @@
     UART_TIMEOUT_MS = 100u,
     PC_FRAME_TIMEOUT_MS = 250u,
-    SPI_RESPONSE_SETTLE_MS = 1u,
+    /* Match the ESP32-C3 harness that hardware-qualified P1/P2 responses. */
+    SPI_RESPONSE_SETTLE_MS = 15u,
+    /* Allow Primer startup scrub and SN32 SPI/pinmux settling before probe 1. */
+    SPI_STARTUP_WARMUP_MS = 2000u,
     SPI_TRANSFER_STAGE_NONE = 0u,
     SPI_TRANSFER_STAGE_TX_FULL = 1u,
     SPI_TRANSFER_STAGE_BUSY = 2u,
