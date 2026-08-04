@@ -1,8 +1,8 @@
 # Primer #1 RTL simulation evidence — latest main run
 
-- Source commit: `0b78e007dca49f8f309ba99f3ede54bd6f3349e7`
-- Workflow run: `30940610231`
-- Generated UTC: `2026-08-04T18:52:16.588003+00:00`
+- Source commit: `e52488614c5610f2b3f5ffcd77b1a98b370494bc`
+- Workflow run: `30942972499`
+- Generated UTC: `2026-08-04T19:22:39.542202+00:00`
 - Verification status: **PASS**
 - Exit code: `0`
 
@@ -157,9 +157,10 @@ PASS primer1_command_core_all_five_findings
 === COMPILE tb_primer1_top ===
 === RUN tb_primer1_top ===
 PASS primer1_top_idle_and_miso_high_z
+PASS primer1_top_irq_mailbox_only
 PASS primer1_top_heartbeat_integration
 PASS primer1_top_safety_synchronizer_and_fault
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_top.sv:65: $finish called at 3086000 (1ps)
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_primer1_top.sv:83: $finish called at 3086000 (1ps)
 
 RTL VERIFICATION PASS
 
