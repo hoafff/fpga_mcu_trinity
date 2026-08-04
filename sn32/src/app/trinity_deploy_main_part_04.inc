@@ -5,7 +5,13 @@ static bool expired(uint32_t start, uint32_t timeout) {
     return (uint32_t)(g_ms - start) >= timeout;
 }
 
-static void progress(void) { g_progress_ms = g_ms; }
+static void pc_poll(void);
+
+static void progress(void) {
+    g_progress_ms = g_ms;
+    if (g_pc_service_enabled && !g_pc_poll_active)
+        pc_poll();
+}
 
 static void crypto_progress_lease_begin(void) {
     g_crypto_lease_deadline_ms =
