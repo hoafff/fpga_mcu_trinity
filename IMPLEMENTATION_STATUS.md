@@ -1,83 +1,113 @@
 # Implementation status
 
-Status date: 2026-08-03
+Status date: 2026-08-05
 
-| Target | Source | Portable checks | Exact-device build | Bitstream | Hardware |
-|---|---|---|---|---|---|
-| Primer #1 | Qualified/locked | PASS at qualified source | PASS in its qualification record | Generated in qualification | Scoped hardware qualification recorded |
-| Primer #2 | Deployment source complete | Reference/static PASS on post-fix commit | PASS candidate at 27 MHz | New `.fs` generated; SHA-256 not recorded | ESP32-C3 standalone PASS; system integration pending |
-| SN32 / Tiny / PC | Unchanged by this change | See their target records | Unchanged | Unchanged | Unchanged |
+## Corrective control-plane baseline
 
-## Primer #2 qualification identity
+A structural mismatch was found between the Primer IRQ contract and the SN32
+master policy:
 
 ```text
-source_commit = 7588063e636da225bbe81632efe1060f4c825c37
+old Primer IRQ_N LOW = response mailbox OR retained/authenticated result state
+old SN32 policy       = any IRQ_N LOW means a response mailbox must be drained
 ```
 
-## Primer #2 exact-device result
+That combination could prevent `GET_TXN_RESULT`, `RETIRE_TXN_RESULT`,
+`READ_AUTH_RESULT` and `ACK_AUTH_RESULT` from being issued after the preceding
+mailbox had already been consumed. Dummy response-read clocks could then be
+parsed as a malformed request and create another error mailbox.
+
+The corrected implementation contract is recorded in:
 
 ```text
-implementation_status   = DEPLOYMENT_SOURCE_COMPLETE
-deployment_buildable    = true
-reference/static        = PASS
-RTL simulation          = NOT REPORTED FOR THIS QUALIFICATION COMMIT
-exact-device build      = PASS CANDIDATE
-EX2664                   = ABSENT
-Fmax                     = 41.700 MHz
-worst setup slack        = +13.056 ns
-worst hold slack         = +0.425 ns
-setup/hold violations    = 0 / 0
-logic/registers/CLS      = 79% / 43% / 86%
-PRIMARY/LW               = 3/8 / 8/8
-bitstream_generated      = true
-bitstream_sha256         = NOT RECORDED
+ai_context/interfaces/SPI_CONTROL_PLANE_ICD_v0.2.md
 ```
 
-`LW = 8/8` is retained as a routing-capacity risk. The post-fix build has no
-reported unrouted nets, only one clock domain and positive timing margin. No
-global-routing optimization is made solely to lower the LW count.
-
-## Primer #2 standalone hardware result
+The corrected rule is:
 
 ```text
-standalone_hardware_qualified = true
-fixture                       = ESP32-C3 SPI control + UART injection
-PASS count                    = 23
-FAIL count                    = 0
-final expected state          = SESSION_FAULT_LOCKED
-final last_error              = ERR_AUTH_THRESHOLD (0x0601)
+IRQ_N LOW  <=> one complete response mailbox is physically ready to read
+retained/authenticated result state is queried explicitly and does not hold IRQ
+non-magic request windows are discarded silently and create no error mailbox
 ```
 
-The standalone fixture demonstrated SPI control, UART frame injection, Ascon
-decrypt/authentication, byte-exact plaintext, retained transactions, session
-stage/abort/commit/activate, replay and sequence rejection, pending-result
-protection, command `ZEROIZE_ALL`, re-provisioning and the three-bad-tag
-fault/zeroize threshold.
-
-The external `fatal_latched_i` pin was strapped low and not asserted. The
-external `zeroize_ni` pin was strapped high and not pulsed. Command zeroize is a
-separate tested path. The ESP32 fixture emulates only the secure-enable level and
-does not qualify Tiny safety behavior.
-
-## Open integration gates
+## Current source identities
 
 ```text
-P1 -> P2 direct UART integration:    NOT RUN
-SN32 -> P2 control plane:            NOT RUN
-Tiny safety integration:             NOT RUN
-external fatal input test:           NOT RUN
-external zeroize input test:         NOT RUN
-full-system hardware qualification:  NOT RUN
+Primer #1 build ID = 0x5031D003
+Primer #2 build ID = 0x50320002
+SN32 version/build = 0.7.25 / 0x00070019
+PC host version    = 0.3.8
 ```
 
-Therefore:
+Key source/evidence commits:
 
 ```text
-standalone_hardware_qualified = true
-hardware_qualified            = false
-full_system_hardware_qualified= false
-next_gate                     = P1_TO_P2_DIRECT_UART_INTEGRATION
+Primer #1 corrected source baseline: 0b78e007dca49f8f309ba99f3ede54bd6f3349e7
+Primer #2 corrected source/test baseline: a14abb631b66e43acfedcea292d84dd8fcf63291
+PC-host corrected identity baseline: a153ce41bd5f0396db4684801e449dbd38783ea5
+SPI ICD v0.2 baseline: d0856c36a23ad5942e4fd8f19edd4945ef7ee248
 ```
 
-The protected Primer #1 RTL/test/script/constraint/project paths were not
-modified by this Primer #2 evidence update.
+## Verification boundary
+
+| Target | Portable/static/RTL | Exact-device build | Programmed hardware |
+|---|---|---|---|
+| Primer #1 corrected image | RTL regression PASS; silent non-magic-window test PASS | REBUILD REQUIRED | NOT PROGRAMMED / NOT QUALIFIED |
+| Primer #2 corrected image | Reference/static/full RTL regression PASS; silent non-magic-window test PASS | REBUILD REQUIRED | NOT PROGRAMMED / NOT QUALIFIED |
+| SN32 v0.7.25 | Existing portable controller/host checks PASS in repository CI | Keil ArmClang rebuild required on current source | User hardware still reported v0.7.24; v0.7.25 must be flashed |
+| PC host 0.3.8 | Unit tests PASS before identity migration commit | Not applicable | Reinstall editable package required |
+| Tiny 1P5 | Unchanged by this correction | Unchanged | No new programming required for the first corrected SPI gate |
+
+Primer #1 RTL evidence:
+
+```text
+primer1/docs/RTL_SIMULATION_LATEST.md
+```
+
+Primer #2 RTL evidence:
+
+```text
+primer2/docs/RTL_SIMULATION_LATEST.md
+primer2/docs/TESTBENCH_PORTABILITY_MIGRATION_LATEST.md
+```
+
+The RTL/source PASS results do not constitute Gowin synthesis, place-and-route,
+STA, bitstream generation or physical qualification.
+
+## Hardware evidence boundary
+
+Previous ESP32-C3 standalone and direct P1-to-P2 UART results remain historical
+evidence for the older programmed images. They do not qualify the corrected
+`0x5031D003` / `0x50320002` images.
+
+The current corrected system state is:
+
+```text
+corrected Primer source:                  PASS
+corrected Primer RTL regression:          PASS
+corrected Primer exact-device build:      NOT RUN
+corrected Primer bitstream SHA-256:        NOT RECORDED
+corrected Primer programming:              NOT RUN
+SN32 v0.7.25 exact rebuild/programming:    NOT RUN ON USER HARDWARE
+corrected shared-SPI hardware gate:        NOT RUN
+corrected retained RUN/QUERY/RETIRE gate:  NOT RUN
+current full-system hardware qualified:    false
+```
+
+## Required next sequence
+
+```text
+1. Preserve the user's existing modified/untracked local files.
+2. Fast-forward the local repository to current origin/main.
+3. Rebuild Primer #1 in Gowin; require synthesis/P&R/STA PASS and record .fs hash.
+4. Rebuild Primer #2 in Gowin; require synthesis/P&R/STA PASS and record .fs hash.
+5. Program P1 build 0x5031D003 and P2 build 0x50320002.
+6. Rebuild and flash SN32 v0.7.25 / 0x00070019.
+7. Reinstall PC host 0.3.8.
+8. Cold boot P1/P2 first and SN32 last.
+9. Run the one-shot corrected control-plane qualification.
+10. Only after that PASS, rerun direct UART/session/telemetry and Tiny gates.
+```
+
+No full-system or corrected-hardware PASS is claimed by this status file.
