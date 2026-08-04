@@ -8,6 +8,7 @@ PART00 = ROOT / "sn32/src/app/trinity_deploy_main_part_00.inc"
 PART06 = ROOT / "sn32/src/app/trinity_deploy_main_part_06.inc"
 PART17 = ROOT / "sn32/src/app/trinity_deploy_main_part_17.inc"
 HOST_PROJECT = ROOT / "pc_host/pyproject.toml"
+HOST_ENTRYPOINT = ROOT / "pc_host/src/trinity_host/entrypoint.py"
 HOST_FACADE = ROOT / "pc_host/src/trinity_host/serial_client.py"
 HOST_IMPL = ROOT / "pc_host/src/trinity_host/serial_client_impl.py"
 
@@ -17,6 +18,7 @@ p00 = PART00.read_text(encoding="utf-8")
 p06 = PART06.read_text(encoding="utf-8")
 p17 = PART17.read_text(encoding="utf-8")
 host_project = HOST_PROJECT.read_text(encoding="utf-8")
+host_entrypoint = HOST_ENTRYPOINT.read_text(encoding="utf-8")
 host_facade = HOST_FACADE.read_text(encoding="utf-8")
 
 assert "Stack_Size\t\tEQU\t\t0x00000800" in startup
@@ -26,7 +28,9 @@ assert "DEPLOY_BUILD_ID UINT32_C(0x0007001A)" in p00
 assert "g_spi_trace.transfer_direction !=" not in p06
 assert "Transport continuation is determined by the caller's canonical" in p06
 assert "!g_spi_retained_failure" in p17
-assert 'version = "0.4.0"' in host_project
+assert 'version = "0.4.1"' in host_project
+assert 'trinity-host = "trinity_host.entrypoint:main"' in host_project
+assert "sn32-secure-telemetry-qualify" in host_entrypoint or "full_cli" in host_entrypoint
 assert "EXPECTED_SN32_BUILD_ID = 0x0007001A" in host_facade
 assert "EXPECTED_SN32_VERSION = (0, 7, 26)" in host_facade
 assert "exec(compile(_impl_source" in host_facade
