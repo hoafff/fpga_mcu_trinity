@@ -3,19 +3,18 @@
 #include <stddef.h>
 #include <string.h>
 
-#define MLK_CONFIG_API_PARAMETER_SET 512
-#define MLK_CONFIG_API_NAMESPACE_PREFIX trinity_mlkem512
-#define MLK_CONFIG_API_NO_SUPERCOP
-#include "mlkem_native.h"
-
 /* The exact pinned mlkem-native build also exposes its namespaced internal
- * single-polynomial primitives.  The SN32 key-generation path below reuses
- * those primitives while deliberately avoiding the upstream stack-heavy
- * polymat/polyvec orchestration. */
+ * single-polynomial primitives. The compiler supplies MLK_CONFIG_PARAMETER_SET
+ * and MLK_CONFIG_NAMESPACE_PREFIX before these headers are included. */
 #include "src/compress.h"
 #include "src/poly.h"
 #include "src/poly_k.h"
 #include "src/sampling.h"
+
+/* common.h, included above, derives the public API parameter-set and namespace
+ * settings from the internal build configuration. */
+#define MLK_CONFIG_API_NO_SUPERCOP
+#include "mlkem_native.h"
 
 /* These one-shot FIPS-202 functions are part of the exact pinned upstream
  * implementation and use MLK_CONFIG_NAMESPACE_PREFIX at link time. */
@@ -151,7 +150,7 @@ static trinity_error_code_t trinity_mlkem512_keygen_deterministic_lowram(
     trinity_mlkem512_sha3_512(seeds, coins_with_domain_separator,
                               sizeof(coins_with_domain_separator));
 
-    /* Serialize each secret polynomial immediately.  This avoids retaining
+    /* Serialize each secret polynomial immediately. This avoids retaining
      * the complete secret polyvec while preserving the exact FIPS 203 byte
      * representation used by the pinned backend. */
     for (column = 0u; column < MLKEM_K; ++column) {
@@ -165,7 +164,7 @@ static trinity_error_code_t trinity_mlkem512_keygen_deterministic_lowram(
     }
 
     /* Recreate one matrix entry and one serialized secret polynomial at a
-     * time.  Recomputing/unpacking trades execution time for a bounded RAM
+     * time. Recomputing/unpacking trades execution time for a bounded RAM
      * footprint and keeps the public-key result byte-compatible. */
     for (row = 0u; row < MLKEM_K; ++row) {
         for (column = 0u; column < MLKEM_K; ++column) {
