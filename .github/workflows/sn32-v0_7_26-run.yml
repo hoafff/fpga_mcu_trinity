@@ -1,6 +1,7 @@
 name: SN32 v0.7.26 gated migration runner
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/triggers/sn32-v0_7_26"
