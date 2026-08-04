@@ -140,10 +140,10 @@ static bool spi_response_read_retryable(const endpoint_t *ep,
 /*
  * Hardware evidence from v0.7.8 showed that two malformed eight-byte startup
  * reads left the valid GET_INFO mailbox pending, while one selected-CS window
- * of exactly ten clocks followed by a fresh CS recovered the complete 22-byte
- * txid-1 response. Reproduce only that bounded, side-effect-free mailbox prime:
- * no request is encoded, no target txid is allocated and ten clocks cannot
- * retire the known 22-byte GET_INFO mailbox.
+ * of exactly ten clocks followed by the normal 15 ms request-to-response settle
+ * and a fresh CS recovered the complete 22-byte txid-1 response. Reproduce only
+ * that bounded, side-effect-free mailbox prime: no request is encoded, no target
+ * txid is allocated and ten clocks cannot retire the known 22-byte mailbox.
  */
 static trinity_error_code_t spi_prime_pending_startup_get_info(endpoint_t *ep) {
     trinity_error_code_t rc;
@@ -151,7 +151,8 @@ static trinity_error_code_t spi_prime_pending_startup_get_info(endpoint_t *ep) {
     rc = spi_select(ep);
     if (rc == TRINITY_OK) rc = spi_bytes(NULL, NULL, 10u);
     spi_end();
-    wait_ms(TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS);
+    /* Match the exact delay that made the following spi-diag capture succeed. */
+    wait_ms(SPI_RESPONSE_SETTLE_MS);
     return rc;
 }
 
