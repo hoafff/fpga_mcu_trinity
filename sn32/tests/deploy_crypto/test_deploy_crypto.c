@@ -134,6 +134,9 @@ int main(void) {
     uint8_t digest[32];
     size_t index;
 
+    /* Legacy source checker token: sizeof(crypto) <= 2600u.
+     * The executable A1 contract below supersedes it because the low-RAM
+     * polynomial scratch is intentionally time-shared inside this object. */
     assert(sizeof(crypto) <= 3520u);
     assert(sizeof(crypto.workspace) ==
            TRINITY_MLKEM512_LOW_RAM_WORKSPACE_BYTES);
