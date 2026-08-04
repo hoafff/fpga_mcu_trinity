@@ -26,6 +26,8 @@ module tb_spi_packet_endpoint;
   integer index;
   integer bad_crc_seen;
   integer bad_length_seen;
+  integer request_seen_count;
+  integer transport_error_count;
   logic [15:0] bad_length_detail_seen;
   logic [7:0] bad_length_command_seen;
   logic [15:0] bad_length_txid_seen;
@@ -132,6 +134,10 @@ module tb_spi_packet_endpoint;
   endtask
 
   always @(posedge clk) begin
+    if (request_valid)
+      request_seen_count <= request_seen_count + 1;
+    if (transport_error_valid)
+      transport_error_count <= transport_error_count + 1;
     if (transport_error_valid && transport_error_code == ERR_BAD_CRC)
       bad_crc_seen <= 1;
     if (transport_error_valid && transport_error_code == ERR_BAD_LENGTH) begin
@@ -145,6 +151,8 @@ module tb_spi_packet_endpoint;
   initial begin
     bad_crc_seen = 0;
     bad_length_seen = 0;
+    request_seen_count = 0;
+    transport_error_count = 0;
     bad_length_detail_seen = 0;
     bad_length_command_seen = 0;
     bad_length_txid_seen = 0;
@@ -201,6 +209,17 @@ module tb_spi_packet_endpoint;
              bad_length_command_seen, bad_length_txid_seen,
              bad_length_detail_seen);
     $display("PASS spi_bad_length_detail_count9_length0");
+
+    request_seen_count = 0;
+    transport_error_count = 0;
+    for (index = 0; index < 16; index = index + 1)
+      packet[index] = 8'h00;
+    packet_length = 16;
+    send_packet();
+    repeat (100) @(posedge clk);
+    if (request_seen_count != 0 || transport_error_count != 0 || mailbox_pending)
+      $fatal(1, "non-magic dummy window created request/error/mailbox");
+    $display("PASS spi_non_magic_window_silent");
 
     if (!response_ready) $fatal(1, "response builder not ready");
     @(negedge clk);
