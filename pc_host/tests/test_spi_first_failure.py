@@ -20,6 +20,21 @@ def transfer_extension(
                        transfer_length, completed, spi_status)
 
 
+def register_extension(
+    *,
+    ctrl0: int,
+    ctrl1: int,
+    clkdiv: int,
+    fifo_th: int,
+    samples: list[tuple[int, int, int]],
+) -> bytes:
+    out = bytearray(struct.pack(">IIII", ctrl0, ctrl1, clkdiv, fifo_th))
+    out.extend(bytes((len(samples), 0, 0, 0)))
+    for before, data_word, after in samples:
+        out.extend(struct.pack(">III", before, data_word, after))
+    return bytes(out)
+
+
 class FirstSpiFailureTests(unittest.TestCase):
     def test_startup_probe_failure_is_decoded_byte_exact(self) -> None:
         request = bytes.fromhex("A5 01 01 00 00 03 00 00 4D 4A")
@@ -63,6 +78,61 @@ class FirstSpiFailureTests(unittest.TestCase):
         self.assertEqual(decoded["transfer_length"], 76)
         self.assertEqual(decoded["transfer_completed"], 17)
         self.assertEqual(decoded["spi_status"], "0x00000004")
+
+    def test_extended_register_telemetry_is_decoded(self) -> None:
+        request = bytes.fromhex("A5 01 01 00 00 01 00 00 35 98")
+        response = bytes.fromhex("1C 08 00 00 00 01 00 0C")
+        diagnostic = bytes((
+            int(TargetId.PRIMER1),
+            int(SpiCommand.GET_INFO),
+            1,
+            0x0E,
+        )) + struct.pack(
+            ">HHIHHHHHH",
+            int(ErrorCode.BAD_MAGIC),
+            0x0001,
+            0x9522E17F,
+            len(request),
+            len(response),
+            0,
+            0x3598,
+            0,
+            0,
+        ) + request + response
+        transfer = transfer_extension(0, 2, 0, 8, 8, 0x25)
+        samples = [
+            (0x21, 0x0000001C, 0x25),
+            (0x21, 0x00000008, 0x25),
+        ]
+        registers = register_extension(
+            ctrl0=0x00010007,
+            ctrl1=0,
+            clkdiv=59,
+            fifo_th=0x80000000,
+            samples=samples,
+        )
+
+        decoded = _first_spi_failure_dict(
+            bytes((1, 3)) + diagnostic + transfer + registers
+        )
+
+        self.assertEqual(decoded["spi_ctrl0"], "0x00010007")
+        self.assertEqual(decoded["spi_ctrl1"], "0x00000000")
+        self.assertEqual(decoded["spi_clkdiv"], "0x0000003B")
+        self.assertEqual(decoded["spi_fifo_th"], "0x80000000")
+        self.assertEqual(decoded["response_sample_count"], 2)
+        self.assertEqual(
+            decoded["response_status_before_read"],
+            "0x00000021 0x00000021",
+        )
+        self.assertEqual(
+            decoded["response_data_words"],
+            "0x0000001C 0x00000008",
+        )
+        self.assertEqual(
+            decoded["response_status_after_read"],
+            "0x00000025 0x00000025",
+        )
 
     def test_startup_drain_reset_residue_is_not_latched_failure(self) -> None:
         response = bytes.fromhex(
