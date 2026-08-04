@@ -1,0 +1,231 @@
+SN32F407 -> Primer #1 / Primer #2 dual-SPI control-plane hardware qualification
+Date: 2026-08-05 (UTC+7)
+Result: PASS
+
+SOURCE BASELINE
+---------------
+repository: hoafff/fpga_mcu_trinity
+source commit: c1ded1ece67fe9557a378c33115e1c7a2b59d969
+SN32 architecture version: 0.7.26
+SN32 build ID: 0x0007001A
+PC host version: 0.3.9
+Primer #1 build ID: 0x5031D003
+Primer #2 build ID: 0x50320002
+SPI backend: GPIO mode 0, MSB first, <= 100 kHz
+wiring: unchanged shared SCK/MOSI/MISO, separate CS and IRQ
+
+KEIL EXACT-TARGET BUILD / FLASH
+-------------------------------
+Compiler: ArmClang 6.24
+Result: 0 Error(s), 0 Warning(s)
+Program Size: Code=25724 RO-data=776 RW-data=100 ZI-data=6788
+Programming Done
+Verify OK
+Flash load finished at 04:33:03
+
+LINKER MAP LOCK
+---------------
+map file: trinity_sn32f407_deploy(1).map
+map sha256: 7b07e693a83d17d7b8069a1e95a45eaf4b5be6b2829be466feebf194870d5edf
+map size: 189669 bytes
+STACK section: start=0x200012E8 size=0x00000800 (2048 bytes)
+__initial_sp: 0x20001AE8
+Total RO Size: 26500 bytes
+Total RW Size: 6888 bytes
+Total ROM Size: 26600 bytes
+
+PRE-QUALIFICATION IDENTITY / STATUS
+-----------------------------------
+$ trinity-host --port COM3 system-info
+[SYSTEM_INFO]
+result=PASS
+protocol_version=1
+architecture_version=0.7.26
+capabilities=0x00000EFB
+sn32_build_id=0x0007001A
+primer1_build_id=0x5031D003
+primer2_build_id=0x50320002
+
+$ trinity-host --port COM3 system-status
+[SYSTEM_STATUS]
+result=PASS
+system_state=SELF_TEST_REQUIRED
+mode=KAT
+target_ready_mask=0x07
+fault_flags=0x00
+session_id=0x00000000
+current_sequence=0
+last_error=OK
+active_host_txid=0x0000
+
+$ trinity-host --port COM3 spi-first-failure
+[SPI_FIRST_FAILURE]
+latched=False
+startup_residue=False
+context=NONE
+
+QUALIFICATION COMMAND
+---------------------
+$ trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
+
+[PREFLIGHT_PING]
+result=PASS
+uptime_ms=35824
+
+[SPI_FIRST_FAILURE]
+latched=False
+startup_residue=False
+context=NONE
+
+[LIVE_SPI_P1_GET_INFO]
+result=PASS
+target_id=1
+command=0x01
+error_source=1
+transport_result=OK(0x0000)
+target_txid=0x0021
+request_fingerprint=0x9522E17F
+request_length=10
+response_capture_length=22
+response_frame_length=22
+request_crc=0xB35E
+response_crc_received=0x891B
+response_crc_calculated=0x891B
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 01 00 00 21 00 00 b3 5e
+response_bytes=a5 01 01 01 00 21 00 0c 01 01 00 00 11 ff 50 31 d0 03 00 00 89 1b
+
+[LIVE_SPI_P1_GET_STATUS]
+result=PASS
+target_id=1
+command=0x02
+error_source=1
+transport_result=OK(0x0000)
+target_txid=0x0022
+request_fingerprint=0xF7006846
+request_length=10
+response_capture_length=26
+response_frame_length=26
+request_crc=0x24EE
+response_crc_received=0xB734
+response_crc_calculated=0xB734
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 02 00 00 22 00 00 24 ee
+response_bytes=a5 01 02 01 00 22 00 10 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 b7 34
+
+[LIVE_SPI_P2_GET_INFO]
+result=PASS
+target_id=2
+command=0x01
+error_source=2
+transport_result=OK(0x0000)
+target_txid=0x0023
+request_fingerprint=0x9522E17F
+request_length=10
+response_capture_length=22
+response_frame_length=22
+request_crc=0xDD3E
+response_crc_received=0x46E6
+response_crc_calculated=0x46E6
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 01 00 00 23 00 00 dd 3e
+response_bytes=a5 01 01 01 00 23 00 0c 02 01 00 00 1e 0f 50 32 00 02 00 00 46 e6
+
+[LIVE_SPI_P2_GET_STATUS]
+result=PASS
+target_id=2
+command=0x02
+error_source=2
+transport_result=OK(0x0000)
+target_txid=0x0024
+request_fingerprint=0xF7006846
+request_length=10
+response_capture_length=26
+response_frame_length=26
+request_crc=0x964E
+response_crc_received=0x5334
+response_crc_calculated=0x5334
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 02 00 00 24 00 00 96 4e
+response_bytes=a5 01 02 01 00 24 00 10 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 53 34
+
+[SYSTEM_INFO]
+result=PASS
+protocol_version=1
+architecture_version=0.7.26
+capabilities=0x00000EFB
+sn32_build_id=0x0007001A
+primer1_build_id=0x5031D003
+primer2_build_id=0x50320002
+
+[P1_KAT_SELF_TEST]
+result=PASS
+queried_txid=0x000D
+state=SUCCEEDED
+original_command=0x10
+result_code=OK
+result_data_hex=013e
+
+[P2_KAT_SELF_TEST]
+result=PASS
+queried_txid=0x0010
+state=SUCCEEDED
+original_command=0x10
+result_code=OK
+result_data_hex=03e3
+
+[FINAL_SYSTEM_STATUS]
+result=PASS
+system_state=READY_NO_KEYPAIR
+mode=KAT
+target_ready_mask=0x07
+fault_flags=0x00
+session_id=0x00000000
+current_sequence=0
+last_error=OK
+active_host_txid=0x0000
+
+[POST_TEST_LIVENESS]
+result=PASS
+iterations=10
+final_uptime_ms=38406
+
+[FINAL_SPI_FIRST_FAILURE]
+latched=False
+startup_residue=False
+context=NONE
+
+[SN32_P1_P2_HARDWARE_QUALIFICATION]
+result=PASS
+
+QUALIFIED SCOPE
+---------------
+PASS: SN32 exact-target build, flash and verify
+PASS: PC <-> SN32 command/liveness path used by qualification
+PASS: SN32 -> P1/P2 shared dual-SPI control plane
+PASS: P1/P2 identity and status transactions
+PASS: P1/P2 retained KAT RUN/QUERY/RETIRE lifecycle through SN32
+PASS: no retained first SPI failure before or after qualification
+
+NON-CLAIMS
+----------
+NOT CLAIMED: ML-KEM keypair/session hardware integration PASS
+NOT CLAIMED: P1 -> P2 secure telemetry end-to-end PASS
+NOT CLAIMED: Tiny supervisor full-system integration PASS
+NOT CLAIMED: complete full-system hardware qualification PASS
