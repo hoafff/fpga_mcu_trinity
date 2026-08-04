@@ -1,7 +1,7 @@
 module primer2_top #(
     parameter integer CLOCK_HZ = 27000000,
     parameter integer UART_BAUD = 115200,
-    parameter logic [31:0] BUILD_ID = 32'h5032_0001
+    parameter logic [31:0] BUILD_ID = 32'h5032_0002
 ) (
     input  logic sys_clk_i,
     input  logic rst_ni,
