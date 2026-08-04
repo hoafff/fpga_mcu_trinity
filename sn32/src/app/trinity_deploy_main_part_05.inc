@@ -28,16 +28,15 @@ static void spi_init(void) {
     SN_SPI0->CTRL0_b.SDODIS = 0u;
 
     /*
-     * NEW_TH_EN selects the SN32F407 16 x 8-bit FIFO organization.
-     * Leaving it clear keeps the reset-default 8 x 16-bit organization and
-     * corrupts byte-oriented SPI traffic by packing/skipping received bytes.
+     * Keep the optional threshold extension disabled. SN32F407 uses the
+     * documented 8 x 16-bit FIFO; DL=7 right-justifies each 8-bit frame in
+     * DATA[7:0]. FIFO_TH changes thresholds only, not frame organization.
      */
-    SN_SPI0->FIFO_TH = (1u << 31);
+    SN_SPI0->FIFO_TH = 0u;
 
     SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;
     SN_SPI0->CTRL1 = 0u; /* Mode 0, MSB first. */
     SN_SPI0->CTRL0_b.SELDIS = 1u;
-    SN_SPI0->CTRL0_b.FRESET = 3u;
     SN_SPI0->IE = 0u;
     NVIC_DisableIRQ(SPI0_IRQn);
     SN_SPI0->CTRL0_b.SPIEN = 1u;
