@@ -67,7 +67,7 @@ int main(void) {
         progress();
         full_contain_tiny_fault();
         pc_poll();
-        if (!g_fault && !g_spi_first_failure.valid && !g_host_txn.valid &&
+        if (!g_fault && !g_spi_retained_failure && !g_host_txn.valid &&
             (uint32_t)(g_ms - last_probe) >= TRINITY_DEPLOY_ENDPOINT_PROBE_MS) {
             g_automatic_probe_active = true;
             g_spi_trace_context = SPI_TRACE_CONTEXT_PERIODIC_PROBE;
