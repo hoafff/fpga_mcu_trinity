@@ -158,7 +158,8 @@ diagnostic_summary <= diagnostic_summary | DIAG_CRC;
 else
 diagnostic_summary <= diagnostic_summary | DIAG_TRANSPORT;
 emit_error(transport_error_command_i,transport_error_txid_i,
-transport_error_code_i,16'd0);
+transport_error_code_i,
+(transport_error_code_i == ERR_BAD_LENGTH) ? request_payload_length_i : 16'd0);
 end else if (request_valid_i && response_ready_i) begin
 incoming_fingerprint = request_fingerprint_i;
 if (is_retained_side_effect(request_command_i) && retained_valid && request_command_i != CMD_ZEROIZE) begin
@@ -189,7 +190,7 @@ end
 end
 CMD_GET_STATUS: begin
 if (request_payload_length_i != 0)
-emit_error(request_command_i,request_txid_i,ERR_BAD_LENGTH,0);
+emit_error(request_command_i,request_txid_i,ERR_BAD_LENGTH,request_payload_length_i);
 else
 emit_status_response(request_command_i,request_txid_i);
 end
