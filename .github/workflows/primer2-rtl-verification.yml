@@ -30,8 +30,8 @@ jobs:
         run: python3 primer2/tb/run.py
       - name: Check Primer2 diff whitespace
         run: git diff --check 36822a09c234f509adfa5dace6aa05e4bbd40d54..HEAD -- primer2 .github/workflows/primer2-rtl-verification.yml
-      - name: Guard qualified Primer1 implementation
+      - name: Guard corrected Primer1 implementation
         run: |
-          git diff --exit-code c8135b5304c0318c7ec24787484dc8a4c4aa0278..HEAD -- \
+          git diff --exit-code 0b78e007dca49f8f309ba99f3ede54bd6f3349e7..HEAD -- \
             primer1/rtl primer1/tb primer1/scripts primer1/constraints \
             primer1/gowin/trinity_primer1.gprj
