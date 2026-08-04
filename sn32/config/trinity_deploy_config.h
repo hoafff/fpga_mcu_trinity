@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 22u
+#define TRINITY_DEPLOY_VERSION_PATCH 23u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -24,22 +24,25 @@
 #define FPST_SN32F407_SESSION_COMMIT_PIN           8u
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
-/* First SN32 dual-SPI hardware qualification uses the same conservative clock
- * already proven by the ESP32-C3 P1/P2 harness. With a 12 MHz peripheral clock,
- * SPI0 SCK = PCLK / (2 * (CLKDIV + 1)); CLKDIV=59 gives exactly 100 kHz. */
+/*
+ * v0.7.23 uses a GPIO-driven mode-0 SPI backend on the existing DB_SPI pins.
+ * Repeated hardware captures proved that SPI0 polling could emit a request for
+ * which P1 captured only four or nine of ten bytes, while the same P1/P2 RTL
+ * and wiring protocol passed with the ESP32-C3 controller. Driving every edge
+ * explicitly removes the SPI0 FIFO/start race without changing the wire
+ * protocol, board wiring, CS/IRQ ownership or fail-closed transaction policy.
+ *
+ * The half-period loop is deliberately conservative: loop overhead can only
+ * make SCK slower than the 100 kHz ceiling. Both Primer endpoints accept gaps
+ * while CS is asserted and were qualified at this maximum rate.
+ */
 #define TRINITY_DEPLOY_SPI_HZ                 100000u
-#define TRINITY_DEPLOY_SPI_CLKDIV                 59u
+#define TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND          1
+#define TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES        60u
 #define TRINITY_DEPLOY_SPI_TIMEOUT_MS            100u
 #define TRINITY_DEPLOY_ENDPOINT_PROBE_MS         2000u
-/* P1 diagnostic D002 returned fields matching the request after its first six
- * bits were removed. At 100 kHz that is 60 us. v0.7.18 expanded the existing
- * CS guard to 200 us before and after every transaction. v0.7.22 retains that
- * timing, validates a complete mailbox before accepting it and permits two
- * bounded reissues of side-effect-free discovery/status reads after transport
- * corruption. Applying the same policy to P2 avoids a target-dependent path;
- * packet bytes, SPI mode and clock rate remain unchanged. */
+/* Keep the proven 200 us select/de-select margin around every transaction. */
 #define TRINITY_DEPLOY_SPI_CS_GUARD_US            200u
-#define TRINITY_DEPLOY_P1_CS_SETUP_US              200u
 #define TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS        5u
 #define TRINITY_DEPLOY_SPI_READ_REISSUE_MAX          2u
 #define TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS    20u

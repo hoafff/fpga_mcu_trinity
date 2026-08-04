@@ -29,7 +29,7 @@ system_info_local_identity_readback:
 PRIMER IDENTITIES
 primer1_source_commit:
 primer1_bitstream_sha256:
-primer1_build_id: 0x50310001
+primer1_build_id: 0x5031D002
 primer2_source_commit:
 primer2_bitstream_sha256:
 primer2_build_id: 0x50320001

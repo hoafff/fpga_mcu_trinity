@@ -17,6 +17,9 @@ static void spi_trace_begin(endpoint_t *ep, uint8_t command,
     g_spi_trace.result_code = TRINITY_OK;
     g_spi_trace.target_txid = txid;
     g_spi_trace.request_fingerprint = fingerprint;
+    g_spi_trace.spi_ctrl0 = SPI_TRACE_BACKEND_GPIO_MODE0;
+    g_spi_trace.spi_ctrl1 = TRINITY_DEPLOY_SPI_HZ;
+    g_spi_trace.spi_clkdiv = TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES;
 }
 
 static void spi_retain_current_trace(bool failure) {

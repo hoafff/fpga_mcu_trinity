@@ -1,97 +1,60 @@
-# SN32 -> P1/P2 dual-SPI hardware qualification — next gate
+# SN32 -> P1/P2 dual-SPI hardware qualification — v0.7.23
 
-## Scope
+## Scope and decision
 
-This gate qualifies only the SN32F407 controller path to Primer #1 and Primer #2
-over one shared SPI bus with independent CS and IRQ lines.
+This gate qualifies the SN32F407 controller path to Primer #1 and Primer #2 on
+the shared mode-0 SPI wires with independent CS and IRQ signals.
 
-The permitted statement, only after every acceptance item passes, is:
+Only after the one-shot command reaches its final PASS line may the result be
+recorded as:
 
 ```text
 SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 ```
 
-It does not qualify session activation, direct P1-to-P2 UART telemetry, Tiny,
-live-session ML-KEM or the full system.
+This gate does not qualify session activation, P1-to-P2 UART telemetry, Tiny,
+live ML-KEM session creation or the full system.
 
-## Locked hardware evidence through v0.7.10
+## Why v0.7.23 changes the transport backend
 
-The following facts are proven:
+The v0.7.19–v0.7.22 hardware evidence proved all of the following:
 
-1. Startup GET_INFO request `txid=0x0001` is byte-exact and CRC-valid.
-2. P1 accepts it and retains the correct 22-byte GET_INFO response while IRQ is active.
-3. A later manual diagnostic recovers the exact old response with valid CRC.
-4. Startup warmup, response delay, FRESET sequencing, a ten-byte mailbox prime,
-   and selecting `NEW_TH_EN=1` did not eliminate the malformed first header.
-5. Two v0.7.10 cold boots produced:
+- SN32's canonical request buffer contained the correct ten-byte frame and CRC;
+- P1 sometimes captured only four or nine bytes, including CRC-valid
+  `BAD_LENGTH` diagnostics;
+- the same P1/P2 RTL and packet protocol passed with the ESP32-C3 controller;
+- delay, FIFO reset, `NEW_TH_EN`, mailbox reread and bounded request replay did
+  not make the SPI0 polling path deterministic;
+- `system-status` liveness itself is fixed and passed 20/20 status plus 20/20
+  immediate ping operations on v0.7.22.
 
-```text
-f9 07 00 00 00 01 00 0c
-1c 08 00 00 00 01 00 0c
-```
+v0.7.23 therefore disables SPI0 for the deploy path and drives the existing
+P1.0/P1.1/P1.2 DB_SPI pins directly as GPIO mode-0, MSB-first SPI. It retains
+the same physical wiring, packet bytes, CRC, CS/IRQ ownership, timeout policy,
+mailbox validation and non-replay rule for side-effect operations.
 
-The final four header bytes are stable and correct while the first four bytes are
-not. The evidence is insufficient to choose another FIFO packing, byte-lane, or
-polling change. No further transport behavior may be changed without direct
-register-level evidence.
-
-## Required diagnostic image
+## Required image identities
 
 ```text
-architecture_version = 0.7.11
-sn32_build_id         = 0x0007000B
+SN32 architecture_version = 0.7.23
+SN32 build_id             = 0x00070017
+Primer #1 build_id        = 0x5031D002
+Primer #2 build_id        = 0x50320001
 ```
 
-The v0.7.11 image deliberately retains the v0.7.10 transport behavior and adds
-measurement only. For the first eight response bytes it records:
+## Build and flash
 
-```text
-SPI CTRL0
-SPI CTRL1
-SPI CLKDIV
-SPI FIFO_TH
-STAT immediately before each DATA read
-full 32-bit DATA register value
-STAT immediately after each DATA read
-```
-
-This distinguishes among:
-
-```text
-correct byte present in another DATA lane
-stale DATA register value despite RX-ready status
-RX FIFO not popping after DATA read
-unexpected CTRL/FIFO configuration at runtime
-incorrect interpretation of STAT bits
-```
-
-## Locked transport profile
-
-```text
-SPI frequency                = 100000 Hz
-SPI mode                     = 0
-bit order                    = MSB first
-word length                  = 8 bits
-SPI0 CLKDIV                  = 59
-FIFO_TH                      = 0x80000000 retained for measurement
-CS guard                     = 10 us nominal
-startup warmup               = 2000 ms
-response settle              = 15 ms
-response capture             = exact declared frame length
-header + remainder           = one continuous CS
-mailbox retry                = two reads, no reissued request
-startup mailbox prime        = removed
-```
-
-## Exact rebuild and image verification
+From the repository root:
 
 ```bat
-git pull origin main
+git pull --ff-only origin main
 git submodule update --init --recursive
 git rev-parse HEAD
+git status --short
+py -m pip install -e pc_host
 ```
 
-Rebuild:
+Open and rebuild:
 
 ```text
 sn32/keil/trinity_sn32f407_deploy.uvprojx
@@ -103,89 +66,61 @@ Accept only:
 0 Error(s), 0 Warning(s)
 Flash fit: PASS
 RAM fit: PASS
-AXF generation: PASS
-HEX generation: PASS
+AXF/HEX generated
+Programming Done
+Verify OK
 ```
 
-Flash and Verify through SN-LINK. Do not reuse any v0.7.10 HEX.
+P1 and P2 do not need a new bitstream for this gate.
 
-Required local identity:
+## Cold-boot sequence
 
-```text
-protocol_version=1
-architecture_version=0.7.11
-sn32_build_id=0x0007000B
-```
-
-`system-info` remains local and side-effect free. Endpoint build IDs may be zero
-when startup discovery fails.
-
-## Mandatory v0.7.11 measurement run
-
-1. Power off SN32.
-2. Reset or reconfigure P1 and P2 to clear pending mailboxes.
-3. Keep common ground connected.
-4. Power or reset SN32 last with the v0.7.11 image.
-5. Wait at least 3 seconds.
-
-Run only:
+1. Power off SN32, P1 and P2.
+2. Keep the verified common ground and SPI/CS/IRQ wiring unchanged.
+3. Power/configure P1 and P2 first.
+4. Power or reset SN32 last.
+5. Wait three seconds.
+6. Run exactly one command:
 
 ```bat
-trinity-host --port COM3 ping
-trinity-host --port COM3 system-info
-trinity-host --port COM3 spi-first-failure
+trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
 ```
 
-When a failure is present, the final command must print these additional fields:
+Do not run separate `spi-diag`, `system-status` or self-test commands before
+this qualification command; the immutable first-failure record must describe
+the cold boot itself.
+
+## What the one-shot command checks
 
 ```text
-spi_ctrl0
-spi_ctrl1
-spi_clkdiv
-spi_fifo_th
-response_sample_count
-response_status_before_read
-response_data_words
-response_status_after_read
+startup ready snapshot for SN32 + P1 + P2
+clean initial state: no active fault, error or host transaction
+immutable cold-boot SPI failure latch is clear
+live P1 GET_INFO:   exact length + CRC + IRQ release
+live P1 GET_STATUS: exact length + CRC + IRQ release
+live P2 GET_INFO:   exact length + CRC + IRQ release
+live P2 GET_STATUS: exact length + CRC + IRQ release
+P1 retained KAT self-test and retirement
+P2 retained KAT self-test and retirement
+10 x system-status followed immediately by ping
+monotonic uptime, ready state, ready_mask=0x07, active_host_txid=0
+fault_flags=0, last_error=OK
+final immutable SPI failure latch is still clear
 ```
 
-Do not run `spi-diag`, `system-status`, or `dual-spi-bringup` until the telemetry
-has been audited. The pending P1 mailbox must remain intact for correlation.
+## Acceptance
 
-## Decision rules after telemetry
+The run passes only when it ends with:
 
 ```text
-Upper DATA lane contains A5/01/01/01:
-    Correct byte-lane extraction using measured DATA layout.
-
-DATA words themselves contain the same malformed low bytes:
-    Inspect RX FIFO readiness/pop semantics and STAT bit definitions.
-
-STAT does not change across DATA reads:
-    Investigate FIFO pop behavior or register access width.
-
-FIFO_TH readback is not 0x80000000:
-    Investigate configuration write/readback and register definition.
-
-CTRL0/CTRL1/CLKDIV differ from the locked profile:
-    Fix runtime configuration before any protocol change.
+[SN32_P1_P2_HARDWARE_QUALIFICATION]
+result=PASS
 ```
 
-## Acceptance criteria
-
-```text
-v0.7.11 exact Keil rebuild:                       PASS
-v0.7.11 SN-LINK program/verify:                   PASS
-v0.7.11 local identity readback:                  PASS
-v0.7.11 standalone PC UART PING:                  PASS
-register telemetry fields present:                PASS
-first eight raw DATA words captured:              PASS
-STAT before/after each DATA read captured:         PASS
-runtime CTRL0/CTRL1/CLKDIV/FIFO_TH captured:       PASS
-root cause selected from measured evidence:        PENDING
-P1/P2 raw diagnostics:                             BLOCKED
-SN32 dual-SPI hardware qualification:              BLOCKED
-```
+Any earlier `FAIL`, a latched `SPI_FIRST_FAILURE`, wrong build identity, reset,
+lost ready bit, nonzero fault flag or non-OK active error fails this gate. The
+single command prints enough trace data to locate the failed target/command;
+no speculative rerun is required before auditing that output.
 
 ## Explicit non-claims
 

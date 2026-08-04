@@ -94,12 +94,38 @@ SN32 -> P1/P2 GET_STATUS final confirmation
 It requires exact build IDs:
 
 ```text
-P1 = 0x50310001
+P1 = 0x5031D002
 P2 = 0x50320001
 ```
 
 It does not stage or commit a session, drive Tiny, send telemetry, exercise the
 direct P1-to-P2 UART payload path, or qualify the full system.
+
+## One-shot SN32 hardware qualification
+
+For the v0.7.23 deploy image, use one command after a full cold boot:
+
+```bat
+trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
+```
+
+It waits for the automatic startup probe, rejects any latched cold-boot SPI
+failure, then runs four live CRC/IRQ-checked transactions (`GET_INFO` and
+`GET_STATUS` on both Primers), the separate retained P1/P2 KAT self-tests, and
+ten `system-status`/`ping` liveness rounds. The final acceptance line is:
+
+```text
+[SN32_P1_P2_HARDWARE_QUALIFICATION]
+result=PASS
+```
+
+This command requires:
+
+```text
+SN32 version/build = 0.7.23 / 0x00070017
+P1 build           = 0x5031D002
+P2 build           = 0x50320001
+```
 
 ## Earlier P1-only compatibility flow
 

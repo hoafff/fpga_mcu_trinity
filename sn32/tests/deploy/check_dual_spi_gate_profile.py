@@ -91,26 +91,27 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 22):
-        fail(f"nonblocking-status recovery image must be v0.7.22, got {version}")
+    if version != (0, 7, 23):
+        fail(f"deterministic GPIO-SPI image must be v0.7.23, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
-        fail("qualification SPI clock must remain 100 kHz")
-    if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
-        fail("qualification SPI clock divider must remain 59")
+        fail("qualification SPI ceiling must remain 100 kHz")
+    if macro(config, "TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND") != 1:
+        fail("deploy image must select the GPIO SPI backend")
+    if macro(config, "TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES") < 60:
+        fail("GPIO SPI half-period must not exceed the 100 kHz ceiling")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 200:
-        fail("v0.7.22 must retain the 200 us diagnostic CS guard")
-    if macro(config, "TRINITY_DEPLOY_P1_CS_SETUP_US") != 200:
-        fail("P1 diagnostic setup marker must remain 200 us")
+        fail("v0.7.23 must retain the 200 us CS guard")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_REISSUE_MAX") != 2:
         fail("read-only recovery must permit exactly two bounded reissues")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS") != 20:
         fail("read-only recovery backoff must remain 20 ms")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070016)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070017)", "identity")
     require(
         p00,
-        "#if TRINITY_DEPLOY_P1_CS_SETUP_US < TRINITY_DEPLOY_SPI_CS_GUARD_US",
-        "CS setup contract",
+        "#if TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND != 1",
+        "GPIO SPI backend contract",
     )
+    require(p00, "SPI_TRACE_BACKEND_GPIO_MODE0", "GPIO SPI trace identity")
 
     for token in (
         "static bool g_pc_service_enabled;",
@@ -154,12 +155,14 @@ def main() -> int:
     forbid(progress_body, "handle_request", "progress body")
 
     for token in (
-        "SN_SPI0->CTRL0_b.DL = 7u;",
-        "SN_SPI0->FIFO_TH = (1u << 31);",
-        "SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;",
-        "SN_SPI0->CTRL1 = 0u;",
+        "SN_SPI0->CTRL0_b.SPIEN = 0u;",
+        "SN_PFPA->SPI0 = 0u;",
+        "FPST_SN32F407_SPI_SCK_PIN, true",
+        "FPST_SN32F407_SPI_MOSI_PIN, true",
+        "FPST_SN32F407_SPI_MISO_PIN, false",
     ):
-        require(p05, token, "SPI init")
+        require(p05, token, "GPIO SPI init")
+    forbid(p05, "SN_SPI0->CTRL0_b.SPIEN = 1u;", "disabled SPI0 backend")
 
     request_tx = section(
         p06,
@@ -168,12 +171,10 @@ def main() -> int:
         "request TX",
     )
     for token in (
-        "SN_SPI0->DATA = tx[i];",
-        "while ((SN_SPI0->STAT & SPI_BUSY) != 0u)",
-        "while ((SN_SPI0->STAT & SPI_RX_EMPTY) != 0u)",
-        "(void)SN_SPI0->DATA;",
+        "soft_spi_transfer_byte(tx[i], &ignored)",
+        "g_spi_trace.transfer_completed = (uint16_t)(i + 1u);",
     ):
-        require(request_tx, token, "request TX")
+        require(request_tx, token, "GPIO request TX")
 
     response_rx = section(
         p06,
@@ -182,12 +183,14 @@ def main() -> int:
         "response RX",
     )
     for token in (
-        "SN_SPI0->DATA = 0u;",
-        "data_word = SN_SPI0->DATA;",
+        "soft_spi_transfer_byte(0u, &value)",
+        "SPI_TRACE_BACKEND_GPIO_MODE0",
         "g_spi_response_wire[trace_index] = value;",
         "g_spi_trace.response_bytes[trace_index] = value;",
     ):
-        require(response_rx, token, "response RX")
+        require(response_rx, token, "GPIO response RX")
+    for token in ("SN_SPI0->DATA", "SN_SPI0->STAT", "SN_SPI0->CLKDIV"):
+        forbid(p06, token, "GPIO transport isolation")
     forbid(p06, "spi_bytes_segment", "split transport")
     require(
         p06,
@@ -195,6 +198,15 @@ def main() -> int:
         "200 us guard implementation",
     )
     require(p06, "spi_guard_delay();", "CS guard use")
+    for token in (
+        "static void soft_spi_half_delay(void)",
+        "static trinity_error_code_t soft_spi_transfer_byte(",
+        "FPST_SN32F407_SPI_MOSI_PIN",
+        "FPST_SN32F407_SPI_SCK_PIN, true",
+        "FPST_SN32F407_SPI_MISO_PIN",
+        "FPST_SN32F407_SPI_SCK_PIN, false",
+    ):
+        require(p06, token, "mode-0 GPIO edge sequence")
 
     for token in (
         "static void spi_retain_current_trace(bool failure)",
@@ -379,9 +391,10 @@ def main() -> int:
     forbid(p17, "!g_spi_retained_failure",
            "periodic read-only recovery after retained history")
 
-    print("PASS: v0.7.22 identity and 100 kHz profile are locked")
+    print("PASS: v0.7.23 identity and GPIO mode-0 backend are locked")
     print("PASS: encoded four/nine-byte BAD_LENGTH captures prove truncation")
-    print("PASS: every CS guard remains 200 us for the P1 start-edge diagnostic")
+    print("PASS: GPIO SCK/MOSI/MISO ownership and 100 kHz ceiling are locked")
+    print("PASS: every CS guard remains 200 us")
     print("PASS: CRC-invalid active mailboxes are reread before request replay")
     print("PASS: only zero-payload GET_INFO/GET_STATUS may be reissued twice")
     print("PASS: side-effect commands remain non-replayed")
@@ -389,7 +402,7 @@ def main() -> int:
     print("PASS: system-status is a local snapshot and cannot nest SPI refresh")
     print("PASS: retained failure bytes use a dedicated copy snapshot")
     print("PASS: a full refresh clears active transport fault but keeps history")
-    print("PASS: non-recursive PC service and split SPI transport remain locked")
+    print("PASS: non-recursive PC service and deterministic SPI transport remain locked")
     print("NOTE: source PASS does not claim Keil build, flash or hardware PASS")
     return 0
 

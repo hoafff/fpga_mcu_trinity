@@ -7,7 +7,6 @@
         return TRINITY_INTERNAL_FAULT;
     }
     gpio_init();
-    SN_PFPA->SPI0 = FPST_SN32F407_PFPA_SPI0_VALUE;
     rc = uart_init();
     if (rc != TRINITY_OK) {
         set_error(rc, TRINITY_SOURCE_SN32, UINT32_C(0x55415254));

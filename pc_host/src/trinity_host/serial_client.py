@@ -11,6 +11,9 @@ from .protocol import (
     FrameFlags,
     HostCommand,
     HostFrame,
+    ProtocolDecodeError,
+    PROTOCOL_VERSION,
+    SpiPacket,
     SpiCommand,
     SystemState,
     SystemStatus,
@@ -20,6 +23,7 @@ from .protocol import (
     TestProfile,
     TransactionResult,
     TransactionState,
+    request_fingerprint_crc32c,
 )
 
 try:
@@ -29,8 +33,10 @@ except ImportError:  # pragma: no cover - exercised only on systems without pyse
     serial = None
     list_ports = None
 
-EXPECTED_P1_BUILD_ID = 0x50310001
+EXPECTED_P1_BUILD_ID = 0x5031D002
 EXPECTED_P2_BUILD_ID = 0x50320001
+EXPECTED_SN32_BUILD_ID = 0x00070017
+EXPECTED_SN32_VERSION = (0, 7, 23)
 P1_KAT_TEST_MASK = 0x013E
 P2_KAT_TEST_MASK = 0x03E3
 SPI_DIAGNOSTIC_HEADER_SIZE = 24
@@ -102,6 +108,15 @@ class DualSpiBringupResult:
     primer1_transaction: TransactionResult
     primer2_transaction: TransactionResult
     status_after: SystemStatus
+
+
+@dataclass(frozen=True, slots=True)
+class Sn32QualificationResult:
+    live_traces: tuple["SpiDiagnosticTrace", ...]
+    dual_spi: DualSpiBringupResult
+    liveness_iterations: int
+    final_uptime_ms: int
+    final_status: SystemStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -570,6 +585,239 @@ class TrinitySerialClient:
             p1_result,
             p2_result,
             status_after,
+        )
+
+    @staticmethod
+    def _validate_live_spi_trace(
+        trace: SpiDiagnosticTrace,
+        *,
+        target: TargetId,
+        command: SpiCommand,
+    ) -> None:
+        expected_frame_length = 22 if command == SpiCommand.GET_INFO else 26
+        if trace.result_code != ErrorCode.OK:
+            raise HostProtocolError(
+                f"{target.name} {command.name} failed: {trace.result_code.name}"
+            )
+        if trace.source != int(target):
+            raise HostProtocolError(
+                f"{target.name} {command.name} source mismatch: {trace.source}"
+            )
+        if trace.request_length != 10:
+            raise HostProtocolError(
+                f"{target.name} {command.name} request length "
+                f"{trace.request_length} != 10"
+            )
+        if trace.response_capture_length != expected_frame_length or (
+            trace.response_frame_length != expected_frame_length
+        ):
+            raise HostProtocolError(
+                f"{target.name} {command.name} response length "
+                f"{trace.response_capture_length}/{trace.response_frame_length} "
+                f"!= {expected_frame_length}"
+            )
+        try:
+            request = SpiPacket.decode(trace.request_bytes)
+            response = SpiPacket.decode(trace.response_bytes)
+        except ProtocolDecodeError as exc:
+            raise HostProtocolError(
+                f"{target.name} {command.name} raw SPI frame invalid: {exc}"
+            ) from exc
+
+        if (
+            request.command != int(command)
+            or request.flags != 0
+            or request.transaction_id != trace.target_transaction_id
+            or request.payload
+        ):
+            raise HostProtocolError(
+                f"{target.name} {command.name} request correlation mismatch"
+            )
+        expected_fingerprint = request_fingerprint_crc32c(
+            int(command), 0, b""
+        )
+        if trace.request_fingerprint != expected_fingerprint:
+            raise HostProtocolError(
+                f"{target.name} {command.name} request fingerprint mismatch"
+            )
+        request_crc = int.from_bytes(trace.request_bytes[-2:], "big")
+        if trace.request_crc != request_crc:
+            raise HostProtocolError(
+                f"{target.name} {command.name} request CRC trace mismatch"
+            )
+
+        if (
+            response.command != int(command)
+            or response.flags != int(FrameFlags.RESPONSE)
+            or response.transaction_id != trace.target_transaction_id
+        ):
+            raise HostProtocolError(
+                f"{target.name} {command.name} response correlation mismatch"
+            )
+        response_crc = int.from_bytes(trace.response_bytes[-2:], "big")
+        if (
+            trace.response_crc_received != response_crc
+            or trace.response_crc_calculated != response_crc
+        ):
+            raise HostProtocolError(
+                f"{target.name} {command.name} response CRC mismatch"
+            )
+        if command == SpiCommand.GET_INFO:
+            expected_build = (
+                EXPECTED_P1_BUILD_ID
+                if target == TargetId.PRIMER1
+                else EXPECTED_P2_BUILD_ID
+            )
+            if (
+                len(response.payload) != 12
+                or response.payload[0] != int(target)
+                or response.payload[1] != PROTOCOL_VERSION
+                or int.from_bytes(response.payload[6:10], "big")
+                != expected_build
+                or response.payload[10:] != b"\x00\x00"
+            ):
+                raise HostProtocolError(
+                    f"{target.name} GET_INFO identity payload mismatch"
+                )
+        if trace.irq_before_request:
+            raise HostProtocolError(
+                f"{target.name} had a pending mailbox before {command.name}"
+            )
+        if not trace.irq_before_response:
+            raise HostProtocolError(
+                f"{target.name} did not assert IRQ before {command.name} response"
+            )
+        if trace.irq_after_response:
+            raise HostProtocolError(
+                f"{target.name} did not release IRQ after {command.name}"
+            )
+
+    def run_sn32_hardware_qualification(
+        self,
+        *,
+        timeout: float = 10.0,
+        poll_interval: float = 0.1,
+        liveness_iterations: int = 10,
+    ) -> Sn32QualificationResult:
+        if liveness_iterations < 1:
+            raise ValueError("liveness_iterations must be at least one")
+
+        required_ready = int(
+            TargetReadyMask.SN32 | TargetReadyMask.PRIMER1 | TargetReadyMask.PRIMER2
+        )
+        info = self.get_system_info()
+        version = (
+            info.architecture_major,
+            info.architecture_minor,
+            info.architecture_patch,
+        )
+        if version != EXPECTED_SN32_VERSION or (
+            info.sn32_build_id != EXPECTED_SN32_BUILD_ID
+        ):
+            raise HostProtocolError(
+                "wrong SN32 image for qualification: "
+                f"version={version[0]}.{version[1]}.{version[2]}, "
+                f"build=0x{info.sn32_build_id:08X}"
+            )
+        if info.primer1_build_id != EXPECTED_P1_BUILD_ID or (
+            info.primer2_build_id != EXPECTED_P2_BUILD_ID
+        ):
+            raise HostProtocolError(
+                "wrong Primer image for qualification: "
+                f"P1=0x{info.primer1_build_id:08X}, "
+                f"P2=0x{info.primer2_build_id:08X}"
+            )
+
+        initial_status = self.get_system_status()
+        if (initial_status.target_ready_mask & required_ready) != required_ready:
+            raise HostProtocolError(
+                "qualification started before both endpoints were ready: "
+                f"ready_mask=0x{initial_status.target_ready_mask:02X}"
+            )
+        if (
+            initial_status.fault_flags != 0
+            or initial_status.last_error != ErrorCode.OK
+            or initial_status.active_host_txid != 0
+        ):
+            raise HostProtocolError(
+                "qualification did not start from a clean controller snapshot: "
+                f"fault_flags=0x{initial_status.fault_flags:02X}, "
+                f"last_error={initial_status.last_error.name}, "
+                f"active_host_txid=0x{initial_status.active_host_txid:04X}"
+            )
+        if initial_status.system_state not in {
+            SystemState.SELF_TEST_REQUIRED,
+            SystemState.READY_NO_KEYPAIR,
+            SystemState.READY_NO_SESSION,
+        }:
+            raise HostProtocolError(
+                "unexpected initial qualification state: "
+                f"{initial_status.system_state.name}"
+            )
+
+        traces: list[SpiDiagnosticTrace] = []
+        for target, command in (
+            (TargetId.PRIMER1, SpiCommand.GET_INFO),
+            (TargetId.PRIMER1, SpiCommand.GET_STATUS),
+            (TargetId.PRIMER2, SpiCommand.GET_INFO),
+            (TargetId.PRIMER2, SpiCommand.GET_STATUS),
+        ):
+            trace = self.spi_diagnostic(target, command)
+            self._validate_live_spi_trace(
+                trace,
+                target=target,
+                command=command,
+            )
+            traces.append(trace)
+
+        dual = self.run_dual_spi_bringup(
+            timeout=timeout,
+            poll_interval=poll_interval,
+        )
+        previous_uptime = dual.uptime_ms
+        final_uptime = previous_uptime
+        final_status = dual.status_after
+
+        for _ in range(liveness_iterations):
+            final_status = self.get_system_status()
+            final_uptime = self.ping()
+            if final_uptime < previous_uptime:
+                raise HostProtocolError(
+                    f"SN32 reset during liveness loop: {previous_uptime} -> "
+                    f"{final_uptime} ms"
+                )
+            if (final_status.target_ready_mask & required_ready) != required_ready:
+                raise HostProtocolError(
+                    "endpoint readiness lost during liveness loop: "
+                    f"ready_mask=0x{final_status.target_ready_mask:02X}"
+                )
+            if final_status.system_state not in {
+                SystemState.READY_NO_KEYPAIR,
+                SystemState.READY_NO_SESSION,
+            }:
+                raise HostProtocolError(
+                    "system state regressed during liveness loop: "
+                    f"{final_status.system_state.name}"
+                )
+            if final_status.fault_flags != 0 or final_status.last_error != ErrorCode.OK:
+                raise HostProtocolError(
+                    "active fault during liveness loop: "
+                    f"fault_flags=0x{final_status.fault_flags:02X}, "
+                    f"last_error={final_status.last_error.name}"
+                )
+            if final_status.active_host_txid != 0:
+                raise HostProtocolError(
+                    "host transaction remained active during liveness loop: "
+                    f"0x{final_status.active_host_txid:04X}"
+                )
+            previous_uptime = final_uptime
+
+        return Sn32QualificationResult(
+            live_traces=tuple(traces),
+            dual_spi=dual,
+            liveness_iterations=liveness_iterations,
+            final_uptime_ms=final_uptime,
+            final_status=final_status,
         )
 
 

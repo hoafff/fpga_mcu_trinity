@@ -20,28 +20,29 @@ static trinity_error_code_t uart_init(void) {
 }
 
 static void spi_init(void) {
+    /* Release P1.0/P1.1/P1.2 from SPI0 before assigning them as GPIO. */
     SN_SYS1->AHBCLKEN_b.SPI0CLKEN = 1u;
     SN_SPI0->CTRL0_b.SPIEN = 0u;
-    SN_SPI0->CTRL0_b.DL = 7u;
-    SN_SPI0->CTRL0_b.MS = 0u;
-    SN_SPI0->CTRL0_b.LOOPBACK = 0u;
-    SN_SPI0->CTRL0_b.SDODIS = 0u;
-
-    /*
-     * NEW_TH_EN selects the SN32F407 16 x 8-bit FIFO organization. The deploy
-     * protocol is byte-oriented and every DATA access transfers one DL=7 frame;
-     * leaving the reset-default 8 x 16-bit organization produced a repeatable
-     * stale/packed prefix on the first mailbox read while the trailing header
-     * fields were already correct.
-     */
-    SN_SPI0->FIFO_TH = (1u << 31);
-
-    SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;
-    SN_SPI0->CTRL1 = 0u; /* Mode 0, MSB first. */
-    SN_SPI0->CTRL0_b.SELDIS = 1u;
     SN_SPI0->IE = 0u;
     NVIC_DisableIRQ(SPI0_IRQn);
-    SN_SPI0->CTRL0_b.SPIEN = 1u;
+    SN_PFPA->SPI0 = 0u;
+
+    gpio_write(FPST_SN32F407_SPI_SCK_PORT,
+               FPST_SN32F407_SPI_SCK_PIN, false);
+    gpio_write(FPST_SN32F407_SPI_MOSI_PORT,
+               FPST_SN32F407_SPI_MOSI_PIN, false);
+    gpio_set_mode(FPST_SN32F407_SPI_SCK_PORT,
+                  FPST_SN32F407_SPI_SCK_PIN, true);
+    gpio_set_mode(FPST_SN32F407_SPI_MOSI_PORT,
+                  FPST_SN32F407_SPI_MOSI_PIN, true);
+    gpio_set_mode(FPST_SN32F407_SPI_MISO_PORT,
+                  FPST_SN32F407_SPI_MISO_PIN, false);
+    gpio_set_cfg(FPST_SN32F407_SPI_SCK_PORT,
+                 FPST_SN32F407_SPI_SCK_PIN, GPIO_NO_PULL_SCHMITT);
+    gpio_set_cfg(FPST_SN32F407_SPI_MOSI_PORT,
+                 FPST_SN32F407_SPI_MOSI_PIN, GPIO_NO_PULL_SCHMITT);
+    gpio_set_cfg(FPST_SN32F407_SPI_MISO_PORT,
+                 FPST_SN32F407_SPI_MISO_PIN, GPIO_NO_PULL_SCHMITT);
     g_spi_ready = true;
 }
 

@@ -4,6 +4,7 @@ import argparse
 import json
 import struct
 import sys
+import time
 
 from .protocol import HostCommand, SpiCommand, SystemStatus, TargetId
 from .serial_client import (
@@ -195,6 +196,10 @@ def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
             "response_data_words": _hex_words(data_words),
             "response_status_after_read": _hex_words(status_after),
         })
+        if spi_ctrl0 == 0x4750494F:
+            transfer["spi_backend"] = "GPIO_MODE0"
+            transfer["spi_max_hz"] = spi_ctrl1
+            transfer["spi_half_period_cycles"] = spi_clkdiv
     else:
         raise HostProtocolError(
             f"unsupported first SPI failure extension length {len(extension)}"
@@ -283,6 +288,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     dual.add_argument("--timeout", type=float, default=10.0)
     dual.add_argument("--poll", type=float, default=0.1)
+    qualify = sub.add_parser(
+        "sn32-qualify",
+        help=(
+            "run one-shot cold-boot SN32 qualification: live P1/P2 SPI, "
+            "retained KAT self-tests and post-test UART liveness"
+        ),
+    )
+    qualify.add_argument("--timeout", type=float, default=10.0)
+    qualify.add_argument("--poll", type=float, default=0.1)
+    qualify.add_argument("--liveness", type=int, default=10)
     return parser
 
 
@@ -377,6 +392,83 @@ def main(argv: list[str] | None = None) -> int:
                 _emit({"step": "P2_KAT_SELF_TEST", "result": "PASS", **_transaction_dict(result.primer2_transaction)}, args.json)
                 _emit({"step": "DUAL_SPI_STATUS_AFTER", "result": "PASS", **_status_dict(result.status_after)}, args.json)
                 _emit({"step": "SN32_DUAL_SPI_CONTROL_PLANE", "result": "PASS"}, args.json)
+            elif args.command == "sn32-qualify":
+                preflight_uptime = client.ping()
+                _emit({
+                    "step": "PREFLIGHT_PING",
+                    "result": "PASS",
+                    "uptime_ms": preflight_uptime,
+                }, args.json)
+                ready_mask = 0x07
+                preflight_deadline = time.monotonic() + args.timeout
+                preflight_status = client.get_system_status()
+                while (
+                    preflight_status.target_ready_mask & ready_mask
+                ) != ready_mask and time.monotonic() < preflight_deadline:
+                    time.sleep(args.poll)
+                    preflight_status = client.get_system_status()
+
+                first_failure = _first_spi_failure_dict(
+                    client.request(HostCommand.GET_FIRST_SPI_FAILURE).payload
+                )
+                _emit({"step": "SPI_FIRST_FAILURE", **first_failure}, args.json)
+                if first_failure["latched"]:
+                    raise HostProtocolError(
+                        "cold boot already latched an active SPI failure; "
+                        "qualification stopped before retained self-tests"
+                    )
+                if (
+                    preflight_status.target_ready_mask & ready_mask
+                ) != ready_mask:
+                    raise HostProtocolError(
+                        "startup probe did not make P1/P2 ready: "
+                        f"ready_mask=0x{preflight_status.target_ready_mask:02X}"
+                    )
+
+                result = client.run_sn32_hardware_qualification(
+                    timeout=args.timeout,
+                    poll_interval=args.poll,
+                    liveness_iterations=args.liveness,
+                )
+                final_failure = _first_spi_failure_dict(
+                    client.request(HostCommand.GET_FIRST_SPI_FAILURE).payload
+                )
+                for trace, label in zip(
+                    result.live_traces,
+                    ("P1_GET_INFO", "P1_GET_STATUS", "P2_GET_INFO", "P2_GET_STATUS"),
+                    strict=True,
+                ):
+                    _emit(
+                        {
+                            "step": f"LIVE_SPI_{label}",
+                            "result": "PASS",
+                            **_spi_trace_dict(trace),
+                        },
+                        args.json,
+                    )
+                dual = result.dual_spi
+                _emit({"step": "SYSTEM_INFO", "result": "PASS", **_info_dict(dual.info)}, args.json)
+                _emit({"step": "P1_KAT_SELF_TEST", "result": "PASS", **_transaction_dict(dual.primer1_transaction)}, args.json)
+                _emit({"step": "P2_KAT_SELF_TEST", "result": "PASS", **_transaction_dict(dual.primer2_transaction)}, args.json)
+                _emit({"step": "FINAL_SYSTEM_STATUS", "result": "PASS", **_status_dict(result.final_status)}, args.json)
+                _emit({
+                    "step": "POST_TEST_LIVENESS",
+                    "result": "PASS",
+                    "iterations": result.liveness_iterations,
+                    "final_uptime_ms": result.final_uptime_ms,
+                }, args.json)
+                _emit({
+                    "step": "FINAL_SPI_FIRST_FAILURE",
+                    **final_failure,
+                }, args.json)
+                if final_failure["latched"]:
+                    raise HostProtocolError(
+                        "an SPI failure was latched during qualification"
+                    )
+                _emit({
+                    "step": "SN32_P1_P2_HARDWARE_QUALIFICATION",
+                    "result": "PASS",
+                }, args.json)
             else:  # pragma: no cover
                 parser.error(f"unsupported command {args.command}")
     except (RemoteError, HostProtocolError, TimeoutError, OSError, ValueError) as exc:

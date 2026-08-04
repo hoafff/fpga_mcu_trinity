@@ -34,21 +34,19 @@
 #if TRINITY_DEPLOY_ENABLE_DEMO_SECURE != 0
 #error "DEMO_SECURE remains disabled until an approved entropy qualification"
 #endif
-#if TRINITY_DEPLOY_SPI_HZ != \
-    (FPST_SN32F407_HCLK_HZ / (2u * (TRINITY_DEPLOY_SPI_CLKDIV + 1u)))
-#error "SPI qualification clock and CLKDIV disagree"
+#if TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND != 1
+#error "v0.7.23 deploy requires the deterministic GPIO SPI backend"
 #endif
-#if TRINITY_DEPLOY_SPI_CLKDIV > 255u
-#error "SPI0 CLKDIV exceeds the supported 8-bit field"
-#endif
-#if TRINITY_DEPLOY_P1_CS_SETUP_US < TRINITY_DEPLOY_SPI_CS_GUARD_US
-#error "P1 diagnostic CS setup must not be shorter than the common guard"
+#if TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES < \
+    (FPST_SN32F407_HCLK_HZ / (2u * TRINITY_DEPLOY_SPI_HZ))
+#error "GPIO SPI half-period is faster than the qualification ceiling"
 #endif
 
-#define DEPLOY_BUILD_ID UINT32_C(0x00070016)
+#define DEPLOY_BUILD_ID UINT32_C(0x00070017)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
+#define SPI_TRACE_BACKEND_GPIO_MODE0 UINT32_C(0x4750494F)
 #define P1_SELF_TEST_RESULT_MAX TRINITY_CONTROLLER_MAX_RESULT_BYTES
 
 static void full_controller_bind(void);

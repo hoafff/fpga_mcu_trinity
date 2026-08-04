@@ -12,51 +12,60 @@ static void spi_guard_delay(void) {
     }
 }
 
-static trinity_error_code_t spi_transfer_timeout(uint8_t stage,
-                                                  size_t byte_index,
-                                                  size_t transfer_length) {
-    if (g_spi_trace.valid) {
-        g_spi_trace.transfer_stage = stage;
-        g_spi_trace.transfer_byte_index = (uint16_t)byte_index;
-        g_spi_trace.transfer_length = (uint16_t)transfer_length;
-        g_spi_trace.spi_status = SN_SPI0->STAT;
+static void soft_spi_half_delay(void) {
+    volatile uint32_t cycles = TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES;
+    while (cycles != 0u) {
+        __NOP();
+        --cycles;
     }
-    return TRINITY_FRAME_TIMEOUT;
 }
 
 static trinity_error_code_t spi_reset_idle(void) {
-    uint32_t start;
-    unsigned drained = 0u;
-
     if (!g_spi_ready || g_spi_selected) return TRINITY_BAD_STATE;
-
-    start = g_ms;
-    while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
-        progress();
-        if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-            return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY, 0u, 0u);
-    }
-
-    SN_SPI0->CTRL0_b.FRESET = 3u;
-    start = g_ms;
-    while (SN_SPI0->CTRL0_b.FRESET != 0u) {
-        progress();
-        if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-            return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY, 0u, 0u);
-    }
-
-    while ((SN_SPI0->STAT & SPI_RX_EMPTY) == 0u && drained < 8u) {
-        (void)(SN_SPI0->DATA & UINT32_C(0xFFFF));
-        ++drained;
-    }
-    return ((SN_SPI0->STAT & (SPI_BUSY | SPI_RX_EMPTY)) == SPI_RX_EMPTY)
-               ? TRINITY_OK : TRINITY_BAD_STATE;
+    gpio_write(FPST_SN32F407_SPI_SCK_PORT,
+               FPST_SN32F407_SPI_SCK_PIN, false);
+    gpio_write(FPST_SN32F407_SPI_MOSI_PORT,
+               FPST_SN32F407_SPI_MOSI_PIN, false);
+    return TRINITY_OK;
 }
 
-/*
- * Request TX has a dedicated implementation. It never aliases the response
- * destination and it drains one RX word for every transmitted frame.
- */
+/* Explicit mode-0, MSB-first transfer on the existing DB_SPI GPIO pins. */
+static trinity_error_code_t soft_spi_transfer_byte(uint8_t tx, uint8_t *rx) {
+    uint8_t value = 0u;
+    unsigned bit;
+
+    if (!g_spi_ready || !g_spi_selected || rx == NULL)
+        return TRINITY_BAD_STATE;
+
+    for (bit = 0u; bit < 8u; ++bit) {
+        if (g_fault || !g_spi_selected) {
+            gpio_write(FPST_SN32F407_SPI_SCK_PORT,
+                       FPST_SN32F407_SPI_SCK_PIN, false);
+            return g_fault ? TRINITY_FAULT_LOCKED : TRINITY_BAD_STATE;
+        }
+
+        gpio_write(FPST_SN32F407_SPI_MOSI_PORT,
+                   FPST_SN32F407_SPI_MOSI_PIN,
+                   (tx & (uint8_t)(0x80u >> bit)) != 0u);
+        soft_spi_half_delay();
+
+        gpio_write(FPST_SN32F407_SPI_SCK_PORT,
+                   FPST_SN32F407_SPI_SCK_PIN, true);
+        soft_spi_half_delay();
+        value = (uint8_t)((value << 1) |
+                (gpio_read(FPST_SN32F407_SPI_MISO_PORT,
+                           FPST_SN32F407_SPI_MISO_PIN) ? 1u : 0u));
+
+        gpio_write(FPST_SN32F407_SPI_SCK_PORT,
+                   FPST_SN32F407_SPI_SCK_PIN, false);
+        soft_spi_half_delay();
+    }
+
+    *rx = value;
+    return TRINITY_OK;
+}
+
+/* Request TX never aliases the response destination. */
 static trinity_error_code_t spi_write_request_bytes(const uint8_t *tx,
                                                       size_t len) {
     size_t i;
@@ -69,48 +78,28 @@ static trinity_error_code_t spi_write_request_bytes(const uint8_t *tx,
         g_spi_trace.transfer_byte_index = 0u;
         g_spi_trace.transfer_length = (uint16_t)len;
         g_spi_trace.transfer_completed = 0u;
-        g_spi_trace.spi_status = SN_SPI0->STAT;
+        g_spi_trace.spi_status = 0u;
     }
 
     for (i = 0u; i < len; ++i) {
-        uint32_t stage_start = g_ms;
-        while ((SN_SPI0->STAT & SPI_TX_FULL) != 0u) {
-            progress();
-            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return spi_transfer_timeout(SPI_TRANSFER_STAGE_TX_FULL,
-                                            i, len);
+        uint8_t ignored;
+        trinity_error_code_t rc = soft_spi_transfer_byte(tx[i], &ignored);
+        if (rc != TRINITY_OK) {
+            if (g_spi_trace.valid) {
+                g_spi_trace.transfer_byte_index = (uint16_t)i;
+                g_spi_trace.transfer_length = (uint16_t)len;
+            }
+            return rc;
         }
-
-        SN_SPI0->DATA = tx[i];
-
-        stage_start = g_ms;
-        while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
-            progress();
-            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY, i, len);
-        }
-
-        stage_start = g_ms;
-        while ((SN_SPI0->STAT & SPI_RX_EMPTY) != 0u) {
-            progress();
-            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return spi_transfer_timeout(SPI_TRANSFER_STAGE_RX_EMPTY,
-                                            i, len);
-        }
-
-        (void)SN_SPI0->DATA;
         if (g_spi_trace.valid) {
             g_spi_trace.transfer_completed = (uint16_t)(i + 1u);
-            g_spi_trace.spi_status = SN_SPI0->STAT;
+            g_spi_trace.spi_status = 0u;
         }
     }
     return TRINITY_OK;
 }
 
-/*
- * Response RX also has a dedicated implementation. DATA[7:0] is written first
- * to a standalone canonical wire buffer; the trace copy is diagnostic only.
- */
+/* Response bytes go first to the canonical wire buffer; trace is diagnostic. */
 static trinity_error_code_t spi_read_response_segment(
     size_t len,
     size_t byte_offset,
@@ -129,56 +118,37 @@ static trinity_error_code_t spi_read_response_segment(
             g_spi_trace.transfer_direction = SPI_TRANSFER_DIRECTION_RESPONSE;
             g_spi_trace.transfer_byte_index = 0u;
             g_spi_trace.transfer_completed = 0u;
-            g_spi_trace.spi_ctrl0 = SN_SPI0->CTRL0;
-            g_spi_trace.spi_ctrl1 = SN_SPI0->CTRL1;
-            g_spi_trace.spi_clkdiv = SN_SPI0->CLKDIV;
-            g_spi_trace.spi_fifo_th = SN_SPI0->FIFO_TH;
+            g_spi_trace.spi_ctrl0 = SPI_TRACE_BACKEND_GPIO_MODE0;
+            g_spi_trace.spi_ctrl1 = TRINITY_DEPLOY_SPI_HZ;
+            g_spi_trace.spi_clkdiv =
+                TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES;
+            g_spi_trace.spi_fifo_th = 0u;
             g_spi_trace.response_sample_count = 0u;
         } else if (g_spi_trace.transfer_direction !=
                    SPI_TRANSFER_DIRECTION_RESPONSE) {
             return TRINITY_BAD_STATE;
         }
         g_spi_trace.transfer_length = (uint16_t)transfer_length;
-        g_spi_trace.spi_status = SN_SPI0->STAT;
+        g_spi_trace.spi_status = 0u;
     }
 
     for (i = 0u; i < len; ++i) {
         const size_t trace_index = byte_offset + i;
-        uint32_t stage_start = g_ms;
-        uint32_t status_before_read;
+        const uint32_t status_before_read = 0u;
         uint32_t data_word;
-        uint32_t status_after_read;
+        const uint32_t status_after_read = 0u;
         uint8_t value;
+        trinity_error_code_t rc;
 
-        while ((SN_SPI0->STAT & SPI_TX_FULL) != 0u) {
-            progress();
-            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return spi_transfer_timeout(SPI_TRANSFER_STAGE_TX_FULL,
-                                            trace_index, transfer_length);
+        rc = soft_spi_transfer_byte(0u, &value);
+        if (rc != TRINITY_OK) {
+            if (g_spi_trace.valid) {
+                g_spi_trace.transfer_byte_index = (uint16_t)trace_index;
+                g_spi_trace.transfer_length = (uint16_t)transfer_length;
+            }
+            return rc;
         }
-
-        SN_SPI0->DATA = 0u;
-
-        stage_start = g_ms;
-        while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
-            progress();
-            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY,
-                                            trace_index, transfer_length);
-        }
-
-        stage_start = g_ms;
-        while ((SN_SPI0->STAT & SPI_RX_EMPTY) != 0u) {
-            progress();
-            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return spi_transfer_timeout(SPI_TRANSFER_STAGE_RX_EMPTY,
-                                            trace_index, transfer_length);
-        }
-
-        status_before_read = SN_SPI0->STAT;
-        data_word = SN_SPI0->DATA;
-        status_after_read = SN_SPI0->STAT;
-        value = (uint8_t)(data_word & UINT32_C(0xFF));
+        data_word = value;
         g_spi_response_wire[trace_index] = value;
 
         if (g_spi_trace.valid) {
@@ -209,17 +179,20 @@ static trinity_error_code_t spi_select(const endpoint_t *ep) {
     if (rc != TRINITY_OK) return rc;
     spi_guard_delay();
     gpio_write(ep->cs_port, ep->cs_pin, false);
-    spi_guard_delay();
     g_spi_selected = true;
+    spi_guard_delay();
+    if (g_fault || !g_spi_selected) {
+        cs_all_high();
+        return g_fault ? TRINITY_FAULT_LOCKED : TRINITY_BAD_STATE;
+    }
     return TRINITY_OK;
 }
 
 static void spi_end(void) {
-    const uint32_t start = g_ms;
-    while (g_spi_selected && (SN_SPI0->STAT & SPI_BUSY) != 0u &&
-           !expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS)) {
-        progress();
-    }
+    gpio_write(FPST_SN32F407_SPI_SCK_PORT,
+               FPST_SN32F407_SPI_SCK_PIN, false);
+    gpio_write(FPST_SN32F407_SPI_MOSI_PORT,
+               FPST_SN32F407_SPI_MOSI_PIN, false);
     if (g_spi_selected) spi_guard_delay();
     cs_all_high();
     spi_guard_delay();

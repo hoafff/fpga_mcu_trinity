@@ -12,12 +12,18 @@ from trinity_host.protocol import (
     Mode,
     Source,
     SystemState,
+    SpiPacket,
+    SpiCommand,
+    TargetId,
     TargetReadyMask,
     TransactionState,
+    request_fingerprint_crc32c,
 )
 from trinity_host.serial_client import (
     EXPECTED_P1_BUILD_ID,
     EXPECTED_P2_BUILD_ID,
+    EXPECTED_SN32_BUILD_ID,
+    HostProtocolError,
     P1_KAT_TEST_MASK,
     P2_KAT_TEST_MASK,
     TrinitySerialClient,
@@ -32,6 +38,11 @@ class DualSpiFakeSerial:
         self.retained_mask = 0
         self.self_tests_completed = 0
         self.closed = False
+        self.p1_build_id = EXPECTED_P1_BUILD_ID
+        self.spi_result = ErrorCode.OK
+        self.corrupt_spi_response = False
+        self.active_host_txid_after_self_tests = 0
+        self.ping_uptimes = [123456]
 
     def _queue(self, frame: HostFrame) -> None:
         self.rx.extend(frame.encode_wire())
@@ -62,15 +73,73 @@ class DualSpiFakeSerial:
         payload = b""
 
         if command == HostCommand.PING:
-            payload = struct.pack(">I", 123456)
+            uptime = (
+                self.ping_uptimes.pop(0)
+                if len(self.ping_uptimes) > 1
+                else self.ping_uptimes[0]
+            )
+            payload = struct.pack(">I", uptime)
         elif command == HostCommand.GET_SYSTEM_INFO:
-            payload = bytes([1, 0, 7, 1]) + struct.pack(
+            payload = bytes([1, 0, 7, 23]) + struct.pack(
                 ">IIII",
                 0x00000EFB,
-                0x00070001,
-                EXPECTED_P1_BUILD_ID,
+                EXPECTED_SN32_BUILD_ID,
+                self.p1_build_id,
                 EXPECTED_P2_BUILD_ID,
             )
+        elif command == HostCommand.SPI_DIAGNOSTIC:
+            target, spi_command = request.payload
+            if target not in {int(TargetId.PRIMER1), int(TargetId.PRIMER2)}:
+                raise AssertionError(f"bad target {target}")
+            if spi_command not in {
+                int(SpiCommand.GET_INFO), int(SpiCommand.GET_STATUS)
+            }:
+                raise AssertionError(f"bad SPI command {spi_command}")
+            target_txid = 0x1234
+            request_bytes = SpiPacket(
+                command=spi_command,
+                flags=0,
+                transaction_id=target_txid,
+            ).encode()
+            if spi_command == int(SpiCommand.GET_INFO):
+                build_id = (
+                    EXPECTED_P1_BUILD_ID
+                    if target == int(TargetId.PRIMER1)
+                    else EXPECTED_P2_BUILD_ID
+                )
+                response_payload = bytes((target, 1)) + struct.pack(
+                    ">IIH", 0x00000EFB, build_id, 0
+                )
+            else:
+                response_payload = bytes(16)
+            response_bytes = SpiPacket(
+                command=spi_command,
+                flags=int(FrameFlags.RESPONSE),
+                transaction_id=target_txid,
+                payload=response_payload,
+            ).encode()
+            if self.corrupt_spi_response:
+                corrupt = bytearray(response_bytes)
+                corrupt[8] ^= 0x01
+                response_bytes = bytes(corrupt)
+            request_crc = int.from_bytes(request_bytes[-2:], "big")
+            response_crc = int.from_bytes(response_bytes[-2:], "big")
+            payload = struct.pack(
+                ">BBBBHHIHHHHHH",
+                target,
+                spi_command,
+                target,
+                0x06,
+                int(self.spi_result),
+                target_txid,
+                request_fingerprint_crc32c(spi_command, 0, b""),
+                len(request_bytes),
+                len(response_bytes),
+                len(response_bytes),
+                request_crc,
+                response_crc,
+                response_crc,
+            ) + request_bytes + response_bytes
         elif command == HostCommand.GET_SYSTEM_STATUS:
             state = (
                 SystemState.READY_NO_KEYPAIR
@@ -90,7 +159,11 @@ class DualSpiFakeSerial:
                 0,
                 0,
                 int(ErrorCode.OK),
-                0,
+                (
+                    self.active_host_txid_after_self_tests
+                    if self.self_tests_completed == 2
+                    else 0
+                ),
             )
         elif command == HostCommand.RUN_SELF_TEST:
             target, profile, mask = struct.unpack(">BBH", request.payload)
@@ -169,8 +242,8 @@ class DualSpiBringupTests(unittest.TestCase):
         result = client.run_dual_spi_bringup(timeout=0.5, poll_interval=0.0)
 
         self.assertEqual(result.uptime_ms, 123456)
-        self.assertEqual(result.info.architecture_patch, 1)
-        self.assertEqual(result.info.sn32_build_id, 0x00070001)
+        self.assertEqual(result.info.architecture_patch, 23)
+        self.assertEqual(result.info.sn32_build_id, EXPECTED_SN32_BUILD_ID)
         self.assertEqual(result.info.primer1_build_id, EXPECTED_P1_BUILD_ID)
         self.assertEqual(result.info.primer2_build_id, EXPECTED_P2_BUILD_ID)
         self.assertEqual(result.primer1_transaction.data, struct.pack(">H", P1_KAT_TEST_MASK))
@@ -196,6 +269,115 @@ class DualSpiBringupTests(unittest.TestCase):
         )
         client.close()
         self.assertTrue(fake.closed)
+
+    def test_one_shot_qualification_covers_live_spi_self_tests_and_liveness(self) -> None:
+        fake = DualSpiFakeSerial()
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: fake,
+        )
+
+        result = client.run_sn32_hardware_qualification(
+            timeout=0.5,
+            poll_interval=0.0,
+            liveness_iterations=3,
+        )
+
+        self.assertEqual(len(result.live_traces), 4)
+        self.assertTrue(all(
+            trace.result_code == ErrorCode.OK for trace in result.live_traces
+        ))
+        self.assertEqual(result.liveness_iterations, 3)
+        self.assertEqual(result.final_uptime_ms, 123456)
+        self.assertEqual(result.final_status.fault_flags, 0)
+        self.assertEqual(
+            fake.commands.count(int(HostCommand.SPI_DIAGNOSTIC)),
+            4,
+        )
+        client.close()
+
+    def test_one_shot_rejects_wrong_image_before_live_spi(self) -> None:
+        fake = DualSpiFakeSerial()
+        fake.p1_build_id = 0x50310001
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: fake,
+        )
+
+        with self.assertRaisesRegex(HostProtocolError, "wrong Primer image"):
+            client.run_sn32_hardware_qualification()
+
+        self.assertNotIn(int(HostCommand.SPI_DIAGNOSTIC), fake.commands)
+        self.assertEqual(fake.self_tests_completed, 0)
+        client.close()
+
+    def test_one_shot_stops_before_self_test_on_live_spi_error(self) -> None:
+        fake = DualSpiFakeSerial()
+        fake.spi_result = ErrorCode.BAD_LENGTH
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: fake,
+        )
+
+        with self.assertRaisesRegex(HostProtocolError, "PRIMER1 GET_INFO failed"):
+            client.run_sn32_hardware_qualification()
+
+        self.assertEqual(fake.self_tests_completed, 0)
+        client.close()
+
+    def test_one_shot_independently_rejects_corrupt_raw_spi_frame(self) -> None:
+        fake = DualSpiFakeSerial()
+        fake.corrupt_spi_response = True
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: fake,
+        )
+
+        with self.assertRaisesRegex(HostProtocolError, "raw SPI frame invalid"):
+            client.run_sn32_hardware_qualification()
+
+        self.assertEqual(fake.self_tests_completed, 0)
+        client.close()
+
+    def test_one_shot_detects_reset_in_post_test_liveness(self) -> None:
+        fake = DualSpiFakeSerial()
+        fake.ping_uptimes = [1000, 100]
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: fake,
+        )
+
+        with self.assertRaisesRegex(
+            HostProtocolError, "SN32 reset during liveness loop"
+        ):
+            client.run_sn32_hardware_qualification(
+                timeout=0.5,
+                poll_interval=0.0,
+                liveness_iterations=1,
+            )
+
+        self.assertEqual(fake.self_tests_completed, 2)
+        client.close()
+
+    def test_one_shot_rejects_unretired_host_transaction(self) -> None:
+        fake = DualSpiFakeSerial()
+        fake.active_host_txid_after_self_tests = 0xCAFE
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: fake,
+        )
+
+        with self.assertRaisesRegex(
+            HostProtocolError, "host transaction remained active"
+        ):
+            client.run_sn32_hardware_qualification(
+                timeout=0.5,
+                poll_interval=0.0,
+                liveness_iterations=1,
+            )
+
+        self.assertEqual(fake.self_tests_completed, 2)
+        client.close()
 
 
 if __name__ == "__main__":

@@ -134,6 +134,20 @@ class FirstSpiFailureTests(unittest.TestCase):
             "0x00000025 0x00000025",
         )
 
+        gpio_registers = register_extension(
+            ctrl0=0x4750494F,
+            ctrl1=100_000,
+            clkdiv=60,
+            fifo_th=0,
+            samples=[(0, 0xA5, 0)],
+        )
+        gpio_decoded = _first_spi_failure_dict(
+            bytes((1, 3)) + diagnostic + transfer + gpio_registers
+        )
+        self.assertEqual(gpio_decoded["spi_backend"], "GPIO_MODE0")
+        self.assertEqual(gpio_decoded["spi_max_hz"], 100_000)
+        self.assertEqual(gpio_decoded["spi_half_period_cycles"], 60)
+
     def test_startup_drain_reset_residue_is_not_latched_failure(self) -> None:
         response = bytes.fromhex(
             "A5 01 00 03 00 00 00 06 01 03 01 00 00 00 A4 65"
