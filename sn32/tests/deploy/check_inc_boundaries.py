@@ -150,13 +150,19 @@ def check_fragment_boundaries() -> None:
     if first_code_line != "static void handle_get_system_info(const trinity_pc_frame_t *req) {":
         fail("part_12 must begin with the complete handle_get_system_info definition")
     for token in (
-        "trinity_error_code_t rc;",
         "if (!request_length_is(req, 0u))",
-        "rc = full_probe_all();",
+        "GET_SYSTEM_INFO is local identity telemetry",
+        "DEPLOY_BUILD_ID",
         "static void handle_get_system_status",
     ):
         if token not in part_12:
             fail(f"part_12 missing {token}")
+
+    system_info_end = part_12.find("static void handle_get_system_status")
+    system_info = part_12[:system_info_end]
+    for forbidden in ("full_probe_all", "full_refresh_all", "endpoint_exchange"):
+        if forbidden in system_info:
+            fail(f"handle_get_system_info must be side-effect free; found {forbidden}")
 
     assembled = "\n".join(part.read_text(encoding="utf-8") for part in PARTS)
     for handler in (
@@ -175,7 +181,7 @@ def check_fragment_boundaries() -> None:
             fail(f"expected one definition of {handler}, found {definitions}")
 
     print("PASS: all 18 deploy .inc delimiter signatures match the locked composition")
-    print("PASS: handle_get_system_info has a complete declaration, validation and body")
+    print("PASS: handle_get_system_info is complete, local and side-effect free")
 
 
 def check_system_clock_fallback() -> None:
