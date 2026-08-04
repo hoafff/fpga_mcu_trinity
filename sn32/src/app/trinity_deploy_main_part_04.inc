@@ -5,12 +5,20 @@ static bool expired(uint32_t start, uint32_t timeout) {
     return (uint32_t)(g_ms - start) >= timeout;
 }
 
+static void pc_receive(void);
 static void pc_poll(void);
 
+/*
+ * progress() is called from deep SPI and ML-KEM call chains. It may service
+ * heartbeat state and drain UART bytes into the one-frame receive queue, but it
+ * must never decode or execute a PC command. Command execution is restricted to
+ * pc_poll() calls made directly by main(), eliminating progress <-> pc_poll
+ * recursion and keeping the stack depth statically bounded.
+ */
 static void progress(void) {
     g_progress_ms = g_ms;
     if (g_pc_service_enabled && !g_pc_poll_active)
-        pc_poll();
+        pc_receive();
 }
 
 static void crypto_progress_lease_begin(void) {
@@ -78,37 +86,3 @@ void SysTick_Handler(void) {
     }
     if ((now % GUARD_MS) == 0u) {
         const uint32_t faults = guard_check();
-        if (faults != FPST_P010_VIOLATION_NONE) {
-            g_guard_faults |= faults;
-            g_fault = true;
-            g_crypto_lease_active = false;
-            g_trinity_deploy_marker = DEPLOY_MARKER_ERR;
-            set_error(TRINITY_FAULT_LOCKED, TRINITY_SOURCE_SN32, faults);
-            cs_all_high();
-            guard_apply();
-        }
-    }
-}
-
-static void gpio_init(void) {
-    cs_all_high();
-    gpio_set_mode(FPST_SN32F407_FLASH_CS_N_PORT, FPST_SN32F407_FLASH_CS_N_PIN, true);
-    gpio_set_cfg(FPST_SN32F407_FLASH_CS_N_PORT, FPST_SN32F407_FLASH_CS_N_PIN,
-                 GPIO_NO_PULL_SCHMITT);
-    gpio_set_mode(FPST_SN32F407_P1_CS_N_PORT, FPST_SN32F407_P1_CS_N_PIN, true);
-    gpio_set_cfg(FPST_SN32F407_P1_CS_N_PORT, FPST_SN32F407_P1_CS_N_PIN,
-                 GPIO_NO_PULL_SCHMITT);
-    gpio_set_mode(FPST_SN32F407_P2_CS_N_PORT, FPST_SN32F407_P2_CS_N_PIN, true);
-    gpio_set_cfg(FPST_SN32F407_P2_CS_N_PORT, FPST_SN32F407_P2_CS_N_PIN,
-                 GPIO_NO_PULL_SCHMITT);
-    gpio_set_mode(FPST_SN32F407_P1_IRQ_N_PORT, FPST_SN32F407_P1_IRQ_N_PIN, false);
-    gpio_set_cfg(FPST_SN32F407_P1_IRQ_N_PORT, FPST_SN32F407_P1_IRQ_N_PIN,
-                 GPIO_PULL_UP);
-    gpio_set_mode(FPST_SN32F407_P2_IRQ_N_PORT, FPST_SN32F407_P2_IRQ_N_PIN, false);
-    gpio_set_cfg(FPST_SN32F407_P2_IRQ_N_PORT, FPST_SN32F407_P2_IRQ_N_PIN,
-                 GPIO_PULL_UP);
-    gpio_write(FPST_SN32F407_MCU_HEARTBEAT_PORT,
-               FPST_SN32F407_MCU_HEARTBEAT_PIN, false);
-    gpio_set_mode(FPST_SN32F407_MCU_HEARTBEAT_PORT,
-                  FPST_SN32F407_MCU_HEARTBEAT_PIN, true);
-    gpio_set_cfg(FPST_SN32F407_MCU_HEARTBEAT_PORT,
