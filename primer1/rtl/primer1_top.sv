@@ -48,7 +48,15 @@ module primer1_top (
 
   // MISO is electrically disconnected from the shared bus whenever CS_N is high.
   assign spi_miso_o = spi_cs_ni ? 1'bz : spi_miso_bit;
-  always_comb irq_no = ~(mailbox_pending | retained_pending | event_pending);
+
+  /*
+   * IRQ_N is a transport signal: LOW means that a complete response mailbox is
+   * physically available to clock out during the next CS window. Retained
+   * transaction state remains visible through GET_STATUS/GET_TXN_RESULT, but it
+   * must not hold IRQ_N low after the mailbox has been consumed; otherwise the
+   * master cannot issue GET_TXN_RESULT or RETIRE_TXN_RESULT.
+   */
+  always_comb irq_no = ~mailbox_pending;
 
   spi_packet_endpoint u_spi (
     .clk_i(sys_clk_i), .rst_ni(rst_ni),
