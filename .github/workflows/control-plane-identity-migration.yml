@@ -1,0 +1,77 @@
+name: Control-plane identity migration
+
+on:
+  push:
+    paths:
+      - .github/workflows/control-plane-identity-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Apply corrected image identities
+        shell: python
+        run: |
+          from pathlib import Path
+
+          replacements = {
+              Path("pc_host/src/trinity_host/serial_client.py"): {
+                  "EXPECTED_P1_BUILD_ID = 0x5031D002":
+                      "EXPECTED_P1_BUILD_ID = 0x5031D003",
+                  "EXPECTED_P2_BUILD_ID = 0x50320001":
+                      "EXPECTED_P2_BUILD_ID = 0x50320002",
+              },
+              Path("pc_host/pyproject.toml"): {
+                  'version = "0.3.7"': 'version = "0.3.8"',
+              },
+              Path("pc_host/README.md"): {
+                  "0x5031D002": "0x5031D003",
+                  "0x50320001": "0x50320002",
+              },
+              Path("sn32/docs/SN32_DUAL_SPI_HARDWARE_QUALIFICATION_NEXT_GATE.md"): {
+                  "0x5031D002": "0x5031D003",
+                  "0x50320001": "0x50320002",
+              },
+              Path("sn32/hardware/dual_spi_control_plane/evidence/run_manifest_TEMPLATE.txt"): {
+                  "0x5031D002": "0x5031D003",
+                  "0x50320001": "0x50320002",
+              },
+              Path("ai_context/evidence/primer1/P1_CONTROL_PLANE_BRINGUP_GUIDE.md"): {
+                  "0x5031D002": "0x5031D003",
+              },
+          }
+
+          for path, mapping in replacements.items():
+              text = path.read_text(encoding="utf-8")
+              for old, new in mapping.items():
+                  count = text.count(old)
+                  if count == 0:
+                      raise SystemExit(f"expected token not found in {path}: {old}")
+                  text = text.replace(old, new)
+              path.write_text(text, encoding="utf-8")
+
+      - name: Run PC host tests
+        run: |
+          python -m pip install -e pc_host
+          python -m unittest discover -s pc_host/tests -v
+
+      - name: Validate and commit migration
+        run: |
+          rm .github/workflows/control-plane-identity-migration.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(host): align corrected Primer build identities"
+          git push
