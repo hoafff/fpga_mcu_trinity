@@ -24,6 +24,37 @@ static trinity_error_code_t spi_transfer_timeout(uint8_t stage,
     return TRINITY_FRAME_TIMEOUT;
 }
 
+static trinity_error_code_t spi_reset_idle(void) {
+    uint32_t start;
+    unsigned drained = 0u;
+
+    if (!g_spi_ready || g_spi_selected) return TRINITY_BAD_STATE;
+
+    /*
+     * FRESET is applied while SPI is disabled, matching the initialization
+     * sequence. This prevents bytes received during the previous CS window
+     * from contaminating the next response header.
+     */
+    SN_SPI0->CTRL0_b.SPIEN = 0u;
+    SN_SPI0->CTRL0_b.FRESET = 3u;
+    SN_SPI0->CTRL0_b.SPIEN = 1u;
+
+    start = g_ms;
+    while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
+        progress();
+        if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
+            return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY, 0u, 0u);
+    }
+
+    /* Belt-and-suspenders drain in case this silicon revision retains FIFO data. */
+    while ((SN_SPI0->STAT & SPI_RX_EMPTY) == 0u && drained < 8u) {
+        (void)SN_SPI0->DATA;
+        ++drained;
+    }
+    return (SN_SPI0->STAT & SPI_RX_EMPTY) != 0u
+               ? TRINITY_OK : TRINITY_BAD_STATE;
+}
+
 static trinity_error_code_t spi_bytes_segment(
     const uint8_t *tx,
     uint8_t *rx,
@@ -67,12 +98,15 @@ static trinity_error_code_t spi_bytes_segment(
 
         SN_SPI0->DATA = tx != NULL ? tx[i] : 0u;
 
-        /*
-         * Drain the received byte as soon as RX_EMPTY clears. Waiting for BUSY
-         * first can deadlock controllers whose receive FIFO back-pressures the
-         * transfer-complete state. RX availability already proves that this
-         * byte was clocked; BUSY is checked afterwards before the next byte.
-         */
+        /* SONiX polling sequence: complete the frame before reading DATA. */
+        stage_start = g_ms;
+        while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
+            progress();
+            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
+                return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY,
+                                            trace_index, transfer_length);
+        }
+
         stage_start = g_ms;
         while ((SN_SPI0->STAT & SPI_RX_EMPTY) != 0u) {
             progress();
@@ -87,14 +121,6 @@ static trinity_error_code_t spi_bytes_segment(
             g_spi_trace.transfer_completed = (uint16_t)(trace_index + 1u);
             g_spi_trace.spi_status = SN_SPI0->STAT;
         }
-
-        stage_start = g_ms;
-        while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
-            progress();
-            if (expired(stage_start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
-                return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY,
-                                            trace_index, transfer_length);
-        }
     }
     return TRINITY_OK;
 }
@@ -105,11 +131,13 @@ static trinity_error_code_t spi_bytes(const uint8_t *tx, uint8_t *rx,
 }
 
 static trinity_error_code_t spi_select(const endpoint_t *ep) {
+    trinity_error_code_t rc;
     if (ep == NULL || !g_spi_ready || g_spi_selected || g_fault)
         return TRINITY_BAD_STATE;
     cs_all_high();
     spi_guard_delay();
-    SN_SPI0->CTRL0_b.FRESET = 3u;
+    rc = spi_reset_idle();
+    if (rc != TRINITY_OK) return rc;
     spi_guard_delay();
     gpio_write(ep->cs_port, ep->cs_pin, false);
     spi_guard_delay();
@@ -126,7 +154,7 @@ static void spi_end(void) {
     if (g_spi_selected) spi_guard_delay();
     cs_all_high();
     spi_guard_delay();
-    SN_SPI0->CTRL0_b.FRESET = 3u;
+    (void)spi_reset_idle();
     spi_guard_delay();
 }
 
