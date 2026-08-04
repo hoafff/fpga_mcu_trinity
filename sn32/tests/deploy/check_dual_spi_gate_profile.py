@@ -91,8 +91,8 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 25):
-        fail(f"UART-live GPIO-SPI image must be v0.7.25, got {version}")
+    if version != (0, 7, 26):
+        fail(f"UART-live GPIO-SPI image must be v0.7.26, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI ceiling must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND") != 1:
@@ -100,14 +100,14 @@ def main() -> int:
     if macro(config, "TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES") < 60:
         fail("GPIO SPI half-period must not exceed the 100 kHz ceiling")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 200:
-        fail("v0.7.25 must retain the 200 us CS guard")
+        fail("v0.7.26 must retain the 200 us CS guard")
     if macro(config, "TRINITY_DEPLOY_PC_QUIET_BEFORE_PROBE_MS") != 250:
         fail("automatic probe must require a 250 ms quiet PC window")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_REISSUE_MAX") != 2:
         fail("read-only recovery must permit exactly two bounded reissues")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS") != 20:
         fail("read-only recovery backoff must remain 20 ms")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070019)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x0007001A)", "identity")
     require(
         p00,
         "#if TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND != 1",
@@ -451,7 +451,7 @@ def main() -> int:
     forbid(p17, "!g_spi_retained_failure",
            "periodic read-only recovery after retained history")
 
-    print("PASS: v0.7.25 identity and GPIO mode-0 backend are locked")
+    print("PASS: v0.7.26 identity and GPIO mode-0 backend are locked")
     print("PASS: encoded four/nine-byte BAD_LENGTH captures prove truncation")
     print("PASS: GPIO SCK/MOSI/MISO ownership and 100 kHz ceiling are locked")
     print("PASS: every CS guard remains 200 us")
