@@ -52,6 +52,9 @@ static const uint8_t *embedded_public_key(
 void trinity_deploy_crypto_init(trinity_deploy_crypto_t *crypto) {
     if (crypto == NULL) return;
     memset(crypto, 0, sizeof(*crypto));
+#if TRINITY_DEPLOY_ENABLE_MLKEM
+    trinity_mlkem512_bind_low_ram_workspace(&crypto->workspace.low_ram);
+#endif
 }
 
 void trinity_deploy_crypto_zeroize(trinity_deploy_crypto_t *crypto) {
@@ -78,12 +81,12 @@ trinity_error_code_t trinity_deploy_crypto_generate_keypair(
     public_key = embedded_public_key_mutable(crypto);
 
     if (mode == 1u) {
-        expand_seed(crypto->workspace.keygen.coins,
-                    sizeof(crypto->workspace.keygen.coins),
+        expand_seed(crypto->workspace.keygen_coins,
+                    sizeof(crypto->workspace.keygen_coins),
                     keygen_domain, sizeof(keygen_domain), seed);
         rc = trinity_mlkem512_keygen_deterministic(
             public_key, crypto->secret_key,
-            crypto->workspace.keygen.coins);
+            crypto->workspace.keygen_coins);
     } else {
         rc = trinity_mlkem512_keygen(public_key, crypto->secret_key);
     }
