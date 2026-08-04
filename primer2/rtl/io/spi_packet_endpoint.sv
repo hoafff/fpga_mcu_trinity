@@ -45,6 +45,8 @@ module spi_packet_endpoint (
   logic [6:0] rx_byte_count, tx_byte_index;
   logic [15:0] tx_bits_sent;
   logic rx_mode, tx_mode;
+  logic rx_end_pending;
+  logic [1:0] rx_end_settle;
   logic [6:0] transaction_byte_count;
 
   typedef enum logic [1:0] {PARSE_IDLE, PARSE_HEADER, PARSE_CRC} parse_state_e;
@@ -101,6 +103,19 @@ module spi_packet_endpoint (
     end
   endfunction
 
+  function automatic logic [15:0] bad_length_detail(
+      input logic [6:0] byte_count
+  );
+    logic length_high_nonzero;
+    logic [7:0] length_low_or_unknown;
+    begin
+      length_high_nonzero = (byte_count > 7'd7) && (rx_mem[6] != 8'h00);
+      length_low_or_unknown = (byte_count > 7'd7) ? rx_mem[7] : 8'hFF;
+      bad_length_detail = {byte_count, length_high_nonzero,
+                           length_low_or_unknown};
+    end
+  endfunction
+
   wire [15:0] parse_crc_next = crc16_update_byte(parse_crc, rx_mem[parse_index]);
   wire [31:0] parse_fingerprint_next = fingerprint_byte_selected(parse_index) ?
       crc32c_update_byte(parse_fingerprint, rx_mem[parse_index]) : parse_fingerprint;
@@ -119,6 +134,7 @@ module spi_packet_endpoint (
       rx_bit_count <= 0; tx_bit_count <= 0;
       rx_byte_count <= 0; tx_byte_index <= 0; tx_bits_sent <= 0;
       rx_mode <= 1'b0; tx_mode <= 1'b0;
+      rx_end_pending <= 1'b0; rx_end_settle <= 0;
       transaction_byte_count <= 0;
       parse_state <= PARSE_IDLE; parse_payload_length <= 0;
       parse_index <= 0; parse_crc <= 16'hFFFF; parse_fingerprint <= 32'hFFFFFFFF;
@@ -151,6 +167,8 @@ module spi_packet_endpoint (
         tx_byte_index <= 0;
         tx_bits_sent <= 0;
         rx_shift <= 0;
+        rx_end_pending <= 1'b0;
+        rx_end_settle <= 0;
         if (mailbox_pending_o) begin
           tx_mode <= 1'b1;
           rx_mode <= 1'b0;
@@ -161,7 +179,13 @@ module spi_packet_endpoint (
         end
       end
 
-      if (!cs_sync && rx_mode && sck_rise) begin
+      /*
+       * CS and SCK are independently synchronized. On the failing P1 route the
+       * synchronized CS rise can be observed in the same cycle as, or slightly
+       * before, the last synchronized SCK rise. Keep accepting SCK while the
+       * end-settle window is open so the final CRC-low byte is not discarded.
+       */
+      if (rx_mode && sck_rise && (!cs_sync || cs_rise || rx_end_pending)) begin
         rx_shift <= {rx_shift[6:0], mosi_sync};
         if (rx_bit_count == 3'd7) begin
           if (rx_byte_count < SPI_MAX_PACKET)
@@ -173,7 +197,7 @@ module spi_packet_endpoint (
         end
       end
 
-      if (!cs_sync && tx_mode && sck_rise)
+      if (tx_mode && sck_rise && (!cs_sync || cs_rise))
         tx_bits_sent <= tx_bits_sent + 1'b1;
 
       if (!cs_sync && tx_mode && sck_fall) begin
@@ -193,14 +217,26 @@ module spi_packet_endpoint (
 
       if (cs_rise) begin
         if (rx_mode) begin
+          rx_end_pending <= 1'b1;
+          rx_end_settle <= 2'd2;
+        end
+        if (tx_mode &&
+            ((tx_bits_sent + (sck_rise ? 16'd1 : 16'd0)) >=
+             (mailbox_length << 3)))
+          mailbox_pending_o <= 1'b0;
+        tx_mode <= 1'b0;
+      end
+
+      if (rx_end_pending) begin
+        if (rx_end_settle != 0) begin
+          rx_end_settle <= rx_end_settle - 1'b1;
+        end else begin
           transaction_byte_count <= rx_byte_count;
           if (parse_state == PARSE_IDLE)
             parse_state <= PARSE_HEADER;
+          rx_mode <= 1'b0;
+          rx_end_pending <= 1'b0;
         end
-        if (tx_mode && (tx_bits_sent >= (mailbox_length << 3)))
-          mailbox_pending_o <= 1'b0;
-        rx_mode <= 1'b0;
-        tx_mode <= 1'b0;
       end
 
       case (parse_state)
@@ -208,12 +244,20 @@ module spi_packet_endpoint (
         PARSE_HEADER: begin
           transport_error_command_o <= (transaction_byte_count > 2) ? rx_mem[2] : 8'h00;
           transport_error_txid_o <= (transaction_byte_count > 5) ? {rx_mem[4],rx_mem[5]} : 16'h0000;
-          if (transaction_byte_count < 10) begin
-            transport_error_code_o <= ERR_BAD_LENGTH;
-            transport_error_valid_o <= 1'b1;
+
+          /*
+           * A CS window with no response mailbox is a request candidate only
+           * when byte zero is SPI_MAGIC. Dummy clocks from a stale read attempt
+           * therefore disappear silently instead of creating a BAD_MAGIC or
+           * BAD_LENGTH mailbox that can keep IRQ asserted and self-feed the
+           * master's drain loop. Once MAGIC is present, malformed requests are
+           * still reported normally.
+           */
+          if (transaction_byte_count == 0 || rx_mem[0] != SPI_MAGIC) begin
             parse_state <= PARSE_IDLE;
-          end else if (rx_mem[0] != SPI_MAGIC) begin
-            transport_error_code_o <= ERR_BAD_MAGIC;
+          end else if (transaction_byte_count < 10) begin
+            request_payload_length_o <= bad_length_detail(transaction_byte_count);
+            transport_error_code_o <= ERR_BAD_LENGTH;
             transport_error_valid_o <= 1'b1;
             parse_state <= PARSE_IDLE;
           end else if (rx_mem[1] != PROTOCOL_VERSION) begin
@@ -226,6 +270,7 @@ module spi_packet_endpoint (
             parse_state <= PARSE_IDLE;
           end else if ({rx_mem[6],rx_mem[7]} > SPI_MAX_PAYLOAD ||
                        transaction_byte_count != (10 + {rx_mem[6],rx_mem[7]})) begin
+            request_payload_length_o <= bad_length_detail(transaction_byte_count);
             transport_error_code_o <= ERR_BAD_LENGTH;
             transport_error_valid_o <= 1'b1;
             parse_state <= PARSE_IDLE;
