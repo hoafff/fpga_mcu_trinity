@@ -18,7 +18,6 @@ typedef struct {
     uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES];
     union {
         struct {
-            uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES];
             uint8_t coins[TRINITY_MLKEM_KEYGEN_COINS_BYTES];
         } keygen;
         struct {
