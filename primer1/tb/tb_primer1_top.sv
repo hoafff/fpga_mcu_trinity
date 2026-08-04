@@ -44,6 +44,24 @@ module tb_primer1_top;
       $fatal(1, "top idle outputs mismatch irq=%b uart=%b fault=%b", irq_n, uart_tx, fault);
     $display("PASS primer1_top_idle_and_miso_high_z");
 
+    // Retained/event application state must not masquerade as an unread SPI
+    // mailbox. Only mailbox_pending is allowed to assert transport IRQ_N.
+    force dut.mailbox_pending = 1'b0;
+    force dut.retained_pending = 1'b1;
+    force dut.event_pending = 1'b1;
+    #1;
+    if (irq_n !== 1'b1)
+      $fatal(1, "retained/event state incorrectly asserted IRQ_N");
+    force dut.mailbox_pending = 1'b1;
+    #1;
+    if (irq_n !== 1'b0)
+      $fatal(1, "response mailbox did not assert IRQ_N");
+    release dut.mailbox_pending;
+    release dut.retained_pending;
+    release dut.event_pending;
+    #1;
+    $display("PASS primer1_top_irq_mailbox_only");
+
     previous_heartbeat = heartbeat;
     @(negedge clk);
     dut.u_core.heartbeat_counter = 22'd2699999;
