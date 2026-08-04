@@ -244,13 +244,20 @@ module spi_packet_endpoint (
         PARSE_HEADER: begin
           transport_error_command_o <= (transaction_byte_count > 2) ? rx_mem[2] : 8'h00;
           transport_error_txid_o <= (transaction_byte_count > 5) ? {rx_mem[4],rx_mem[5]} : 16'h0000;
-          if (transaction_byte_count < 10) begin
+
+          /*
+           * A CS window with no response mailbox is a request candidate only
+           * when byte zero is SPI_MAGIC. Dummy clocks from a stale read attempt
+           * therefore disappear silently instead of creating a BAD_MAGIC or
+           * BAD_LENGTH mailbox that can keep IRQ asserted and self-feed the
+           * master's drain loop. Once MAGIC is present, malformed requests are
+           * still reported normally.
+           */
+          if (transaction_byte_count == 0 || rx_mem[0] != SPI_MAGIC) begin
+            parse_state <= PARSE_IDLE;
+          end else if (transaction_byte_count < 10) begin
             request_payload_length_o <= bad_length_detail(transaction_byte_count);
             transport_error_code_o <= ERR_BAD_LENGTH;
-            transport_error_valid_o <= 1'b1;
-            parse_state <= PARSE_IDLE;
-          end else if (rx_mem[0] != SPI_MAGIC) begin
-            transport_error_code_o <= ERR_BAD_MAGIC;
             transport_error_valid_o <= 1'b1;
             parse_state <= PARSE_IDLE;
           end else if (rx_mem[1] != PROTOCOL_VERSION) begin
