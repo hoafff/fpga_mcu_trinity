@@ -1,0 +1,58 @@
+name: SN32 corrected control-plane status migration
+
+on:
+  push:
+    paths:
+      - .github/workflows/sn32-status-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Update SN32 target status
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("sn32/target.toml")
+          text = path.read_text(encoding="utf-8")
+          replacements = {
+              'implementation_status = "V0_7_24_CANONICAL_LIVE_TRACE_SOURCE_READY"':
+                  'implementation_status = "V0_7_25_CORRECTED_P1_P2_CONTROL_PLANE_SOURCE_READY"',
+              'current_main_exact_target_build = "REBUILD_REQUIRED_FOR_V0_7_24_CANONICAL_TRACE_IMAGE"':
+                  'current_main_exact_target_build = "REBUILD_REQUIRED_FOR_V0_7_25_CORRECTED_CONTROL_PLANE_IMAGE"',
+              'dual_spi_hardware = "PENDING_V0_7_25_ONE_SHOT_COLD_BOOT_QUALIFICATION"':
+                  'dual_spi_hardware = "PENDING_CORRECTED_P1_P2_REBUILD_PROGRAM_AND_V0_7_25_ONE_SHOT"',
+              'qualification_architecture_version = "0.7.25"':
+                  'qualification_architecture_version = "0.7.25"\n'
+                  'qualification_primer1_build_id = "0x5031D003"\n'
+                  'qualification_primer2_build_id = "0x50320002"\n'
+                  'qualification_protocol_contract = "SPI_CONTROL_PLANE_ICD_V0_2_MAILBOX_ONLY_IRQ"',
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one token, got {count}: {old}")
+              text = text.replace(old, new)
+          path.write_text(text, encoding="utf-8")
+      - name: Run SN32 source gate
+        run: python sn32/tests/deploy/check_deploy_project.py
+      - name: Commit status update
+        run: |
+          rm .github/workflows/sn32-status-migration.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs(sn32): align v0.7.25 corrected control-plane status"
+          git pull --rebase origin main
+          git push origin HEAD:main
