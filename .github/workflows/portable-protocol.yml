@@ -58,6 +58,6 @@ jobs:
             .github/workflows/primer2-rtl-verification.yml
       - name: Guard corrected Primer1 implementation
         run: |
-          git diff --exit-code 0b78e007dca49f8f309ba99f3ede54bd6f3349e7..HEAD -- \
+          git diff --exit-code e52488614c5610f2b3f5ffcd77b1a98b370494bc..HEAD -- \
             primer1/rtl primer1/tb primer1/scripts primer1/constraints \
             primer1/gowin/trinity_primer1.gprj
