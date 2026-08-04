@@ -81,6 +81,13 @@ static trinity_error_code_t spi_bytes_segment(
             g_spi_trace.transfer_direction = direction;
             g_spi_trace.transfer_byte_index = 0u;
             g_spi_trace.transfer_completed = 0u;
+            if (direction == SPI_TRANSFER_DIRECTION_RESPONSE) {
+                g_spi_trace.spi_ctrl0 = SN_SPI0->CTRL0;
+                g_spi_trace.spi_ctrl1 = SN_SPI0->CTRL1;
+                g_spi_trace.spi_clkdiv = SN_SPI0->CLKDIV;
+                g_spi_trace.spi_fifo_th = SN_SPI0->FIFO_TH;
+                g_spi_trace.response_sample_count = 0u;
+            }
         } else if (g_spi_trace.transfer_direction != direction) {
             return TRINITY_BAD_STATE;
         }
@@ -91,6 +98,9 @@ static trinity_error_code_t spi_bytes_segment(
     for (i = 0u; i < len; ++i) {
         const size_t trace_index = byte_offset + i;
         uint32_t stage_start = g_ms;
+        uint32_t status_before_read;
+        uint32_t data_word;
+        uint32_t status_after_read;
         uint8_t value;
 
         while ((SN_SPI0->STAT & SPI_TX_FULL) != 0u) {
@@ -119,11 +129,24 @@ static trinity_error_code_t spi_bytes_segment(
                                             trace_index, transfer_length);
         }
 
-        value = (uint8_t)(SN_SPI0->DATA & UINT32_C(0xFF));
+        status_before_read = SN_SPI0->STAT;
+        data_word = SN_SPI0->DATA;
+        status_after_read = SN_SPI0->STAT;
+        value = (uint8_t)(data_word & UINT32_C(0xFF));
         if (rx != NULL) rx[i] = value;
         if (g_spi_trace.valid) {
+            if (direction == SPI_TRANSFER_DIRECTION_RESPONSE &&
+                trace_index < SPI_RESPONSE_SAMPLE_MAX) {
+                g_spi_trace.response_status_before_read[trace_index] =
+                    status_before_read;
+                g_spi_trace.response_data_words[trace_index] = data_word;
+                g_spi_trace.response_status_after_read[trace_index] =
+                    status_after_read;
+                g_spi_trace.response_sample_count =
+                    (uint8_t)(trace_index + 1u);
+            }
             g_spi_trace.transfer_completed = (uint16_t)(trace_index + 1u);
-            g_spi_trace.spi_status = SN_SPI0->STAT;
+            g_spi_trace.spi_status = status_after_read;
         }
     }
     return TRINITY_OK;
