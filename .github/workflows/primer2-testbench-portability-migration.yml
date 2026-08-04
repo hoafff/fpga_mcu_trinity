@@ -80,7 +80,7 @@ jobs:
               r"expect_known_fault(\1);",
               text,
           )
-          if count != 6:
+          if count != 7:
               raise SystemExit(f"fault call replacement count={count}")
           path.write_text(text, encoding="utf-8")
 
