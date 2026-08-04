@@ -1,7 +1,7 @@
 module primer1_command_core #(
 parameter integer CLOCK_HZ = 27000000,
 parameter integer UART_BAUD = 115200,
-parameter logic [31:0] BUILD_ID = 32'h5031_0001
+parameter logic [31:0] BUILD_ID = 32'h5031_D001
 ) (
 input  logic         clk_i,
 input  logic         rst_ni,
