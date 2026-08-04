@@ -448,8 +448,8 @@ def main() -> int:
         "g_automatic_probe_active = true;",
     ):
         require(p17, token, "main-level startup/periodic service")
-    forbid(p17, "!g_spi_retained_failure",
-           "periodic read-only recovery after retained history")
+    require(p17, "!g_spi_retained_failure",
+            "retained-failure background probe stop")
 
     print("PASS: v0.7.26 identity and GPIO mode-0 backend are locked")
     print("PASS: encoded four/nine-byte BAD_LENGTH captures prove truncation")
@@ -458,7 +458,7 @@ def main() -> int:
     print("PASS: CRC-invalid active mailboxes are reread before request replay")
     print("PASS: only zero-payload GET_INFO/GET_STATUS may be reissued twice")
     print("PASS: side-effect commands remain non-replayed")
-    print("PASS: periodic read-only recovery continues after retained history")
+    print("PASS: retained failure evidence stops automatic background probes")
     print("PASS: system-status is a local snapshot and cannot nest SPI refresh")
     print("PASS: retained failure bytes use a dedicated copy snapshot")
     print("PASS: live diagnostics serialize the canonical decoded wire buffers")
