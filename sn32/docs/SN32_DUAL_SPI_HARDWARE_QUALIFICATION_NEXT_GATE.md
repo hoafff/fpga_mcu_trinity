@@ -1,4 +1,4 @@
-# SN32 -> P1/P2 dual-SPI hardware qualification — v0.7.23
+# SN32 -> P1/P2 dual-SPI hardware qualification — v0.7.24
 
 ## Scope and decision
 
@@ -15,7 +15,7 @@ SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 This gate does not qualify session activation, P1-to-P2 UART telemetry, Tiny,
 live ML-KEM session creation or the full system.
 
-## Why v0.7.23 changes the transport backend
+## Why v0.7.24 keeps the deterministic transport and fixes qualification evidence
 
 The v0.7.19–v0.7.22 hardware evidence proved all of the following:
 
@@ -28,16 +28,24 @@ The v0.7.19–v0.7.22 hardware evidence proved all of the following:
 - `system-status` liveness itself is fixed and passed 20/20 status plus 20/20
   immediate ping operations on v0.7.22.
 
-v0.7.23 therefore disables SPI0 for the deploy path and drives the existing
+v0.7.23 therefore disabled SPI0 for the deploy path and drove the existing
 P1.0/P1.1/P1.2 DB_SPI pins directly as GPIO mode-0, MSB-first SPI. It retains
 the same physical wiring, packet bytes, CRC, CS/IRQ ownership, timeout policy,
 mailbox validation and non-replay rule for side-effect operations.
 
+The first v0.7.23 one-shot run proved the startup probe and accepted live
+transaction were functional, but the redundant trace mirror reported
+`magic=0x04` after the canonical request/response buffers had already passed
+local decode and CRC. v0.7.24 therefore serializes live qualification evidence
+from those exact canonical accepted buffers. Retained first-failure history
+continues to use its immutable snapshot. The host also distinguishes request
+from response corruption and includes both raw frames in any failure line.
+
 ## Required image identities
 
 ```text
-SN32 architecture_version = 0.7.23
-SN32 build_id             = 0x00070017
+SN32 architecture_version = 0.7.24
+SN32 build_id             = 0x00070018
 Primer #1 build_id        = 0x5031D002
 Primer #2 build_id        = 0x50320001
 ```

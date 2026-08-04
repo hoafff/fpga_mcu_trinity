@@ -23,8 +23,30 @@ static void spi_trace_begin(endpoint_t *ep, uint8_t command,
 }
 
 static void spi_retain_current_trace(bool failure) {
-    memcpy(&g_spi_retained_trace, &g_spi_trace,
-           sizeof(g_spi_retained_trace));
+    size_t request_length;
+    size_t response_length;
+    memcpy(&g_spi_retained_trace.metadata, &g_spi_trace,
+           sizeof(g_spi_trace));
+
+    /*
+     * There is one byte authority: the canonical buffers used by encode/decode.
+     * Copy them exactly once when a retained snapshot is created.  The working
+     * metadata trace never owns a second live byte mirror.
+     */
+    request_length = g_spi_retained_trace.metadata.request_length;
+    if (request_length > TRINITY_SPI_MAX_PACKET)
+        request_length = TRINITY_SPI_MAX_PACKET;
+    response_length = g_spi_retained_trace.metadata.response_capture_length;
+    if (response_length > TRINITY_SPI_MAX_PACKET)
+        response_length = TRINITY_SPI_MAX_PACKET;
+    memset(g_spi_retained_trace.request_bytes, 0,
+           sizeof(g_spi_retained_trace.request_bytes));
+    memset(g_spi_retained_trace.response_bytes, 0,
+           sizeof(g_spi_retained_trace.response_bytes));
+    memcpy(g_spi_retained_trace.request_bytes,
+           g_spi_request_wire, request_length);
+    memcpy(g_spi_retained_trace.response_bytes,
+           g_spi_response_wire, response_length);
     g_spi_retained_failure = failure;
     g_spi_retained_startup_residue = !failure;
 }
@@ -45,9 +67,10 @@ static void spi_latch_first_failure(void) {
  * than the request metadata stored in trace.
  */
 static bool spi_trace_is_startup_reset_residue(
-    const spi_exchange_trace_t *trace) {
-    const uint8_t *rsp;
-    if (trace == NULL || !trace->valid) return false;
+    const spi_exchange_trace_t *trace,
+    const uint8_t *response_bytes) {
+    const uint8_t *rsp = response_bytes;
+    if (trace == NULL || response_bytes == NULL || !trace->valid) return false;
     if (trace->context != SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1 &&
         trace->context != SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2 &&
         trace->context != SPI_TRACE_CONTEXT_STARTUP_PROBE &&
@@ -59,7 +82,6 @@ static bool spi_trace_is_startup_reset_residue(
         trace->response_crc_received != trace->response_crc_calculated)
         return false;
 
-    rsp = trace->response_bytes;
     return rsp[0] == TRINITY_SPI_MAGIC &&
            rsp[1] == TRINITY_PROTOCOL_VERSION &&
            rsp[2] == 0u &&
@@ -74,7 +96,8 @@ static bool spi_trace_is_startup_reset_residue(
 
 static void spi_record_startup_residue(void) {
     if (!g_spi_retained_failure && !g_spi_retained_startup_residue &&
-        spi_trace_is_startup_reset_residue(&g_spi_trace)) {
+        spi_trace_is_startup_reset_residue(&g_spi_trace,
+                                           g_spi_response_wire)) {
         spi_retain_current_trace(false);
     }
 }
@@ -129,7 +152,6 @@ static trinity_error_code_t spi_capture_response_once(endpoint_t *ep,
     g_spi_trace.response_crc_calculated = 0u;
     for (i = 0u; i < TRINITY_SPI_MAX_PACKET; ++i) {
         g_spi_response_wire[i] = 0u;
-        g_spi_trace.response_bytes[i] = 0u;
     }
 
     g_spi_trace.irq_before_response = irq_active(ep);
@@ -238,7 +260,8 @@ static trinity_error_code_t spi_drain_startup_mailbox(endpoint_t *ep) {
                     ? (trinity_error_code_t)trinity_read_be16(
                           g_spi_rsp.payload)
                     : TRINITY_BAD_LENGTH;
-            if (spi_trace_is_startup_reset_residue(&g_spi_trace))
+            if (spi_trace_is_startup_reset_residue(&g_spi_trace,
+                                                   g_spi_response_wire))
                 spi_record_startup_residue();
             else
                 spi_latch_first_failure();
@@ -285,7 +308,6 @@ static trinity_error_code_t endpoint_exchange(
     trinity_error_code_t rc;
     size_t request_len = 0u;
     size_t response_len;
-    size_t i;
     uint16_t txid;
     uint32_t wait_start;
     unsigned read_reissues = 0u;
@@ -317,8 +339,6 @@ retry_request:
                     trinity_spi_request_fingerprint(command, 0u,
                                                     payload, payload_length));
     g_spi_trace.request_length = (uint16_t)request_len;
-    for (i = 0u; i < request_len; ++i)
-        g_spi_trace.request_bytes[i] = g_spi_request_wire[i];
     g_spi_trace.request_crc =
         trinity_read_be16(&g_spi_request_wire[request_len - 2u]);
     g_spi_trace.irq_before_request = irq_active(ep);

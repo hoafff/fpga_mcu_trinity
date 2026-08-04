@@ -78,9 +78,13 @@ typedef struct {
     uint32_t response_status_before_read[SPI_RESPONSE_SAMPLE_MAX];
     uint32_t response_data_words[SPI_RESPONSE_SAMPLE_MAX];
     uint32_t response_status_after_read[SPI_RESPONSE_SAMPLE_MAX];
+} spi_exchange_trace_t;
+
+typedef struct {
+    spi_exchange_trace_t metadata;
     uint8_t request_bytes[TRINITY_SPI_MAX_PACKET];
     uint8_t response_bytes[TRINITY_SPI_MAX_PACKET];
-} spi_exchange_trace_t;
+} spi_retained_trace_t;
 
 typedef struct {
     bool valid;
@@ -127,7 +131,7 @@ static error_record_t g_error;
  * and no transport path writes it.
  */
 static spi_exchange_trace_t g_spi_trace;
-static spi_exchange_trace_t g_spi_retained_trace;
+static spi_retained_trace_t g_spi_retained_trace;
 static bool g_spi_retained_failure;
 static bool g_spi_retained_startup_residue;
 

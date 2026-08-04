@@ -28,10 +28,13 @@ static void handle_retire_txn_result(const trinity_pc_frame_t *req) {
 }
 
 static bool serialize_spi_trace(const spi_exchange_trace_t *trace,
+                                const uint8_t *request_bytes,
+                                const uint8_t *response_bytes,
                                 uint16_t base, uint16_t *payload_length) {
     uint8_t irq_flags = 0u;
     uint16_t offset = (uint16_t)(base + 24u);
-    if (trace == NULL || payload_length == NULL || !trace->valid)
+    if (trace == NULL || request_bytes == NULL || response_bytes == NULL ||
+        payload_length == NULL || !trace->valid)
         return false;
     if ((uint32_t)offset + trace->request_length +
             trace->response_capture_length > TRINITY_PC_MAX_PAYLOAD)
@@ -62,10 +65,10 @@ static bool serialize_spi_trace(const spi_exchange_trace_t *trace,
     trinity_write_be16(&g_pc_rsp.payload[base + 22u],
                        trace->response_crc_calculated);
 
-    memcpy(&g_pc_rsp.payload[offset], trace->request_bytes,
+    memcpy(&g_pc_rsp.payload[offset], request_bytes,
            trace->request_length);
     offset = (uint16_t)(offset + trace->request_length);
-    memcpy(&g_pc_rsp.payload[offset], trace->response_bytes,
+    memcpy(&g_pc_rsp.payload[offset], response_bytes,
            trace->response_capture_length);
     *payload_length = (uint16_t)(offset + trace->response_capture_length);
     return true;
@@ -105,7 +108,17 @@ static void handle_spi_diagnostic(const trinity_pc_frame_t *req) {
         return;
     }
 
-    if (!serialize_spi_trace(&g_spi_trace, 0u, &payload_length)) {
+    /*
+     * endpoint_exchange() accepts a response only after decoding the canonical
+     * wire buffers.  Serialize those same accepted bytes for a live diagnostic
+     * instead of the redundant per-byte trace mirror.  Hardware v0.7.23 proved
+     * that the mirror could disagree with an exchange whose canonical request,
+     * response and CRC had already passed locally.
+     */
+    if (!serialize_spi_trace(&g_spi_trace,
+                             g_spi_request_wire,
+                             g_spi_response_wire,
+                             0u, &payload_length)) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_SN32, g_spi_trace.target_txid);
         return;
@@ -117,6 +130,8 @@ static void handle_spi_diagnostic(const trinity_pc_frame_t *req) {
 
 static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
     const spi_exchange_trace_t *trace = NULL;
+    const uint8_t *request_bytes = NULL;
+    const uint8_t *response_bytes = NULL;
     uint16_t payload_length;
     uint16_t sample_offset;
     uint16_t max_samples;
@@ -130,10 +145,14 @@ static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
 
     if (g_spi_retained_failure) {
         g_pc_rsp.payload[0] = 1u;
-        trace = &g_spi_retained_trace;
+        trace = &g_spi_retained_trace.metadata;
+        request_bytes = g_spi_retained_trace.request_bytes;
+        response_bytes = g_spi_retained_trace.response_bytes;
     } else if (g_spi_retained_startup_residue) {
         g_pc_rsp.payload[0] = 0u;
-        trace = &g_spi_retained_trace;
+        trace = &g_spi_retained_trace.metadata;
+        request_bytes = g_spi_retained_trace.request_bytes;
+        response_bytes = g_spi_retained_trace.response_bytes;
     } else {
         g_pc_rsp.payload[0] = 0u;
     }
@@ -144,7 +163,10 @@ static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
         (void)response_send();
         return;
     }
-    if (!serialize_spi_trace(trace, 2u, &payload_length) ||
+    if (!serialize_spi_trace(trace,
+                             request_bytes,
+                             response_bytes,
+                             2u, &payload_length) ||
         (uint32_t)payload_length + 32u > TRINITY_PC_MAX_PAYLOAD) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_SN32, trace->target_txid);

@@ -35,8 +35,8 @@ except ImportError:  # pragma: no cover - exercised only on systems without pyse
 
 EXPECTED_P1_BUILD_ID = 0x5031D002
 EXPECTED_P2_BUILD_ID = 0x50320001
-EXPECTED_SN32_BUILD_ID = 0x00070017
-EXPECTED_SN32_VERSION = (0, 7, 23)
+EXPECTED_SN32_BUILD_ID = 0x00070018
+EXPECTED_SN32_VERSION = (0, 7, 24)
 P1_KAT_TEST_MASK = 0x013E
 P2_KAT_TEST_MASK = 0x03E3
 SPI_DIAGNOSTIC_HEADER_SIZE = 24
@@ -618,10 +618,15 @@ class TrinitySerialClient:
             )
         try:
             request = SpiPacket.decode(trace.request_bytes)
+        except ProtocolDecodeError as exc:
+            raise HostProtocolError(
+                f"{target.name} {command.name} raw SPI request invalid: {exc}"
+            ) from exc
+        try:
             response = SpiPacket.decode(trace.response_bytes)
         except ProtocolDecodeError as exc:
             raise HostProtocolError(
-                f"{target.name} {command.name} raw SPI frame invalid: {exc}"
+                f"{target.name} {command.name} raw SPI response invalid: {exc}"
             ) from exc
 
         if (
@@ -763,11 +768,29 @@ class TrinitySerialClient:
             (TargetId.PRIMER2, SpiCommand.GET_STATUS),
         ):
             trace = self.spi_diagnostic(target, command)
-            self._validate_live_spi_trace(
-                trace,
-                target=target,
-                command=command,
-            )
+            try:
+                self._validate_live_spi_trace(
+                    trace,
+                    target=target,
+                    command=command,
+                )
+            except HostProtocolError as exc:
+                raise HostProtocolError(
+                    f"{exc}; trace_result={trace.result_code.name}, "
+                    f"txid=0x{trace.target_transaction_id:04X}, "
+                    f"lengths={trace.request_length}/"
+                    f"{trace.response_capture_length}/"
+                    f"{trace.response_frame_length}, "
+                    f"request_crc=0x{trace.request_crc:04X}, "
+                    f"response_crc=0x{trace.response_crc_received:04X}/"
+                    f"0x{trace.response_crc_calculated:04X}, "
+                    f"irq={int(trace.irq_before_request)}"
+                    f"{int(trace.irq_after_request)}"
+                    f"{int(trace.irq_before_response)}"
+                    f"{int(trace.irq_after_response)}, "
+                    f"request_bytes={trace.request_bytes.hex(' ')}, "
+                    f"response_bytes={trace.response_bytes.hex(' ')}"
+                ) from exc
             traces.append(trace)
 
         dual = self.run_dual_spi_bringup(

@@ -152,7 +152,6 @@ static trinity_error_code_t spi_read_response_segment(
         g_spi_response_wire[trace_index] = value;
 
         if (g_spi_trace.valid) {
-            g_spi_trace.response_bytes[trace_index] = value;
             if (trace_index < SPI_RESPONSE_SAMPLE_MAX) {
                 g_spi_trace.response_status_before_read[trace_index] =
                     status_before_read;

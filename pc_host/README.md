@@ -103,7 +103,7 @@ direct P1-to-P2 UART payload path, or qualify the full system.
 
 ## One-shot SN32 hardware qualification
 
-For the v0.7.23 deploy image, use one command after a full cold boot:
+For the v0.7.24 deploy image, use one command after a full cold boot:
 
 ```bat
 trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
@@ -122,7 +122,7 @@ result=PASS
 This command requires:
 
 ```text
-SN32 version/build = 0.7.23 / 0x00070017
+SN32 version/build = 0.7.24 / 0x00070018
 P1 build           = 0x5031D002
 P2 build           = 0x50320001
 ```

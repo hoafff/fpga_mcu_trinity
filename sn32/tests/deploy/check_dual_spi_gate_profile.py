@@ -91,8 +91,8 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 23):
-        fail(f"deterministic GPIO-SPI image must be v0.7.23, got {version}")
+    if version != (0, 7, 24):
+        fail(f"canonical-trace GPIO-SPI image must be v0.7.24, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI ceiling must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND") != 1:
@@ -100,12 +100,12 @@ def main() -> int:
     if macro(config, "TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES") < 60:
         fail("GPIO SPI half-period must not exceed the 100 kHz ceiling")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 200:
-        fail("v0.7.23 must retain the 200 us CS guard")
+        fail("v0.7.24 must retain the 200 us CS guard")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_REISSUE_MAX") != 2:
         fail("read-only recovery must permit exactly two bounded reissues")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS") != 20:
         fail("read-only recovery backoff must remain 20 ms")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070017)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070018)", "identity")
     require(
         p00,
         "#if TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND != 1",
@@ -119,7 +119,7 @@ def main() -> int:
         "static bool g_pc_frame_pending;",
         "static bool g_automatic_probe_active;",
         "static spi_exchange_trace_t g_spi_trace;",
-        "static spi_exchange_trace_t g_spi_retained_trace;",
+        "static spi_retained_trace_t g_spi_retained_trace;",
         "static bool g_spi_retained_failure;",
         "static bool g_spi_retained_startup_residue;",
     ):
@@ -186,9 +186,10 @@ def main() -> int:
         "soft_spi_transfer_byte(0u, &value)",
         "SPI_TRACE_BACKEND_GPIO_MODE0",
         "g_spi_response_wire[trace_index] = value;",
-        "g_spi_trace.response_bytes[trace_index] = value;",
     ):
         require(response_rx, token, "GPIO response RX")
+    forbid(response_rx, "g_spi_trace.response_bytes[trace_index]",
+           "single-authority response bytes")
     for token in ("SN_SPI0->DATA", "SN_SPI0->STAT", "SN_SPI0->CLKDIV"):
         forbid(p06, token, "GPIO transport isolation")
     forbid(p06, "spi_bytes_segment", "split transport")
@@ -210,7 +211,11 @@ def main() -> int:
 
     for token in (
         "static void spi_retain_current_trace(bool failure)",
-        "memcpy(&g_spi_retained_trace, &g_spi_trace,",
+        "memcpy(&g_spi_retained_trace.metadata, &g_spi_trace,",
+        "memcpy(g_spi_retained_trace.request_bytes,",
+        "g_spi_request_wire, request_length);",
+        "memcpy(g_spi_retained_trace.response_bytes,",
+        "g_spi_response_wire, response_length);",
         "g_spi_retained_failure = failure;",
         "g_spi_retained_startup_residue = !failure;",
         "static trinity_error_code_t spi_prepare_request_window(",
@@ -228,6 +233,10 @@ def main() -> int:
         require(p07, token, "bounded read transport recovery")
     if p07.count("trinity_spi_bad_length_detail_is_short_cs(") != 2:
         fail("startup drain and decoded retry must share the short-CS helper")
+    forbid(p07, "g_spi_trace.request_bytes[i] =",
+           "single-authority request bytes")
+    forbid(p07, "g_spi_trace.response_bytes[i] =",
+           "single-authority response bytes")
     forbid(p07, "rsp[12] == 0u && rsp[13] == 0u",
            "legacy-only trace residue check")
     forbid(p07, "g_spi_rsp.payload[5] == 0u",
@@ -310,10 +319,28 @@ def main() -> int:
 
     for token in (
         "if (g_spi_retained_failure)",
-        "trace = &g_spi_retained_trace;",
+        "trace = &g_spi_retained_trace.metadata;",
         "g_spi_retained_startup_residue",
+        "request_bytes = g_spi_retained_trace.request_bytes;",
+        "response_bytes = g_spi_retained_trace.response_bytes;",
     ):
         require(p14, token, "retained trace serializer")
+    live_diagnostic = section(
+        p14,
+        "static void handle_spi_diagnostic(",
+        "static void handle_get_first_spi_failure(",
+        "live SPI diagnostic",
+    )
+    for token in (
+        "serialize_spi_trace(&g_spi_trace,",
+        "g_spi_request_wire,",
+        "g_spi_response_wire,",
+    ):
+        require(live_diagnostic, token, "canonical live SPI trace")
+    forbid(live_diagnostic, "g_spi_trace.request_bytes,",
+           "canonical live SPI trace")
+    forbid(live_diagnostic, "g_spi_trace.response_bytes,",
+           "canonical live SPI trace")
 
     for token in (
         "if (g_automatic_probe_active &&",
@@ -391,7 +418,7 @@ def main() -> int:
     forbid(p17, "!g_spi_retained_failure",
            "periodic read-only recovery after retained history")
 
-    print("PASS: v0.7.23 identity and GPIO mode-0 backend are locked")
+    print("PASS: v0.7.24 identity and GPIO mode-0 backend are locked")
     print("PASS: encoded four/nine-byte BAD_LENGTH captures prove truncation")
     print("PASS: GPIO SCK/MOSI/MISO ownership and 100 kHz ceiling are locked")
     print("PASS: every CS guard remains 200 us")
@@ -401,6 +428,7 @@ def main() -> int:
     print("PASS: periodic read-only recovery continues after retained history")
     print("PASS: system-status is a local snapshot and cannot nest SPI refresh")
     print("PASS: retained failure bytes use a dedicated copy snapshot")
+    print("PASS: live diagnostics serialize the canonical decoded wire buffers")
     print("PASS: a full refresh clears active transport fault but keeps history")
     print("PASS: non-recursive PC service and deterministic SPI transport remain locked")
     print("NOTE: source PASS does not claim Keil build, flash or hardware PASS")

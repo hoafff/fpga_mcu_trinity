@@ -8,7 +8,8 @@
          */
         if (spi_decoded_proves_truncated_request(request_len)) {
             g_spi_trace.result_code = TRINITY_BAD_LENGTH;
-            if (spi_trace_is_startup_reset_residue(&g_spi_trace))
+            if (spi_trace_is_startup_reset_residue(&g_spi_trace,
+                                                   g_spi_response_wire))
                 spi_record_startup_residue();
             rc = TRINITY_BAD_LENGTH;
             goto retry_read_request;

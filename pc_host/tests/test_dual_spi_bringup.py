@@ -40,6 +40,7 @@ class DualSpiFakeSerial:
         self.closed = False
         self.p1_build_id = EXPECTED_P1_BUILD_ID
         self.spi_result = ErrorCode.OK
+        self.corrupt_spi_request = False
         self.corrupt_spi_response = False
         self.active_host_txid_after_self_tests = 0
         self.ping_uptimes = [123456]
@@ -80,7 +81,7 @@ class DualSpiFakeSerial:
             )
             payload = struct.pack(">I", uptime)
         elif command == HostCommand.GET_SYSTEM_INFO:
-            payload = bytes([1, 0, 7, 23]) + struct.pack(
+            payload = bytes([1, 0, 7, 24]) + struct.pack(
                 ">IIII",
                 0x00000EFB,
                 EXPECTED_SN32_BUILD_ID,
@@ -101,6 +102,10 @@ class DualSpiFakeSerial:
                 flags=0,
                 transaction_id=target_txid,
             ).encode()
+            if self.corrupt_spi_request:
+                corrupt = bytearray(request_bytes)
+                corrupt[0] = 0x04
+                request_bytes = bytes(corrupt)
             if spi_command == int(SpiCommand.GET_INFO):
                 build_id = (
                     EXPECTED_P1_BUILD_ID
@@ -242,7 +247,7 @@ class DualSpiBringupTests(unittest.TestCase):
         result = client.run_dual_spi_bringup(timeout=0.5, poll_interval=0.0)
 
         self.assertEqual(result.uptime_ms, 123456)
-        self.assertEqual(result.info.architecture_patch, 23)
+        self.assertEqual(result.info.architecture_patch, 24)
         self.assertEqual(result.info.sn32_build_id, EXPECTED_SN32_BUILD_ID)
         self.assertEqual(result.info.primer1_build_id, EXPECTED_P1_BUILD_ID)
         self.assertEqual(result.info.primer2_build_id, EXPECTED_P2_BUILD_ID)
@@ -325,7 +330,7 @@ class DualSpiBringupTests(unittest.TestCase):
         self.assertEqual(fake.self_tests_completed, 0)
         client.close()
 
-    def test_one_shot_independently_rejects_corrupt_raw_spi_frame(self) -> None:
+    def test_one_shot_independently_rejects_corrupt_raw_spi_response(self) -> None:
         fake = DualSpiFakeSerial()
         fake.corrupt_spi_response = True
         client = TrinitySerialClient(
@@ -333,7 +338,27 @@ class DualSpiBringupTests(unittest.TestCase):
             serial_factory=lambda **kwargs: fake,
         )
 
-        with self.assertRaisesRegex(HostProtocolError, "raw SPI frame invalid"):
+        with self.assertRaisesRegex(
+            HostProtocolError,
+            r"raw SPI response invalid:.*request_bytes=.*response_bytes=",
+        ):
+            client.run_sn32_hardware_qualification()
+
+        self.assertEqual(fake.self_tests_completed, 0)
+        client.close()
+
+    def test_one_shot_identifies_corrupt_raw_spi_request_and_prints_evidence(self) -> None:
+        fake = DualSpiFakeSerial()
+        fake.corrupt_spi_request = True
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: fake,
+        )
+
+        with self.assertRaisesRegex(
+            HostProtocolError,
+            r"raw SPI request invalid: magic 0x04;.*request_bytes=04",
+        ):
             client.run_sn32_hardware_qualification()
 
         self.assertEqual(fake.self_tests_completed, 0)
