@@ -135,10 +135,12 @@ static trinity_error_code_t spi_read_response_segment(
                 TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES;
             g_spi_trace.spi_fifo_th = 0u;
             g_spi_trace.response_sample_count = 0u;
-        } else if (g_spi_trace.transfer_direction !=
-                   SPI_TRANSFER_DIRECTION_RESPONSE) {
-            return TRINITY_BAD_STATE;
         }
+        /*
+         * Transport continuation is determined by the caller's canonical
+         * byte_offset/transfer_length contract, never by mutable diagnostic
+         * metadata. g_spi_trace remains observation-only.
+         */
         g_spi_trace.transfer_length = (uint16_t)transfer_length;
         g_spi_trace.spi_status = 0u;
     }
