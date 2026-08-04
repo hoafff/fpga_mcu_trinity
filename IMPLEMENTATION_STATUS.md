@@ -2,22 +2,9 @@
 
 Status date: 2026-08-05
 
-## Corrective control-plane baseline
+## Qualified control-plane baseline
 
-A structural mismatch was found between the Primer IRQ contract and the SN32
-master policy:
-
-```text
-old Primer IRQ_N LOW = response mailbox OR retained/authenticated result state
-old SN32 policy       = any IRQ_N LOW means a response mailbox must be drained
-```
-
-That combination could prevent `GET_TXN_RESULT`, `RETIRE_TXN_RESULT`,
-`READ_AUTH_RESULT` and `ACK_AUTH_RESULT` from being issued after the preceding
-mailbox had already been consumed. Dummy response-read clocks could then be
-parsed as a malformed request and create another error mailbox.
-
-The corrected implementation contract is recorded in:
+The active shared-SPI contract is recorded in:
 
 ```text
 ai_context/interfaces/SPI_CONTROL_PLANE_ICD_v0.2.md
@@ -31,83 +18,139 @@ retained/authenticated result state is queried explicitly and does not hold IRQ
 non-magic request windows are discarded silently and create no error mailbox
 ```
 
-## Current source identities
+## Active source and hardware identities
 
 ```text
 Primer #1 build ID = 0x5031D003
 Primer #2 build ID = 0x50320002
-SN32 version/build = 0.7.25 / 0x00070019
-PC host version    = 0.3.8
+SN32 version/build = 0.7.26 / 0x0007001A
+PC host version    = 0.3.9
 ```
 
-Key source/evidence commits:
+SN32 source commits:
 
 ```text
-Primer #1 corrected source baseline: 0b78e007dca49f8f309ba99f3ede54bd6f3349e7
-Primer #2 corrected source/test baseline: a14abb631b66e43acfedcea292d84dd8fcf63291
-PC-host corrected identity baseline: a153ce41bd5f0396db4684801e449dbd38783ea5
-SPI ICD v0.2 baseline: d0856c36a23ad5942e4fd8f19edd4945ef7ee248
+472b9f263b47ef820c0034edd206c8a015cb9fd1
+  fix(sn32): enlarge stack and isolate SPI trace state
+
+c1ded1ece67fe9557a378c33115e1c7a2b59d969
+  chore(sn32): publish v0.7.26 host identity contract
 ```
 
-## Verification boundary
+## Exact-device build and programming
 
-| Target | Portable/static/RTL | Exact-device build | Programmed hardware |
-|---|---|---|---|
-| Primer #1 corrected image | RTL regression PASS; silent non-magic-window test PASS | REBUILD REQUIRED | NOT PROGRAMMED / NOT QUALIFIED |
-| Primer #2 corrected image | Reference/static/full RTL regression PASS; silent non-magic-window test PASS | REBUILD REQUIRED | NOT PROGRAMMED / NOT QUALIFIED |
-| SN32 v0.7.25 | Existing portable controller/host checks PASS in repository CI | Keil ArmClang rebuild required on current source | User hardware still reported v0.7.24; v0.7.25 must be flashed |
-| PC host 0.3.8 | Unit tests PASS before identity migration commit | Not applicable | Reinstall editable package required |
-| Tiny 1P5 | Unchanged by this correction | Unchanged | No new programming required for the first corrected SPI gate |
+| Target | Exact-device result | Programmed hardware |
+|---|---|---|
+| Primer #1 `0x5031D003` | Gowin synthesis/P&R/STA PASS; critical timing margin previously recorded | PASS |
+| Primer #2 `0x50320002` | Gowin synthesis/P&R/STA PASS | PASS |
+| SN32 `0.7.26 / 0x0007001A` | ArmClang 6.24: 0 errors, 0 warnings | Flash PASS; Verify OK |
+| PC host `0.3.9` | Wheel build/install PASS | Active virtual environment confirmed |
+| Tiny 1P5 | Unchanged by this gate | Not requalified by this gate |
 
-Primer #1 RTL evidence:
+SN32 program size:
 
 ```text
-primer1/docs/RTL_SIMULATION_LATEST.md
+Code=25724
+RO-data=776
+RW-data=100
+ZI-data=6788
+Total ROM=26600 bytes
+Total RAM=6888 bytes
 ```
 
-Primer #2 RTL evidence:
+SN32 linker stack lock:
 
 ```text
-primer2/docs/RTL_SIMULATION_LATEST.md
-primer2/docs/TESTBENCH_PORTABILITY_MIGRATION_LATEST.md
+STACK start = 0x200012E8
+STACK size  = 0x00000800 = 2048 bytes
+__initial_sp = 0x20001AE8
+map SHA-256 = 7b07e693a83d17d7b8069a1e95a45eaf4b5be6b2829be466feebf194870d5edf
 ```
 
-The RTL/source PASS results do not constitute Gowin synthesis, place-and-route,
-STA, bitstream generation or physical qualification.
+## Hardware qualification result
 
-## Hardware evidence boundary
-
-Previous ESP32-C3 standalone and direct P1-to-P2 UART results remain historical
-evidence for the older programmed images. They do not qualify the corrected
-`0x5031D003` / `0x50320002` images.
-
-The current corrected system state is:
+Command:
 
 ```text
-corrected Primer source:                  PASS
-corrected Primer RTL regression:          PASS
-corrected Primer exact-device build:      NOT RUN
-corrected Primer bitstream SHA-256:        NOT RECORDED
-corrected Primer programming:              NOT RUN
-SN32 v0.7.25 exact rebuild/programming:    NOT RUN ON USER HARDWARE
-corrected shared-SPI hardware gate:        NOT RUN
-corrected retained RUN/QUERY/RETIRE gate:  NOT RUN
-current full-system hardware qualified:    false
+trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
 ```
 
-## Required next sequence
+Final result:
 
 ```text
-1. Preserve the user's existing modified/untracked local files.
-2. Fast-forward the local repository to current origin/main.
-3. Rebuild Primer #1 in Gowin; require synthesis/P&R/STA PASS and record .fs hash.
-4. Rebuild Primer #2 in Gowin; require synthesis/P&R/STA PASS and record .fs hash.
-5. Program P1 build 0x5031D003 and P2 build 0x50320002.
-6. Rebuild and flash SN32 v0.7.25 / 0x00070019.
-7. Reinstall PC host 0.3.8.
-8. Cold boot P1/P2 first and SN32 last.
-9. Run the one-shot corrected control-plane qualification.
-10. Only after that PASS, rerun direct UART/session/telemetry and Tiny gates.
+[SN32_P1_P2_HARDWARE_QUALIFICATION]
+result=PASS
 ```
 
-No full-system or corrected-hardware PASS is claimed by this status file.
+The run demonstrated:
+
+```text
+PREFLIGHT_PING: PASS
+P1 GET_INFO: PASS, full frame and CRC match
+P1 GET_STATUS: PASS, full frame and CRC match
+P2 GET_INFO: PASS, full frame and CRC match
+P2 GET_STATUS: PASS, full frame and CRC match
+P1 KAT retained RUN/QUERY/RETIRE: SUCCEEDED
+P2 KAT retained RUN/QUERY/RETIRE: SUCCEEDED
+FINAL_SYSTEM_STATUS: READY_NO_KEYPAIR
+fault_flags: 0x00
+last_error: OK
+POST_TEST_LIVENESS: PASS, 10 iterations
+FINAL_SPI_FIRST_FAILURE: latched=False
+```
+
+Raw evidence:
+
+```text
+sn32/hardware/dual_spi_control_plane/evidence/
+  v0_7_26_hardware_qualification_2026-08-05.txt
+```
+
+## Qualified scope
+
+The following claims are now supported:
+
+```text
+SN32 exact-target build/flash/verify: PASS
+PC <-> SN32 qualification command/liveness path: PASS
+SN32 -> P1/P2 shared dual-SPI control plane: PASS
+P1/P2 identity and status access through SN32: PASS
+P1/P2 retained KAT transaction lifecycle through SN32: PASS
+post-test PC-UART liveness: PASS
+SN32 -> P1/P2 hardware qualification: PASS
+```
+
+## Non-claim boundary
+
+The following are still open and must not be reported as PASS from this gate:
+
+```text
+ML-KEM keypair generation on hardware
+ML-KEM session establishment and key derivation
+session stage/commit across SN32, P1, P2 and Tiny
+P1 encrypt + direct UART transmit -> P2 authenticate/decrypt
+SN32 authenticated-result read and ACK
+Tiny complete safety integration
+full-system hardware qualification
+```
+
+## Next gate
+
+The next sequence is:
+
+```text
+1. Keep P1, P2 and SN32 qualified images unchanged.
+2. Run SN32 ML-KEM-512 keypair generation and verify terminal result.
+3. Create and stage one session to P1 and P2.
+4. Commit the session and verify both endpoints become ready.
+5. Send one telemetry payload through P1 -> direct UART -> P2.
+6. Read authenticated plaintext from P2 through SN32 and ACK it.
+7. Verify replay/wrong-ACK/pending-result protection.
+8. Only after that PASS, integrate and requalify the Tiny supervisor path.
+```
+
+Current full-system hardware qualified remains:
+
+```text
+false
+```
