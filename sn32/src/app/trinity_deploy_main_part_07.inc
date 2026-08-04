@@ -6,6 +6,13 @@ static trinity_source_t endpoint_source(const endpoint_t *ep) {
                ? TRINITY_SOURCE_PRIMER1 : TRINITY_SOURCE_PRIMER2;
 }
 
+static void spi_trace_rotate_work_slot(void) {
+    g_spi_trace_work =
+        g_spi_trace_work == &g_spi_trace_slots[0]
+            ? &g_spi_trace_slots[1]
+            : &g_spi_trace_slots[0];
+}
+
 static void spi_trace_begin(endpoint_t *ep, uint8_t command,
                             uint16_t txid, uint32_t fingerprint) {
     memset(&g_spi_trace, 0, sizeof(g_spi_trace));
@@ -20,9 +27,12 @@ static void spi_trace_begin(endpoint_t *ep, uint8_t command,
 }
 
 static void spi_latch_first_failure(void) {
-    if (!g_spi_first_failure.valid && g_spi_trace.valid &&
+    if (!g_spi_retained_failure && g_spi_trace.valid &&
         g_spi_trace.result_code != TRINITY_OK) {
-        g_spi_first_failure = g_spi_trace;
+        g_spi_retained_trace = g_spi_trace_work;
+        g_spi_retained_failure = true;
+        g_spi_retained_startup_residue = false;
+        spi_trace_rotate_work_slot();
     }
 }
 
@@ -56,9 +66,11 @@ static bool spi_trace_is_startup_reset_residue(
 }
 
 static void spi_record_startup_residue(void) {
-    if (!g_spi_startup_residue.valid &&
+    if (!g_spi_retained_failure && !g_spi_retained_startup_residue &&
         spi_trace_is_startup_reset_residue(&g_spi_trace)) {
-        g_spi_startup_residue = g_spi_trace;
+        g_spi_retained_trace = g_spi_trace_work;
+        g_spi_retained_startup_residue = true;
+        spi_trace_rotate_work_slot();
     }
 }
 
