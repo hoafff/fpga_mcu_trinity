@@ -133,7 +133,22 @@ static trinity_error_code_t spi_bytes_segment(
         data_word = SN_SPI0->DATA;
         status_after_read = SN_SPI0->STAT;
         value = (uint8_t)(data_word & UINT32_C(0xFF));
-        if (rx != NULL) rx[i] = value;
+
+        /*
+         * Hardware v0.7.11 proved DATA[7:0] is byte-exact while the generic
+         * rx-pointer destination produced a corrupted prefix. Store every
+         * response byte directly in the immutable trace buffer and use that
+         * buffer as the sole decode source. Request-side optional RX remains
+         * available for completeness but is not used by the deploy transport.
+         */
+        if (direction == SPI_TRANSFER_DIRECTION_RESPONSE) {
+            if (!g_spi_trace.valid || trace_index >= TRINITY_SPI_MAX_PACKET)
+                return TRINITY_BAD_LENGTH;
+            g_spi_trace.response_bytes[trace_index] = value;
+        } else if (rx != NULL) {
+            rx[i] = value;
+        }
+
         if (g_spi_trace.valid) {
             if (direction == SPI_TRANSFER_DIRECTION_RESPONSE &&
                 trace_index < SPI_RESPONSE_SAMPLE_MAX) {
