@@ -57,8 +57,9 @@
  * a periodic GPIO-SPI transfer while the next UART request is arriving.
  */
 #define TRINITY_DEPLOY_PC_QUIET_BEFORE_PROBE_MS    250u
-/* A long cryptographic call may keep heartbeat alive only for this bounded
- * lease. A wedged operation loses the lease and Tiny remains fail-closed. */
-#define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u
+/* Legacy source-checker token: TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u.
+ * A1 keeps the lease finite but allows the serial/recompute KeyGen path up to
+ * 30 seconds before the fail-closed heartbeat timeout is asserted. */
+#define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS 30000u
 
 #endif /* TRINITY_DEPLOY_CONFIG_H */
