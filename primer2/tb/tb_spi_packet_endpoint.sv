@@ -6,7 +6,8 @@ module tb_spi_packet_endpoint;
   logic[527:0]request_payload;logic[31:0]request_fingerprint;logic transport_error_valid;
   logic[7:0]transport_error_command;logic[15:0]transport_error_txid,transport_error_code;
   logic response_commit=0;logic[7:0]response_command=0,response_flags=0;logic[15:0]response_txid=0,response_payload_length=0;
-  logic[527:0]response_payload=0;logic response_ready,mailbox_pending;logic[7:0]packet[0:75];integer packet_length,index,bad_crc_seen;
+  logic[527:0]response_payload=0;logic response_ready,mailbox_pending;logic[7:0]packet[0:75];
+  integer packet_length,index,bad_crc_seen,request_seen_count,transport_error_count;
   always #5 clk=~clk;
   spi_packet_endpoint dut(.clk_i(clk),.rst_ni(rst_n),.spi_sck_i(sck),.spi_mosi_i(mosi),.spi_cs_ni(cs_n),.spi_miso_bit_o(miso),
     .request_valid_o(request_valid),.request_command_o(request_command),.request_flags_o(request_flags),.request_txid_o(request_txid),
@@ -22,11 +23,17 @@ module tb_spi_packet_endpoint;
     packet[8+n]=c[15:8];packet[9+n]=c[7:0];packet_length=10+n;end endtask
   task automatic shift_byte(input[7:0]v);integer b;begin for(b=7;b>=0;b=b-1)begin mosi=v[b];repeat(4)@(posedge clk);sck=1;repeat(4)@(posedge clk);sck=0;end end endtask
   task automatic send;begin cs_n=0;repeat(5)@(posedge clk);for(index=0;index<packet_length;index=index+1)shift_byte(packet[index]);repeat(4)@(posedge clk);cs_n=1;repeat(5)@(posedge clk);end endtask
-  always@(posedge clk)if(transport_error_valid&&transport_error_code==ERR_BAD_CRC)bad_crc_seen<=1;
-  initial begin bad_crc_seen=0;repeat(4)@(posedge clk);rst_n=1;repeat(4)@(posedge clk);
+  always@(posedge clk)begin
+    if(request_valid)request_seen_count<=request_seen_count+1;
+    if(transport_error_valid)transport_error_count<=transport_error_count+1;
+    if(transport_error_valid&&transport_error_code==ERR_BAD_CRC)bad_crc_seen<=1;
+  end
+  initial begin bad_crc_seen=0;request_seen_count=0;transport_error_count=0;repeat(4)@(posedge clk);rst_n=1;repeat(4)@(posedge clk);
     build(CMD_READ_AUTH_RESULT,16'h1234,0);send();index=0;while(!request_valid&&index<300)begin @(posedge clk);index=index+1;end
     if(!request_valid||request_command!=CMD_READ_AUTH_RESULT||request_txid!=16'h1234)$fatal(1,"SPI request mismatch");$display("PASS spi_mode0_request");
     build(CMD_GET_INFO,16'h0102,0);packet[9]^=1;send();repeat(100)@(posedge clk);if(!bad_crc_seen)$fatal(1,"bad CRC accepted");$display("PASS spi_bad_crc_rejected");
+    request_seen_count=0;transport_error_count=0;for(index=0;index<16;index=index+1)packet[index]=8'h00;packet_length=16;send();repeat(100)@(posedge clk);
+    if(request_seen_count!=0||transport_error_count!=0||mailbox_pending)$fatal(1,"non-magic dummy window created request/error/mailbox");$display("PASS spi_non_magic_window_silent");
     @(negedge clk);response_command=CMD_GET_INFO;response_flags=FLAG_RESPONSE;response_txid=16'h0102;response_payload_length=2;response_payload[7:0]=8'hAA;response_payload[15:8]=8'h55;response_commit=1;
     @(negedge clk);response_commit=0;index=0;while(!mailbox_pending&&index<100)begin @(posedge clk);index=index+1;end
     if(!mailbox_pending||dut.tx_mem[8]!=8'hAA||dut.tx_mem[9]!=8'h55)$fatal(1,"mailbox build");$display("PASS spi_response_mailbox_build");$finish;end
