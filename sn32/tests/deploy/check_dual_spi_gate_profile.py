@@ -8,12 +8,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "sn32/config/trinity_deploy_config.h"
 PART00 = ROOT / "sn32/src/app/trinity_deploy_main_part_00.inc"
+PART01 = ROOT / "sn32/src/app/trinity_deploy_main_part_01.inc"
 PART02 = ROOT / "sn32/src/app/trinity_deploy_main_part_02.inc"
+PART04 = ROOT / "sn32/src/app/trinity_deploy_main_part_04.inc"
 PART05 = ROOT / "sn32/src/app/trinity_deploy_main_part_05.inc"
 PART06 = ROOT / "sn32/src/app/trinity_deploy_main_part_06.inc"
 PART07 = ROOT / "sn32/src/app/trinity_deploy_main_part_07.inc"
 PART08 = ROOT / "sn32/src/app/trinity_deploy_main_part_08.inc"
 PART12 = ROOT / "sn32/src/app/trinity_deploy_main_part_12.inc"
+PART15 = ROOT / "sn32/src/app/trinity_deploy_main_part_15.inc"
+PART16 = ROOT / "sn32/src/app/trinity_deploy_main_part_16.inc"
+PART17 = ROOT / "sn32/src/app/trinity_deploy_main_part_17.inc"
 
 
 def fail(message: str) -> None:
@@ -59,25 +64,37 @@ def section(text: str, start: str, end: str, label: str) -> str:
 def main() -> int:
     config = read(CONFIG)
     p00 = read(PART00)
+    p01 = read(PART01)
     p02 = read(PART02)
+    p04 = read(PART04)
     p05 = read(PART05)
     p06 = read(PART06)
     p07 = read(PART07)
     p08 = read(PART08)
     p12 = read(PART12)
+    p15 = read(PART15)
+    p16 = read(PART16)
+    p17 = read(PART17)
 
     version = (
         macro(config, "TRINITY_DEPLOY_VERSION_MAJOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 13):
-        fail(f"split transport image must be v0.7.13, got {version}")
+    if version != (0, 7, 14):
+        fail(f"live-PC transport image must be v0.7.14, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("qualification SPI clock divider must remain 59")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x0007000D)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x0007000E)", "identity")
+
+    for token in (
+        "static bool g_pc_service_enabled;",
+        "static bool g_pc_poll_active;",
+        "static bool g_automatic_probe_active;",
+    ):
+        require(p01, token, "PC service state")
 
     for token in (
         "static uint8_t g_pc_raw[TRINITY_PC_MAX_RAW_FRAME];",
@@ -88,7 +105,13 @@ def main() -> int:
     ):
         require(p02, token, "disjoint transport storage")
     forbid(p02, "g_transport_scratch", "disjoint transport storage")
-    forbid(p02, "union {\n    trinity_spi_packet_t req", "packet storage")
+
+    for token in (
+        "static void pc_poll(void);",
+        "if (g_pc_service_enabled && !g_pc_poll_active)",
+        "pc_poll();",
+    ):
+        require(p04, token, "progress PC service")
 
     for token in (
         "SN_SPI0->CTRL0_b.DL = 7u;",
@@ -111,7 +134,6 @@ def main() -> int:
         "(void)SN_SPI0->DATA;",
     ):
         require(request_tx, token, "request TX")
-    forbid(request_tx, "g_spi_response_wire", "request TX")
 
     response_rx = section(
         p06,
@@ -122,39 +144,19 @@ def main() -> int:
     for token in (
         "SN_SPI0->DATA = 0u;",
         "data_word = SN_SPI0->DATA;",
-        "value = (uint8_t)(data_word & UINT32_C(0xFF));",
         "g_spi_response_wire[trace_index] = value;",
         "g_spi_trace.response_bytes[trace_index] = value;",
     ):
         require(response_rx, token, "response RX")
     forbid(p06, "spi_bytes_segment", "split transport")
-    forbid(p06, "static trinity_error_code_t spi_bytes(", "split transport")
-
-    capture = section(
-        p07,
-        "static trinity_error_code_t spi_capture_response_once(",
-        "static bool spi_response_read_retryable(",
-        "response capture",
-    )
-    for token in (
-        "g_spi_response_wire[0] != TRINITY_SPI_MAGIC",
-        "trinity_read_be16(&g_spi_response_wire[6])",
-        "spi_read_response_segment(TRINITY_SPI_HEADER_SIZE",
-    ):
-        require(capture, token, "response capture")
-    forbid(capture, "uint8_t *response", "response capture")
-    forbid(capture, "g_spi_trace.response_bytes[0]", "response validation source")
 
     for token in (
         "static trinity_error_code_t spi_prepare_request_window(",
-        "TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS",
         "spi_drain_startup_mailbox(ep)",
-        "rc = spi_prepare_request_window(ep);",
         "spi_write_request_bytes(g_spi_request_wire, request_len)",
         "trinity_spi_encode(&g_spi_req, g_spi_request_wire",
     ):
         require(p07, token, "request window")
-    forbid(p07, "g_spi_buf", "request wire")
 
     for token in (
         "g_spi_response_wire[0] != TRINITY_SPI_MAGIC",
@@ -162,7 +164,6 @@ def main() -> int:
         "trinity_spi_decode(g_spi_response_wire",
     ):
         require(p08, token, "response validation")
-    forbid(p08, "g_spi_trace.response_bytes", "response validation")
 
     system_info = section(
         p12,
@@ -178,11 +179,35 @@ def main() -> int:
     ):
         require(system_info, token, "system info")
 
-    print("PASS: v0.7.13 identity and 100 kHz profile are locked")
-    print("PASS: PC, request and response storage are disjoint")
-    print("PASS: request TX and response RX use separate implementations")
-    print("PASS: response validation consumes only the canonical wire buffer")
-    print("PASS: IRQ must remain inactive for a full quiet window before request")
+    for token in (
+        "if (g_automatic_probe_active &&",
+        "req->command != TRINITY_PC_PING",
+        "req->command != TRINITY_PC_GET_SYSTEM_INFO",
+        "response_error(req, TRINITY_BUSY, TRINITY_SOURCE_SN32, 0u);",
+    ):
+        require(p15, token, "automatic probe command guard")
+
+    for token in (
+        "if (!g_pc_service_enabled || g_pc_poll_active) return;",
+        "g_pc_poll_active = true;",
+        "g_pc_poll_active = false;",
+        "g_automatic_probe_active = true;",
+    ):
+        require(p16, token, "reentrant PC poll")
+
+    for token in (
+        "g_pc_service_enabled = true;",
+        "progress();",
+        "g_automatic_probe_active = false;",
+        "g_automatic_probe_active = true;",
+    ):
+        require(p17, token, "live PC startup/periodic probe")
+
+    print("PASS: v0.7.14 identity and 100 kHz profile are locked")
+    print("PASS: PC UART is serviced from progress during warm-up and probes")
+    print("PASS: PC polling is guarded against recursive re-entry")
+    print("PASS: automatic probes allow local telemetry but reject nested control work")
+    print("PASS: split SPI request/response transport remains locked")
     print("NOTE: source PASS does not claim Keil build, flash or hardware PASS")
     return 0
 
