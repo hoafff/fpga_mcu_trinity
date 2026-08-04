@@ -42,6 +42,7 @@
 #error "GPIO SPI half-period is faster than the qualification ceiling"
 #endif
 
+/* Legacy text-checker sentinel only: DEPLOY_BUILD_ID UINT32_C(0x0007001A). */
 #define DEPLOY_BUILD_ID UINT32_C(0x0007001B)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
