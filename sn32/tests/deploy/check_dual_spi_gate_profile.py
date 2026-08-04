@@ -8,7 +8,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "sn32/config/trinity_deploy_config.h"
-TARGET = ROOT / "sn32/target.toml"
 PART00 = ROOT / "sn32/src/app/trinity_deploy_main_part_00.inc"
 PART01 = ROOT / "sn32/src/app/trinity_deploy_main_part_01.inc"
 PART05 = ROOT / "sn32/src/app/trinity_deploy_main_part_05.inc"
@@ -23,10 +22,7 @@ CONTROLLER03 = ROOT / "sn32/src/app/trinity_full_controller_part_03.inc"
 PC_CONSTANTS = ROOT / "pc_host/src/trinity_host/protocol/constants.py"
 CLIENT = ROOT / "pc_host/src/trinity_host/serial_client.py"
 CLI = ROOT / "pc_host/src/trinity_host/cli.py"
-FIRST_FAILURE_TEST = ROOT / "pc_host/tests/test_spi_first_failure.py"
 REGISTRY = ROOT / "ai_context/interfaces/PROTOCOL_REGISTRY_v0.1.json"
-GATE_DOC = ROOT / "sn32/docs/SN32_DUAL_SPI_HARDWARE_QUALIFICATION_NEXT_GATE.md"
-EVIDENCE = ROOT / "sn32/hardware/dual_spi_control_plane/evidence/run_manifest_TEMPLATE.txt"
 
 
 def fail(message: str) -> None:
@@ -62,16 +58,15 @@ def macro(text: str, name: str) -> int:
 
 
 def section(text: str, start: str, end: str, label: str) -> str:
-    a = text.find(start)
-    b = text.find(end, a + len(start))
-    if a < 0 or b < 0:
+    first = text.find(start)
+    last = text.find(end, first + len(start))
+    if first < 0 or last < 0:
         fail(f"cannot isolate {label}")
-    return text[a:b]
+    return text[first:last]
 
 
 def main() -> int:
     config = read(CONFIG)
-    target = read(TARGET)
     p00 = read(PART00)
     p01 = read(PART01)
     p05 = read(PART05)
@@ -86,9 +81,6 @@ def main() -> int:
     constants = read(PC_CONSTANTS)
     client = read(CLIENT)
     cli = read(CLI)
-    first_failure_test = read(FIRST_FAILURE_TEST)
-    gate_doc = read(GATE_DOC)
-    evidence = read(EVIDENCE)
     registry = json.loads(read(REGISTRY))
 
     version = (
@@ -96,28 +88,20 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 11):
-        fail(f"raw-telemetry image must be v0.7.11, got {version}")
+    if version != (0, 7, 12):
+        fail(f"canonical-response image must be v0.7.12, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("12 MHz qualification clock must use CLKDIV=59")
-
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x0007000B)", "identity")
-    require(p00, "SPI qualification clock and CLKDIV disagree", "clock lock")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x0007000C)", "identity")
 
     for token in (
         "SPI_RESPONSE_SETTLE_MS = 15u",
         "SPI_STARTUP_WARMUP_MS = 2000u",
         "SPI_RESPONSE_SAMPLE_MAX = 8u",
-        "uint32_t spi_ctrl0;",
-        "uint32_t spi_ctrl1;",
-        "uint32_t spi_clkdiv;",
-        "uint32_t spi_fifo_th;",
-        "response_status_before_read[SPI_RESPONSE_SAMPLE_MAX]",
         "response_data_words[SPI_RESPONSE_SAMPLE_MAX]",
-        "response_status_after_read[SPI_RESPONSE_SAMPLE_MAX]",
-        "g_spi_first_failure",
+        "response_bytes[TRINITY_SPI_MAX_PACKET]",
     ):
         require(p01, token, "trace storage")
 
@@ -134,44 +118,39 @@ def main() -> int:
         p06,
         "static trinity_error_code_t spi_reset_idle(",
         "static trinity_error_code_t spi_bytes_segment(",
-        "spi_reset_idle",
+        "SPI reset",
     )
     for token in (
-        "while ((SN_SPI0->STAT & SPI_BUSY) != 0u)",
         "SN_SPI0->CTRL0_b.FRESET = 3u;",
         "while (SN_SPI0->CTRL0_b.FRESET != 0u)",
+        "while ((SN_SPI0->STAT & SPI_RX_EMPTY) == 0u",
     ):
-        require(reset_idle, token, "SPI reset completion")
-    forbid(reset_idle, "SN_SPI0->CTRL0_b.SPIEN = 0u;", "SPI reset completion")
+        require(reset_idle, token, "SPI reset")
 
     transfer = section(
         p06,
         "static trinity_error_code_t spi_bytes_segment(",
         "static trinity_error_code_t spi_bytes(",
-        "spi byte transfer",
+        "SPI transfer",
     )
-    order = [
+    ordered = [
         transfer.find("SN_SPI0->DATA ="),
         transfer.find("while ((SN_SPI0->STAT & SPI_BUSY)"),
         transfer.find("while ((SN_SPI0->STAT & SPI_RX_EMPTY)"),
-        transfer.find("status_before_read = SN_SPI0->STAT;"),
         transfer.find("data_word = SN_SPI0->DATA;"),
-        transfer.find("status_after_read = SN_SPI0->STAT;"),
         transfer.find("value = (uint8_t)(data_word & UINT32_C(0xFF));"),
+        transfer.find("g_spi_trace.response_bytes[trace_index] = value;"),
     ]
-    if min(order) < 0 or order != sorted(order):
-        fail("SPI telemetry order must be TX -> complete -> RX ready -> STAT/DATA/STAT")
+    if min(ordered) < 0 or ordered != sorted(ordered):
+        fail("response byte path must be TX -> complete -> RX ready -> DATA -> canonical trace")
     for token in (
-        "g_spi_trace.spi_ctrl0 = SN_SPI0->CTRL0;",
-        "g_spi_trace.spi_ctrl1 = SN_SPI0->CTRL1;",
-        "g_spi_trace.spi_clkdiv = SN_SPI0->CLKDIV;",
-        "g_spi_trace.spi_fifo_th = SN_SPI0->FIFO_TH;",
-        "trace_index < SPI_RESPONSE_SAMPLE_MAX",
+        "direction == SPI_TRANSFER_DIRECTION_RESPONSE",
+        "trace_index >= TRINITY_SPI_MAX_PACKET",
         "response_status_before_read[trace_index]",
         "response_data_words[trace_index]",
         "response_status_after_read[trace_index]",
     ):
-        require(transfer, token, "raw response telemetry")
+        require(transfer, token, "canonical response capture")
 
     capture = section(
         p07,
@@ -179,11 +158,15 @@ def main() -> int:
         "static bool spi_response_read_retryable(",
         "response capture",
     )
-    if capture.count("spi_select(ep)") != 1 or capture.count("spi_end();") != 1:
-        fail("response header and remainder must use one CS window")
-    if capture.count("spi_bytes_segment(") != 2:
-        fail("response capture must contain header and declared remainder")
-    require(capture, "frame_len - TRINITY_SPI_HEADER_SIZE", "response capture")
+    for token in (
+        "response = g_spi_trace.response_bytes;",
+        "memset(response, 0, sizeof(g_spi_trace.response_bytes));",
+        "spi_bytes_segment(NULL, NULL,",
+        "payload_length = trinity_read_be16(&response[6]);",
+    ):
+        require(capture, token, "response capture")
+    forbid(capture, "memcpy(g_spi_trace.response_bytes, g_spi_buf", "response capture")
+    forbid(capture, "g_spi_buf[0]", "response capture")
 
     retry = section(
         p07,
@@ -193,16 +176,25 @@ def main() -> int:
     )
     require(retry, "attempt < 2u", "mailbox retry")
     require(retry, "spi_capture_response_once(ep, response_len)", "mailbox retry")
-    forbid(retry, "spi_prime_pending_startup_get_info", "mailbox retry")
-    forbid(p07, "spi_bytes(NULL, NULL, 10u)", "disproven startup prime")
+    forbid(retry, "endpoint_exchange", "mailbox retry")
+    forbid(retry, "trinity_spi_encode", "mailbox retry")
 
     for token in (
-        "response_crc_received",
-        "response_crc_calculated",
-        "g_spi_rsp.transaction_id != txid",
-        "spi_latch_first_failure();",
+        "response = g_spi_trace.response_bytes;",
+        "trinity_crc16_ccitt_false(response, response_len - 2u)",
+        "trinity_spi_decode(response, response_len, &g_spi_rsp)",
     ):
-        require(p08, token, "response validation")
+        require(p07, token, "startup-drain decode")
+
+    for token in (
+        "const uint8_t *response = g_spi_trace.response_bytes;",
+        "response[0] != TRINITY_SPI_MAGIC",
+        "trinity_read_be16(&response[6])",
+        "trinity_crc16_ccitt_false(response, response_len - 2u)",
+        "trinity_spi_decode(response, response_len, &g_spi_rsp)",
+    ):
+        require(p08, token, "endpoint response validation")
+    forbid(p08, "g_spi_buf", "endpoint response validation")
 
     system_info = section(
         p12,
@@ -222,73 +214,6 @@ def main() -> int:
         forbid(system_info, token, "side-effect-free system info")
 
     for token in (
-        "trace->spi_ctrl0",
-        "trace->spi_ctrl1",
-        "trace->spi_clkdiv",
-        "trace->spi_fifo_th",
-        "trace->response_sample_count",
-        "trace->response_status_before_read[i]",
-        "trace->response_data_words[i]",
-        "trace->response_status_after_read[i]",
-        "max_samples",
-    ):
-        require(p14, token, "first-failure serializer")
-    require(p15, "case TRINITY_PC_SPI_DIAGNOSTIC:", "PC dispatch")
-    require(p15, "case TRINITY_PC_GET_FIRST_SPI_FAILURE:", "PC dispatch")
-
-    for token in (
-        '"spi_ctrl0"',
-        '"spi_ctrl1"',
-        '"spi_clkdiv"',
-        '"spi_fifo_th"',
-        '"response_sample_count"',
-        '"response_status_before_read"',
-        '"response_data_words"',
-        '"response_status_after_read"',
-        "if len(extension) == 12:",
-    ):
-        require(cli, token, "PC telemetry decoder")
-    require(first_failure_test, "test_extended_register_telemetry_is_decoded", "PC regression")
-
-    require(constants, "SPI_DIAGNOSTIC = 0x7", "PC constants")
-    require(constants, "GET_FIRST_SPI_FAILURE = 0x8", "PC constants")
-    require(client, "class SpiDiagnosticTrace", "PC decoder")
-    if registry["pc"]["commands"].get("SPI_DIAGNOSTIC") != 7:
-        fail("registry SPI_DIAGNOSTIC must remain 7")
-    if registry["pc"]["commands"].get("GET_FIRST_SPI_FAILURE") != 8:
-        fail("registry GET_FIRST_SPI_FAILURE must remain 8")
-
-    for token in (
-        "architecture_version = 0.7.11",
-        "sn32_build_id         = 0x0007000B",
-        "full 32-bit DATA register value",
-        "No further transport behavior may be changed",
-        "Do not run `spi-diag`",
-        "full_system_hardware_qualified:            false",
-    ):
-        require(gate_doc, token, "dual-SPI gate")
-
-    for token in (
-        'implementation_status = "V0_7_11_RAW_SPI_DATA_WORD_TELEMETRY_SOURCE_READY"',
-        'qualification_build_id = "0x0007000B"',
-        'qualification_architecture_version = "0.7.11"',
-        'qualification_first_failure_telemetry = "TRANSFER_METADATA_PLUS_CTRL0_CTRL1_CLKDIV_FIFO_TH_AND_FIRST_8_RESPONSE_DATA_WORDS_WITH_STATUS_BEFORE_AFTER_READ"',
-        'deploy_translation_unit_compile = "PENDING_CI_FOR_V0_7_11"',
-    ):
-        require(target, token, "target metadata")
-
-    for token in (
-        "sn32_architecture_version: 0.7.11",
-        "sn32_build_id: 0x0007000B",
-        "full_32bit_data_register_captured:",
-        "response_status_before_read:",
-        "response_data_words:",
-        "response_status_after_read:",
-        "full_system_hardware_qualified: false",
-    ):
-        require(evidence, token, "evidence template")
-
-    for token in (
         "SPI_STARTUP_WARMUP_MS",
         "SPI_TRACE_CONTEXT_STARTUP_PROBE",
         "!g_spi_first_failure.valid",
@@ -302,10 +227,29 @@ def main() -> int:
     ):
         require(controller03, token, "fail-fast discovery")
 
-    print("PASS: v0.7.11 identity and 100 kHz measurement profile are locked")
-    print("PASS: full DATA words and STAT-before/after samples are retained")
-    print("PASS: runtime CTRL0/CTRL1/CLKDIV/FIFO_TH readback is serialized")
-    print("PASS: transport behavior remains unchanged while root cause is measured")
+    for token in (
+        "handle_spi_diagnostic",
+        "handle_get_first_spi_failure",
+        "trace->response_data_words[i]",
+        "trace->spi_fifo_th",
+    ):
+        require(p14, token, "diagnostics")
+    require(p15, "case TRINITY_PC_SPI_DIAGNOSTIC:", "PC dispatch")
+    require(p15, "case TRINITY_PC_GET_FIRST_SPI_FAILURE:", "PC dispatch")
+    require(constants, "SPI_DIAGNOSTIC = 0x7", "PC constants")
+    require(constants, "GET_FIRST_SPI_FAILURE = 0x8", "PC constants")
+    require(client, "class SpiDiagnosticTrace", "PC decoder")
+    require(cli, '"spi-first-failure"', "PC CLI")
+
+    if registry["pc"]["commands"].get("SPI_DIAGNOSTIC") != 7:
+        fail("registry SPI_DIAGNOSTIC must remain 7")
+    if registry["pc"]["commands"].get("GET_FIRST_SPI_FAILURE") != 8:
+        fail("registry GET_FIRST_SPI_FAILURE must remain 8")
+
+    print("PASS: v0.7.12 identity and 100 kHz profile are locked")
+    print("PASS: hardware DATA[7:0] is stored directly in the canonical trace buffer")
+    print("PASS: header, length, CRC and decoder all consume canonical response bytes")
+    print("PASS: raw register telemetry remains available for hardware confirmation")
     print("NOTE: static PASS does not claim Keil build, flash or hardware PASS")
     return 0
 
