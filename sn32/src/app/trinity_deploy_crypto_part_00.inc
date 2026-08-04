@@ -36,6 +36,12 @@ static void expand_seed(uint8_t *output,
     trinity_secure_zero(input, sizeof(input));
 }
 
+static uint8_t *embedded_public_key_mutable(
+    trinity_deploy_crypto_t *crypto) {
+    return &crypto->secret_key[
+        TRINITY_MLKEM512_PUBLIC_KEY_IN_SECRET_KEY_OFFSET];
+}
+
 static const uint8_t *embedded_public_key(
     const trinity_deploy_crypto_t *crypto) {
     return &crypto->secret_key[
@@ -59,6 +65,7 @@ trinity_error_code_t trinity_deploy_crypto_generate_keypair(
     const uint8_t seed[32]) {
 #if TRINITY_DEPLOY_ENABLE_MLKEM
     trinity_error_code_t rc;
+    uint8_t *public_key;
     if (crypto == NULL || seed == NULL || mode > 1u)
         return mode > 1u ? TRINITY_NOT_SUPPORTED : TRINITY_INTERNAL_FAULT;
     if (mode == 0u && !seed_is_zero(seed)) return TRINITY_BAD_LENGTH;
@@ -68,28 +75,22 @@ trinity_error_code_t trinity_deploy_crypto_generate_keypair(
     trinity_secure_zero(crypto->secret_key, sizeof(crypto->secret_key));
     trinity_secure_zero(&crypto->workspace, sizeof(crypto->workspace));
     crypto->keypair_valid = false;
+    public_key = embedded_public_key_mutable(crypto);
 
     if (mode == 1u) {
         expand_seed(crypto->workspace.keygen.coins,
                     sizeof(crypto->workspace.keygen.coins),
                     keygen_domain, sizeof(keygen_domain), seed);
         rc = trinity_mlkem512_keygen_deterministic(
-            crypto->workspace.keygen.public_key, crypto->secret_key,
+            public_key, crypto->secret_key,
             crypto->workspace.keygen.coins);
     } else {
-        rc = trinity_mlkem512_keygen(
-            crypto->workspace.keygen.public_key, crypto->secret_key);
+        rc = trinity_mlkem512_keygen(public_key, crypto->secret_key);
     }
 
-    if (rc == TRINITY_OK && !trinity_constant_time_equal(
-            crypto->workspace.keygen.public_key,
-            embedded_public_key(crypto),
-            TRINITY_MLKEM512_PUBLIC_KEY_BYTES)) {
-        rc = TRINITY_INTERNAL_FAULT;
-    }
     if (rc == TRINITY_OK) {
         trinity_sha3_256(crypto->public_key_hash,
-                         crypto->workspace.keygen.public_key,
+                         embedded_public_key(crypto),
                          TRINITY_MLKEM512_PUBLIC_KEY_BYTES);
     }
     trinity_secure_zero(&crypto->workspace, sizeof(crypto->workspace));
