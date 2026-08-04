@@ -104,7 +104,7 @@ Ten clocks cannot retire the 22-byte GET_INFO mailbox. The FPGA resets its
 mailbox transmit index on the next CS, so the final capture starts at byte zero.
 The existing two-attempt path remains unchanged for all other commands.
 
-`system-info` remains local and side-effect free, allowing the SN32 firmware
+system-info remains local and side-effect free, allowing the SN32 firmware
 identity to be verified even if SPI startup fails.
 
 ## Wiring preflight
