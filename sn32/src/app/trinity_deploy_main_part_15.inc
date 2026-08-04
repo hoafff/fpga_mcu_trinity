@@ -5,6 +5,22 @@ static void handle_request(const trinity_pc_frame_t *req) {
         return;
     }
 
+    /*
+     * PC UART remains live while the automatic startup/periodic probe runs.
+     * Local telemetry is safe to serve reentrantly, but any command that could
+     * start another SPI or crypto operation must fail closed instead of nesting
+     * inside the active probe call stack.
+     */
+    if (g_automatic_probe_active &&
+        req->command != TRINITY_PC_PING &&
+        req->command != TRINITY_PC_GET_SYSTEM_INFO &&
+        req->command != TRINITY_PC_GET_SYSTEM_STATUS &&
+        req->command != TRINITY_PC_GET_LAST_ERROR &&
+        req->command != TRINITY_PC_GET_FIRST_SPI_FAILURE) {
+        response_error(req, TRINITY_BUSY, TRINITY_SOURCE_SN32, 0u);
+        return;
+    }
+
     switch (req->command) {
         case TRINITY_PC_PING:
             handle_ping(req);
