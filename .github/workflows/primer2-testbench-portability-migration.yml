@@ -15,107 +15,151 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Install Icarus Verilog
         run: sudo apt-get update && sudo apt-get install -y iverilog
+
       - name: Correct portable testbench constructs
         shell: python
         run: |
           from pathlib import Path
           import re
 
-          def replace_once(path: Path, old: str, new: str) -> None:
+          def require_sub(path: Path, pattern: str, replacement: str,
+                          expected: int = 1, flags: int = 0) -> None:
               text = path.read_text(encoding="utf-8")
-              if text.count(old) != 1:
+              updated, count = re.subn(pattern, replacement, text, flags=flags)
+              if count != expected:
                   raise SystemExit(
-                      f"expected one match in {path}, got {text.count(old)}: {old!r}"
+                      f"{path}: expected {expected} replacements, got {count}"
                   )
-              path.write_text(text.replace(old, new), encoding="utf-8")
+              path.write_text(updated, encoding="utf-8")
 
-          replace_once(
+          require_sub(
               Path("primer2/tb/tb_bad_tag_threshold.sv"),
-              "input logic [63:0] sequence,",
+              r"input logic \[63:0\] sequence,",
               "input logic [63:0] sequence_value,",
           )
-          replace_once(
+          require_sub(
               Path("primer2/tb/tb_bad_tag_threshold.sv"),
-              "payload[8*(4+i) +: 8] = sequence[63-8*i -: 8];",
+              r"payload\[8\*\(4\+i\) \+: 8\] = sequence\[63-8\*i -: 8\];",
               "payload[8*(4+i) +: 8] = sequence_value[63-8*i -: 8];",
           )
-
-          replace_once(
+          require_sub(
               Path("primer2/tb/tb_reset_states.sv"),
-              "task automatic poison_and_reset(input integer case_id);",
+              r"task automatic poison_and_reset\(input integer case_id\);",
               "task poison_and_reset(input integer case_id);",
           )
 
           fault_path = Path("primer2/tb/tb_fault_output.sv")
-          fault_text = fault_path.read_text(encoding="utf-8")
-          old_task = """  task automatic expect_known_fault(input logic expected,
-                                      input string context);
-              begin
-                #1;
-                if ($isunknown(fault_o))
-                  $fatal(1, \"fault_o unknown during %s\", context);
-                if (fault_o !== expected)
-                  $fatal(1, \"fault_o=%b expected=%b during %s\",
-                         fault_o, expected, context);
-              end
-            endtask"""
-          new_task = """  task automatic expect_known_fault(input logic expected_value);
-              begin
-                #1;
-                if ($isunknown(fault_o))
-                  $fatal(1, \"fault_o is unknown\");
-                if (fault_o !== expected_value)
-                  $fatal(1, \"fault_o=%b expected=%b\", fault_o, expected_value);
-              end
-            endtask"""
-          if fault_text.count(old_task) != 1:
-              raise SystemExit("fault helper task did not match exactly")
-          fault_text = fault_text.replace(old_task, new_task)
-          fault_text, count = re.subn(
+          require_sub(
+              fault_path,
+              r"  task automatic expect_known_fault\(.*?^  endtask",
+              """  task automatic expect_known_fault(input logic expected_value);
+                begin
+                  #1;
+                  if ($isunknown(fault_o))
+                    $fatal(1, \"fault_o is unknown\");
+                  if (fault_o !== expected_value)
+                    $fatal(1, \"fault_o=%b expected=%b\", fault_o, expected_value);
+                end
+              endtask""",
+              flags=re.MULTILINE | re.DOTALL,
+          )
+          require_sub(
+              fault_path,
               r"expect_known_fault\((1'b[01]),\s*\"[^\"]+\"\);",
               r"expect_known_fault(\1);",
-              fault_text,
+              expected=7,
           )
-          if count != 7:
-              raise SystemExit(f"expected seven fault helper calls, got {count}")
-          fault_path.write_text(fault_text, encoding="utf-8")
 
-          uart_path = Path("primer2/tb/tb_uart_rx_byte.sv")
-          uart_text = uart_path.read_text(encoding="utf-8")
-          old_uart = """    fork send_byte(8'h33,1); begin repeat(20)@(posedge clk);abort=1;@(posedge clk);abort=0; end join
-              repeat(5)@(posedge clk); if(busy)$fatal(1,\"abort left UART busy\");"""
-          new_uart = """    @(negedge clk); rx=0;
-              repeat(15)@(posedge clk);
-              @(negedge clk); abort=1; rx=1;
-              @(posedge clk);
-              @(negedge clk); abort=0;
-              repeat(5)@(posedge clk); if(busy)$fatal(1,\"abort left UART busy\");"""
-          if uart_text.count(old_uart) != 1:
-              raise SystemExit("UART abort test did not match exactly")
-          uart_path.write_text(uart_text.replace(old_uart, new_uart), encoding="utf-8")
+          require_sub(
+              Path("primer2/tb/tb_uart_rx_byte.sv"),
+              r"    fork send_byte\(8'h33,1\);.*?"
+              r"repeat\(5\)@\(posedge clk\); if\(busy\)"
+              r"\$fatal\(1,\"abort left UART busy\"\);",
+              """    @(negedge clk); rx=0;
+                repeat(15)@(posedge clk);
+                @(negedge clk); abort=1; rx=1;
+                @(posedge clk);
+                @(negedge clk); abort=0;
+                repeat(5)@(posedge clk); if(busy)$fatal(1,\"abort left UART busy\");""",
+              flags=re.DOTALL,
+          )
 
-          top_path = Path("primer2/tb/tb_primer2_top.sv")
-          top_text = top_path.read_text(encoding="utf-8")
-          old_top = """    fatal=1;repeat(4)@(posedge clk);fatal=0;cycles=0;
-              while(!fault&&cycles<80)begin @(posedge clk);cycles=cycles+1;end
-              if(!fault||dut.session_state!=4'd8)$fatal(1,\"fatal did not enter fault locked\");"""
-          new_top = """    @(negedge clk);fatal=1;repeat(6)@(posedge clk);@(negedge clk);fatal=0;cycles=0;
-              while((!fault||dut.session_state!=4'd8)&&cycles<100)begin @(posedge clk);cycles=cycles+1;end
-              if(!fault||dut.session_state!=4'd8)$fatal(1,\"fatal did not enter fault locked\");"""
-          if top_text.count(old_top) != 1:
-              raise SystemExit("top fatal lifecycle test did not match exactly")
-          top_path.write_text(top_text.replace(old_top, new_top), encoding="utf-8")
+          require_sub(
+              Path("primer2/tb/tb_primer2_top.sv"),
+              r"    fatal=1;repeat\(4\)@\(posedge clk\);fatal=0;cycles=0;\n"
+              r"    while\(!fault&&cycles<80\)begin @\(posedge clk\);cycles=cycles\+1;end\n"
+              r"    if\(!fault\|\|dut\.session_state!=4'd8\)"
+              r"\$fatal\(1,\"fatal did not enter fault locked\"\);",
+              """    @(negedge clk);fatal=1;repeat(6)@(posedge clk);@(negedge clk);fatal=0;cycles=0;
+                while((!fault||dut.session_state!=4'd8)&&cycles<100)begin @(posedge clk);cycles=cycles+1;end
+                if(!fault||dut.session_state!=4'd8)$fatal(1,\"fatal did not enter fault locked\");""",
+          )
+
       - name: Run complete Primer2 regression
-        run: python3 primer2/tb/run.py
-      - name: Commit verified portability fixes
+        id: regression
+        shell: bash
         run: |
-          rm .github/workflows/primer2-testbench-portability-migration.yml
-          git diff --check
+          set +e
+          python3 primer2/tb/run.py > primer2_portability_migration.log 2>&1
+          rc=$?
+          cat primer2_portability_migration.log
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Write migration evidence
+        shell: python
+        env:
+          EXIT_CODE: ${{ steps.regression.outputs.exit_code }}
+        run: |
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import os
+
+          code = int(os.environ["EXIT_CODE"])
+          status = "PASS" if code == 0 else "FAIL"
+          log = Path("primer2_portability_migration.log").read_text(
+              encoding="utf-8", errors="replace"
+          )
+          report = f"""# Primer #2 testbench portability migration
+
+          - Trigger commit: `{os.environ['GITHUB_SHA']}`
+          - Workflow run: `{os.environ['GITHUB_RUN_ID']}`
+          - Generated UTC: `{datetime.now(timezone.utc).isoformat()}`
+          - Result: **{status}**
+          - Exit code: `{code}`
+
+          The candidate changes affect testbench syntax and race-free stimulus
+          only. RTL implementation files are unchanged by this migration.
+
+          ```text
+          {log.rstrip()}
+          ```
+          """
+          Path("primer2/docs/TESTBENCH_PORTABILITY_MIGRATION_LATEST.md").write_text(
+              report, encoding="utf-8"
+          )
+
+      - name: Commit verified fixes or failure evidence
+        shell: bash
+        env:
+          EXIT_CODE: ${{ steps.regression.outputs.exit_code }}
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "test(primer2): make RTL regression Icarus-portable"
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            rm .github/workflows/primer2-testbench-portability-migration.yml
+            git add -A
+            message="test(primer2): make RTL regression Icarus-portable"
+          else
+            git restore primer2/tb
+            git add primer2/docs/TESTBENCH_PORTABILITY_MIGRATION_LATEST.md
+            message="test(primer2): record portability migration failure [skip ci]"
+          fi
+          git diff --check --cached
+          git commit -m "$message"
           git pull --rebase origin main
           git push origin HEAD:main
+          exit "$EXIT_CODE"
