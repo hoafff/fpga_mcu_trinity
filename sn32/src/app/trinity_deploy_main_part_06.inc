@@ -30,15 +30,7 @@ static trinity_error_code_t spi_reset_idle(void) {
 
     if (!g_spi_ready || g_spi_selected) return TRINITY_BAD_STATE;
 
-    /*
-     * FRESET is applied while SPI is disabled, matching the initialization
-     * sequence. This prevents bytes received during the previous CS window
-     * from contaminating the next response header.
-     */
-    SN_SPI0->CTRL0_b.SPIEN = 0u;
-    SN_SPI0->CTRL0_b.FRESET = 3u;
-    SN_SPI0->CTRL0_b.SPIEN = 1u;
-
+    /* Never reset an active frame. */
     start = g_ms;
     while ((SN_SPI0->STAT & SPI_BUSY) != 0u) {
         progress();
@@ -46,12 +38,24 @@ static trinity_error_code_t spi_reset_idle(void) {
             return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY, 0u, 0u);
     }
 
-    /* Belt-and-suspenders drain in case this silicon revision retains FIFO data. */
+    /*
+     * SN32F407 requires FRESET while SPIEN remains set. FRESET is self-clearing;
+     * do not assert CS until hardware reports that the FSM/FIFO reset finished.
+     */
+    SN_SPI0->CTRL0_b.FRESET = 3u;
+    start = g_ms;
+    while (SN_SPI0->CTRL0_b.FRESET != 0u) {
+        progress();
+        if (expired(start, TRINITY_DEPLOY_SPI_TIMEOUT_MS))
+            return spi_transfer_timeout(SPI_TRANSFER_STAGE_BUSY, 0u, 0u);
+    }
+
+    /* FRESET must leave RX empty; drain only as a bounded silicon safeguard. */
     while ((SN_SPI0->STAT & SPI_RX_EMPTY) == 0u && drained < 8u) {
-        (void)SN_SPI0->DATA;
+        (void)(SN_SPI0->DATA & UINT32_C(0xFFFF));
         ++drained;
     }
-    return (SN_SPI0->STAT & SPI_RX_EMPTY) != 0u
+    return ((SN_SPI0->STAT & (SPI_BUSY | SPI_RX_EMPTY)) == SPI_RX_EMPTY)
                ? TRINITY_OK : TRINITY_BAD_STATE;
 }
 
@@ -115,7 +119,7 @@ static trinity_error_code_t spi_bytes_segment(
                                             trace_index, transfer_length);
         }
 
-        value = (uint8_t)SN_SPI0->DATA;
+        value = (uint8_t)(SN_SPI0->DATA & UINT32_C(0xFF));
         if (rx != NULL) rx[i] = value;
         if (g_spi_trace.valid) {
             g_spi_trace.transfer_completed = (uint16_t)(trace_index + 1u);
@@ -154,8 +158,7 @@ static void spi_end(void) {
     if (g_spi_selected) spi_guard_delay();
     cs_all_high();
     spi_guard_delay();
-    (void)spi_reset_idle();
-    spi_guard_delay();
+    /* The next spi_select() performs the single documented FSM/FIFO reset. */
 }
 
 static bool irq_active(const endpoint_t *ep) {
