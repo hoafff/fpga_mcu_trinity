@@ -45,13 +45,22 @@ void trinity_controller_init(trinity_controller_t *controller,
 
 trinity_error_code_t trinity_controller_probe_all(
     trinity_controller_t *controller) {
-    trinity_error_code_t rc1;
-    trinity_error_code_t rc2;
+    trinity_error_code_t rc;
     if (controller == NULL) return TRINITY_INTERNAL_FAULT;
-    rc1 = controller_probe_endpoint(controller, &controller->p1);
-    rc2 = controller_probe_endpoint(controller, &controller->p2);
-    if (rc1 != TRINITY_OK) return rc1;
-    if (rc2 != TRINITY_OK) return rc2;
+
+    /*
+     * Probe fail-fast. Issuing P2 traffic after a P1 transport failure can leave
+     * a second stale mailbox and obscures the first failing endpoint.
+     */
+    rc = controller_probe_endpoint(controller, &controller->p1);
+    if (rc != TRINITY_OK) {
+        controller->p2.ready = false;
+        return rc;
+    }
+
+    rc = controller_probe_endpoint(controller, &controller->p2);
+    if (rc != TRINITY_OK) return rc;
+
     controller->state =
         (controller->p1.session_state == TRINITY_SESSION_SELF_TEST_REQUIRED ||
          controller->p2.session_state == TRINITY_SESSION_SELF_TEST_REQUIRED)
