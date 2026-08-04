@@ -1,0 +1,99 @@
+name: SN32 v0.7.26 migration relay
+
+on:
+  workflow_run:
+    workflows: ["SN32 v0.7.26 gated migration runner"]
+    types: [completed]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: sn32-v0-7-26-gated-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate-current-main:
+    if: github.event.workflow_run.id == 30949039012
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Initialize diagnostic log
+        run: : > /tmp/sn32-v0_7_26-migration.log
+
+      - name: Apply deterministic migration
+        run: |
+          python .github/scripts/migrate_sn32_v0_7_26.py 2>&1 |
+            tee -a /tmp/sn32-v0_7_26-migration.log
+
+      - name: Run SN32 source gates
+        run: |
+          set -o pipefail
+          {
+            python sn32/tests/deploy/check_v0_7_26_stack_spi_state.py
+            python sn32/tests/deploy/check_dual_spi_gate_profile.py
+            python sn32/tests/deploy/check_deploy_project.py
+            python sn32/tests/deploy/check_inc_boundaries.py
+          } 2>&1 | tee -a /tmp/sn32-v0_7_26-migration.log
+
+      - name: Run PC host tests
+        run: |
+          set -o pipefail
+          {
+            python -m pip install --upgrade pip pytest
+            python -m pip install ./pc_host
+            python -m pytest -q pc_host/tests
+          } 2>&1 | tee -a /tmp/sn32-v0_7_26-migration.log
+
+      - name: Check diff hygiene
+        run: git diff --check 2>&1 | tee -a /tmp/sn32-v0_7_26-migration.log
+
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo 'SN32 v0.7.26 relay migration failed.'
+            echo
+            echo '```text'
+            tail -n 200 /tmp/sn32-v0_7_26-migration.log 2>/dev/null || true
+            echo '```'
+          } > /tmp/sn32-v0_7_26-comment.md
+          gh issue comment 11 --body-file /tmp/sn32-v0_7_26-comment.md
+
+      - name: Commit only after every gate passes
+        shell: bash
+        run: |
+          rm -f .github/workflows/sn32-v0_7_26-migration.yml
+          rm -f .github/workflows/sn32-v0_7_26-run.yml
+          rm -f .github/workflows/sn32-v0_7_26-relay.yml
+          rm -f .github/scripts/migrate_sn32_v0_7_26.py
+          rm -f .github/triggers/sn32-v0_7_26
+          rm -f .github/triggers/sn32-v0_7_26_issue_ready
+          rm -f .github/triggers/sn32-v0_7_26_issue_request
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git add -f sn32/keil/RTE/Device/SN32F407F/startup_SN32F400.s
+          git commit -m "fix(sn32): enlarge stack and isolate SPI transport state"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Close successful trigger issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue close 11 \
+            --comment "Relay migration and all SN32/PC-host gates passed; the validated commit was pushed to main."
