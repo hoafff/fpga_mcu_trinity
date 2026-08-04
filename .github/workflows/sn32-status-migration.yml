@@ -18,7 +18,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Update SN32 target status
+
+      - name: Update SN32 target status candidate
         shell: python
         run: |
           from pathlib import Path
@@ -44,15 +45,68 @@ jobs:
                   raise SystemExit(f"expected one token, got {count}: {old}")
               text = text.replace(old, new)
           path.write_text(text, encoding="utf-8")
+
       - name: Run SN32 source gate
-        run: python sn32/tests/deploy/check_deploy_project.py
-      - name: Commit status update
+        id: gate
+        shell: bash
         run: |
-          rm .github/workflows/sn32-status-migration.yml
-          git diff --check
+          set +e
+          python sn32/tests/deploy/check_deploy_project.py > sn32_status_migration.log 2>&1
+          rc=$?
+          cat sn32_status_migration.log
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Write diagnostic evidence
+        shell: python
+        env:
+          EXIT_CODE: ${{ steps.gate.outputs.exit_code }}
+        run: |
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import os
+
+          code = int(os.environ["EXIT_CODE"])
+          status = "PASS" if code == 0 else "FAIL"
+          log = Path("sn32_status_migration.log").read_text(
+              encoding="utf-8", errors="replace"
+          )
+          clean_log = "\n".join(line.rstrip() for line in log.rstrip().splitlines())
+          report = f"""# SN32 corrected-status migration gate
+
+          - Trigger commit: `{os.environ['GITHUB_SHA']}`
+          - Workflow run: `{os.environ['GITHUB_RUN_ID']}`
+          - Generated UTC: `{datetime.now(timezone.utc).isoformat()}`
+          - Result: **{status}**
+          - Exit code: `{code}`
+
+          ```text
+          {clean_log}
+          ```
+          """
+          report = "\n".join(line.rstrip() for line in report.splitlines()) + "\n"
+          Path("sn32/docs/SN32_STATUS_MIGRATION_LATEST.md").write_text(
+              report, encoding="utf-8"
+          )
+
+      - name: Commit verified status or failure evidence
+        shell: bash
+        env:
+          EXIT_CODE: ${{ steps.gate.outputs.exit_code }}
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "docs(sn32): align v0.7.25 corrected control-plane status"
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            rm .github/workflows/sn32-status-migration.yml
+            git add -A
+            message="docs(sn32): align v0.7.25 corrected control-plane status"
+          else
+            git restore sn32/target.toml
+            git add sn32/docs/SN32_STATUS_MIGRATION_LATEST.md
+            message="test(sn32): record status migration gate failure [skip ci]"
+          fi
+          git diff --check --cached
+          git commit -m "$message"
           git pull --rebase origin main
           git push origin HEAD:main
+          exit "$EXIT_CODE"
