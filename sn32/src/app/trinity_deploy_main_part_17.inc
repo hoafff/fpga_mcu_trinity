@@ -15,6 +15,11 @@
         g_trinity_deploy_marker = DEPLOY_MARKER_ERR;
         return rc;
     }
+
+    /* PC liveness begins immediately after UART init, before any SPI wait. */
+    g_pc_service_enabled = true;
+    progress();
+
     spi_init();
     trinity_deploy_crypto_init(&g_crypto);
     full_controller_bind();
@@ -34,9 +39,9 @@ int main(void) {
     }
 
     /*
-     * The qualified ESP32 bring-up waits for endpoint startup/scrub completion
-     * before its first control-plane transaction. Do the same here so the
-     * immutable first-failure latch does not record an avoidably early read.
+     * Endpoint warm-up and discovery may take several seconds when a stale
+     * mailbox or transport timeout is present. progress() services PC UART
+     * throughout this phase, so PING/SYSTEM_INFO never depend on SPI success.
      */
     wait_ms(SPI_STARTUP_WARMUP_MS);
     wait_ms(TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS);
@@ -54,6 +59,7 @@ int main(void) {
         set_error(startup_rc, startup_source, 0u);
     }
     g_spi_trace_context = SPI_TRACE_CONTEXT_NONE;
+    g_automatic_probe_active = false;
     progress();
     last_probe = g_ms;
 
@@ -63,12 +69,14 @@ int main(void) {
         pc_poll();
         if (!g_fault && !g_spi_first_failure.valid && !g_host_txn.valid &&
             (uint32_t)(g_ms - last_probe) >= TRINITY_DEPLOY_ENDPOINT_PROBE_MS) {
+            g_automatic_probe_active = true;
             g_spi_trace_context = SPI_TRACE_CONTEXT_PERIODIC_PROBE;
             if (g_controller.p1.ready && g_controller.p2.ready)
                 (void)full_refresh_all();
             else
                 (void)full_probe_all();
             g_spi_trace_context = SPI_TRACE_CONTEXT_NONE;
+            g_automatic_probe_active = false;
             progress();
             last_probe = g_ms;
         }
