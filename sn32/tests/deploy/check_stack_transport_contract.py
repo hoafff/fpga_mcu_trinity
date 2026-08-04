@@ -11,6 +11,7 @@ HOST_PROJECT = ROOT / "pc_host/pyproject.toml"
 HOST_ENTRYPOINT = ROOT / "pc_host/src/trinity_host/entrypoint.py"
 HOST_FACADE = ROOT / "pc_host/src/trinity_host/serial_client.py"
 HOST_IMPL = ROOT / "pc_host/src/trinity_host/serial_client_impl.py"
+MLKEM_BLOCKER = ROOT / "sn32/docs/MLKEM_RAM_BLOCKER_v0_7_26.md"
 
 startup = STARTUP.read_text(encoding="utf-8")
 config = CONFIG.read_text(encoding="utf-8")
@@ -20,6 +21,7 @@ p17 = PART17.read_text(encoding="utf-8")
 host_project = HOST_PROJECT.read_text(encoding="utf-8")
 host_entrypoint = HOST_ENTRYPOINT.read_text(encoding="utf-8")
 host_facade = HOST_FACADE.read_text(encoding="utf-8")
+mlkem_blocker = MLKEM_BLOCKER.read_text(encoding="utf-8")
 
 assert "Stack_Size\t\tEQU\t\t0x00000800" in startup
 assert "Stack_Size\t\tEQU\t\t0x00000200" not in startup
@@ -28,11 +30,15 @@ assert "DEPLOY_BUILD_ID UINT32_C(0x0007001A)" in p00
 assert "g_spi_trace.transfer_direction !=" not in p06
 assert "Transport continuation is determined by the caller's canonical" in p06
 assert "!g_spi_retained_failure" in p17
-assert 'version = "0.4.1"' in host_project
+assert 'version = "0.4.2"' in host_project
 assert 'trinity-host = "trinity_host.entrypoint:main"' in host_project
 assert "sn32-secure-telemetry-qualify" in host_entrypoint or "full_cli" in host_entrypoint
+assert "_UNSAFE_MLKEM_BUILD_IDS = frozenset({0x0007001A})" in host_entrypoint
+assert "confirmed 8 KiB-RAM/2 KiB-stack" in host_entrypoint
+assert "Increasing the PC timeout cannot make it safe" in mlkem_blocker
+assert "Disabling ML-KEM is not an acceptable completion strategy" in mlkem_blocker
 assert "EXPECTED_SN32_BUILD_ID = 0x0007001A" in host_facade
 assert "EXPECTED_SN32_VERSION = (0, 7, 26)" in host_facade
 assert "exec(compile(_impl_source" in host_facade
 assert HOST_IMPL.is_file()
-print("PASS: SN32 v0.7.26 stack, SPI trace and host identity contract")
+print("PASS: SN32 v0.7.26 stack, SPI trace, host identity and ML-KEM guard contract")
