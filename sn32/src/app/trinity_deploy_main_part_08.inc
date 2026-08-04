@@ -1,25 +1,28 @@
-        if (g_spi_buf[0] != TRINITY_SPI_MAGIC) {
-            rc = TRINITY_BAD_MAGIC;
-            goto failed;
-        }
-        if (g_spi_buf[1] != TRINITY_PROTOCOL_VERSION) {
-            rc = TRINITY_BAD_VERSION;
-            goto failed;
-        }
-        response_payload_length = trinity_read_be16(&g_spi_buf[6]);
-        if (response_payload_length > TRINITY_SPI_MAX_PAYLOAD) {
-            rc = TRINITY_BAD_LENGTH;
-            goto failed;
-        }
-        response_len = TRINITY_SPI_HEADER_SIZE + response_payload_length +
-                       TRINITY_SPI_CRC_SIZE;
-        g_spi_trace.response_frame_length = (uint16_t)response_len;
-        g_spi_trace.response_crc_received =
-            trinity_read_be16(&g_spi_buf[response_len - 2u]);
-        g_spi_trace.response_crc_calculated =
-            trinity_crc16_ccitt_false(g_spi_buf, response_len - 2u);
+        {
+            const uint8_t *response = g_spi_trace.response_bytes;
+            if (response[0] != TRINITY_SPI_MAGIC) {
+                rc = TRINITY_BAD_MAGIC;
+                goto failed;
+            }
+            if (response[1] != TRINITY_PROTOCOL_VERSION) {
+                rc = TRINITY_BAD_VERSION;
+                goto failed;
+            }
+            response_payload_length = trinity_read_be16(&response[6]);
+            if (response_payload_length > TRINITY_SPI_MAX_PAYLOAD) {
+                rc = TRINITY_BAD_LENGTH;
+                goto failed;
+            }
+            response_len = TRINITY_SPI_HEADER_SIZE + response_payload_length +
+                           TRINITY_SPI_CRC_SIZE;
+            g_spi_trace.response_frame_length = (uint16_t)response_len;
+            g_spi_trace.response_crc_received =
+                trinity_read_be16(&response[response_len - 2u]);
+            g_spi_trace.response_crc_calculated =
+                trinity_crc16_ccitt_false(response, response_len - 2u);
 
-        rc = trinity_spi_decode(g_spi_buf, response_len, &g_spi_rsp);
+            rc = trinity_spi_decode(response, response_len, &g_spi_rsp);
+        }
         if (rc != TRINITY_OK) goto failed;
         if (g_spi_rsp.command != command ||
             g_spi_rsp.transaction_id != txid ||
