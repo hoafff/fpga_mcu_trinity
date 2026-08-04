@@ -91,8 +91,8 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 24):
-        fail(f"canonical-trace GPIO-SPI image must be v0.7.24, got {version}")
+    if version != (0, 7, 25):
+        fail(f"UART-live GPIO-SPI image must be v0.7.25, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI ceiling must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND") != 1:
@@ -100,12 +100,14 @@ def main() -> int:
     if macro(config, "TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES") < 60:
         fail("GPIO SPI half-period must not exceed the 100 kHz ceiling")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 200:
-        fail("v0.7.24 must retain the 200 us CS guard")
+        fail("v0.7.25 must retain the 200 us CS guard")
+    if macro(config, "TRINITY_DEPLOY_PC_QUIET_BEFORE_PROBE_MS") != 250:
+        fail("automatic probe must require a 250 ms quiet PC window")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_REISSUE_MAX") != 2:
         fail("read-only recovery must permit exactly two bounded reissues")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS") != 20:
         fail("read-only recovery backoff must remain 20 ms")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070018)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070019)", "identity")
     require(
         p00,
         "#if TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND != 1",
@@ -118,6 +120,7 @@ def main() -> int:
         "static bool g_pc_poll_active;",
         "static bool g_pc_frame_pending;",
         "static bool g_automatic_probe_active;",
+        "static uint32_t g_pc_last_activity_ms;",
         "static spi_exchange_trace_t g_spi_trace;",
         "static spi_retained_trace_t g_spi_retained_trace;",
         "static bool g_spi_retained_failure;",
@@ -208,6 +211,20 @@ def main() -> int:
         "FPST_SN32F407_SPI_SCK_PIN, false",
     ):
         require(p06, token, "mode-0 GPIO edge sequence")
+    soft_transfer = section(
+        p06,
+        "static trinity_error_code_t soft_spi_transfer_byte(",
+        "static trinity_error_code_t spi_write_request_bytes(",
+        "GPIO byte transfer",
+    )
+    if soft_transfer.count("progress();") != 1:
+        fail("each GPIO SPI bit loop must contain exactly one ingress progress pump")
+    progress_position = soft_transfer.find("progress();")
+    low_position = soft_transfer.rfind(
+        "FPST_SN32F407_SPI_SCK_PIN, false", 0, progress_position
+    )
+    if low_position < 0:
+        fail("UART ingress progress must run only after SCK returns low")
 
     for token in (
         "static void spi_retain_current_trace(bool failure)",
@@ -365,6 +382,7 @@ def main() -> int:
     for token in (
         "if (!g_pc_service_enabled || g_pc_frame_pending) return;",
         "while (!g_pc_frame_pending && uart_read(&byte))",
+        "g_pc_last_activity_ms = g_ms;",
         "g_pc_frame_pending = true;",
     ):
         require(receive_body, token, "PC ingress queue")
@@ -379,10 +397,24 @@ def main() -> int:
         require(poll_body, token, "main-level PC execution")
     for token in (
         "g_pc_frame_pending = false;",
+        "g_pc_last_activity_ms = 0u;",
         "memset(&g_spi_trace, 0, sizeof(g_spi_trace));",
         "memset(&g_spi_retained_trace, 0, sizeof(g_spi_retained_trace));",
     ):
         require(p16, token, "runtime initialization")
+    probe_quiet = section(
+        p16,
+        "static bool pc_quiet_for_automatic_probe(void)",
+        "static trinity_error_code_t hardware_init(void)",
+        "automatic probe UART arbitration",
+    )
+    for token in (
+        "!g_pc_frame_pending",
+        "g_pc_wire_len == 0u",
+        "g_ms - g_pc_last_activity_ms",
+        "TRINITY_DEPLOY_PC_QUIET_BEFORE_PROBE_MS",
+    ):
+        require(probe_quiet, token, "automatic probe UART arbitration")
 
     for token in (
         "static bool controller_error_is_transport(",
@@ -411,6 +443,7 @@ def main() -> int:
         "startup_wait_start = g_ms;",
         "while (!expired(startup_wait_start, SPI_STARTUP_WARMUP_MS))",
         "pc_poll();",
+        "pc_quiet_for_automatic_probe()",
         "g_automatic_probe_active = false;",
         "g_automatic_probe_active = true;",
     ):
@@ -418,7 +451,7 @@ def main() -> int:
     forbid(p17, "!g_spi_retained_failure",
            "periodic read-only recovery after retained history")
 
-    print("PASS: v0.7.24 identity and GPIO mode-0 backend are locked")
+    print("PASS: v0.7.25 identity and GPIO mode-0 backend are locked")
     print("PASS: encoded four/nine-byte BAD_LENGTH captures prove truncation")
     print("PASS: GPIO SCK/MOSI/MISO ownership and 100 kHz ceiling are locked")
     print("PASS: every CS guard remains 200 us")
@@ -429,6 +462,8 @@ def main() -> int:
     print("PASS: system-status is a local snapshot and cannot nest SPI refresh")
     print("PASS: retained failure bytes use a dedicated copy snapshot")
     print("PASS: live diagnostics serialize the canonical decoded wire buffers")
+    print("PASS: GPIO SPI pumps UART ingress only while SCK is low")
+    print("PASS: periodic probes require a complete 250 ms quiet PC window")
     print("PASS: a full refresh clears active transport fault but keeps history")
     print("PASS: non-recursive PC service and deterministic SPI transport remain locked")
     print("NOTE: source PASS does not claim Keil build, flash or hardware PASS")

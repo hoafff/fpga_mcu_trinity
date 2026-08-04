@@ -23,6 +23,7 @@ from trinity_host.serial_client import (
     EXPECTED_P1_BUILD_ID,
     EXPECTED_P2_BUILD_ID,
     EXPECTED_SN32_BUILD_ID,
+    EXPECTED_SN32_VERSION,
     HostProtocolError,
     P1_KAT_TEST_MASK,
     P2_KAT_TEST_MASK,
@@ -81,7 +82,7 @@ class DualSpiFakeSerial:
             )
             payload = struct.pack(">I", uptime)
         elif command == HostCommand.GET_SYSTEM_INFO:
-            payload = bytes([1, 0, 7, 24]) + struct.pack(
+            payload = bytes((1, *EXPECTED_SN32_VERSION)) + struct.pack(
                 ">IIII",
                 0x00000EFB,
                 EXPECTED_SN32_BUILD_ID,
@@ -234,7 +235,34 @@ class DualSpiFakeSerial:
             raise AssertionError(f"{actual!r} != {expected!r}")
 
 
+class SilentFakeSerial:
+    def write(self, data: bytes) -> int:
+        return len(data)
+
+    def read(self, size: int = 1) -> bytes:
+        return b""
+
+    def flush(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
 class DualSpiBringupTests(unittest.TestCase):
+    def test_timeout_identifies_exact_host_command_and_transaction(self) -> None:
+        client = TrinitySerialClient(
+            "COM_TEST",
+            serial_factory=lambda **kwargs: SilentFakeSerial(),
+        )
+
+        with self.assertRaisesRegex(
+            TimeoutError,
+            r"command=GET_SYSTEM_STATUS\(0x03\), txid=0x0001",
+        ):
+            client.request(HostCommand.GET_SYSTEM_STATUS, timeout=0.0)
+        client.close()
+
     def test_probe_and_separate_p1_p2_retained_self_tests(self) -> None:
         fake = DualSpiFakeSerial()
         events = []
@@ -247,7 +275,7 @@ class DualSpiBringupTests(unittest.TestCase):
         result = client.run_dual_spi_bringup(timeout=0.5, poll_interval=0.0)
 
         self.assertEqual(result.uptime_ms, 123456)
-        self.assertEqual(result.info.architecture_patch, 24)
+        self.assertEqual(result.info.architecture_patch, 25)
         self.assertEqual(result.info.sn32_build_id, EXPECTED_SN32_BUILD_ID)
         self.assertEqual(result.info.primer1_build_id, EXPECTED_P1_BUILD_ID)
         self.assertEqual(result.info.primer2_build_id, EXPECTED_P2_BUILD_ID)

@@ -59,8 +59,19 @@ static trinity_error_code_t soft_spi_transfer_byte(uint8_t tx, uint8_t *rx) {
         gpio_write(FPST_SN32F407_SPI_SCK_PORT,
                    FPST_SN32F407_SPI_SCK_PIN, false);
         soft_spi_half_delay();
+
+        /*
+         * Pump UART ingress only while SCK is low. progress() merely queues a
+         * complete PC frame; it cannot execute a command or recurse into SPI.
+         * This bounds UART service latency even during a background GPIO-SPI
+         * probe. Both Primer endpoints permit an arbitrary low-phase gap while
+         * CS remains asserted.
+         */
+        progress();
     }
 
+    if (g_fault || !g_spi_selected)
+        return g_fault ? TRINITY_FAULT_LOCKED : TRINITY_BAD_STATE;
     *rx = value;
     return TRINITY_OK;
 }

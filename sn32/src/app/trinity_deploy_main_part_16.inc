@@ -18,6 +18,7 @@ static void pc_process(void) {
     /* Release the one-frame queue before executing the command. */
     g_pc_frame_pending = false;
     pc_reset();
+    g_pc_last_activity_ms = g_ms;
     if (rc == TRINITY_OK) handle_request(&g_pc_req);
     else set_error(rc, TRINITY_SOURCE_HOST_PROTOCOL, 0u);
 }
@@ -39,6 +40,7 @@ static void pc_receive(void) {
 
     while (!g_pc_frame_pending && uart_read(&byte)) {
         g_progress_ms = g_ms;
+        g_pc_last_activity_ms = g_ms;
         if (byte == 0u) {
             if (g_pc_wire_len != 0u)
                 g_pc_frame_pending = true;
@@ -61,6 +63,12 @@ static void pc_poll(void) {
     g_pc_poll_active = false;
 }
 
+static bool pc_quiet_for_automatic_probe(void) {
+    return !g_pc_frame_pending && g_pc_wire_len == 0u &&
+           (uint32_t)(g_ms - g_pc_last_activity_ms) >=
+               TRINITY_DEPLOY_PC_QUIET_BEFORE_PROBE_MS;
+}
+
 static trinity_error_code_t hardware_init(void) {
     trinity_error_code_t rc;
     uint32_t faults;
@@ -75,6 +83,7 @@ static trinity_error_code_t hardware_init(void) {
     g_pc_poll_active = false;
     g_pc_frame_pending = false;
     g_automatic_probe_active = true;
+    g_pc_last_activity_ms = 0u;
     g_spi_txid = 1u;
     g_active_host_txid = 0u;
     g_spi_retained_failure = false;

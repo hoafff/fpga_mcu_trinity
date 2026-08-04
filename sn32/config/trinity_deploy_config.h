@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 24u
+#define TRINITY_DEPLOY_VERSION_PATCH 25u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -25,7 +25,7 @@
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
 /*
- * v0.7.24 uses a GPIO-driven mode-0 SPI backend on the existing DB_SPI pins.
+ * v0.7.25 uses a GPIO-driven mode-0 SPI backend on the existing DB_SPI pins.
  * Repeated hardware captures proved that SPI0 polling could emit a request for
  * which P1 captured only four or nine of ten bytes, while the same P1/P2 RTL
  * and wiring protocol passed with the ESP32-C3 controller. Driving every edge
@@ -49,6 +49,12 @@
 /* Allow the Primer mailbox/IRQ synchronizers to settle after a complete
  * response before issuing the next command to either endpoint. */
 #define TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS        1u
+/*
+ * Automatic endpoint refresh is background work.  Keep it out of an active
+ * PC command burst so a just-completed PING cannot be followed immediately by
+ * a periodic GPIO-SPI transfer while the next UART request is arriving.
+ */
+#define TRINITY_DEPLOY_PC_QUIET_BEFORE_PROBE_MS    250u
 /* A long cryptographic call may keep heartbeat alive only for this bounded
  * lease. A wedged operation loses the lease and Tiny remains fail-closed. */
 #define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u

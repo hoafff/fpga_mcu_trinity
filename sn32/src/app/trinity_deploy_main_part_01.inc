@@ -119,6 +119,7 @@ static bool g_pc_service_enabled;
 static bool g_pc_poll_active;
 static bool g_pc_frame_pending;
 static bool g_automatic_probe_active;
+static uint32_t g_pc_last_activity_ms;
 static uint16_t g_spi_txid = 1u;
 static uint16_t g_active_host_txid;
 static uint8_t g_spi_trace_context;

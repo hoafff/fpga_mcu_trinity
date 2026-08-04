@@ -1,0 +1,54 @@
+SN32 -> P1/P2 dual-SPI qualification evidence
+Firmware: v0.7.24 / build 0x00070018
+Date recorded: 2026-08-05
+Result: FAIL
+
+Observed command (three attempts):
+
+  trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
+
+Observed output:
+
+  [PREFLIGHT_PING]
+  result=PASS
+  uptime_ms=7225
+  FAIL: timed out waiting for SN32 response
+
+  [PREFLIGHT_PING]
+  result=PASS
+  uptime_ms=10773
+  FAIL: timed out waiting for SN32 response
+
+  [PREFLIGHT_PING]
+  result=PASS
+  uptime_ms=4733
+  FAIL: timed out waiting for SN32 response
+
+Boundary established by the host command order:
+
+  1. PING completed and its response decoded.
+  2. The next request was GET_SYSTEM_STATUS.
+  3. No GET_SYSTEM_STATUS response frame arrived before the host deadline.
+  4. SPI_FIRST_FAILURE was never requested and no live SPI diagnostic or KAT
+     operation began.
+
+Source audit finding:
+
+  - GET_SYSTEM_STATUS itself remained a side-effect-free local snapshot.
+  - main() checked the periodic-probe deadline immediately after pc_poll(), so
+    a due background probe could begin in the same iteration that returned the
+    PING response.
+  - The v0.7.24 GPIO-SPI inner bit loop did not call progress(). PC UART uses
+    polled ingress, so the immediately following request could remain unread
+    throughout the background transfer and be lost to RX overrun.
+
+Corrective boundary for v0.7.25:
+
+  - pump UART ingress after every SPI bit only while SCK is low;
+  - keep progress() queue-only, with no nested command execution;
+  - require no partial/queued PC frame and 250 ms of PC inactivity before an
+    automatic periodic probe may start.
+
+This evidence does not qualify P1, P2, dual-SPI, session, telemetry, Tiny,
+ML-KEM or the full system. The source-audit diagnosis remains to be confirmed
+by the v0.7.25 one-shot cold-boot hardware qualification.

@@ -1,4 +1,4 @@
-# SN32 -> P1/P2 dual-SPI hardware qualification — v0.7.24
+# SN32 -> P1/P2 dual-SPI hardware qualification — v0.7.25
 
 ## Scope and decision
 
@@ -15,7 +15,7 @@ SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 This gate does not qualify session activation, P1-to-P2 UART telemetry, Tiny,
 live ML-KEM session creation or the full system.
 
-## Why v0.7.24 keeps the deterministic transport and fixes qualification evidence
+## Why v0.7.25 keeps UART live during deterministic GPIO SPI
 
 The v0.7.19–v0.7.22 hardware evidence proved all of the following:
 
@@ -41,11 +41,27 @@ from those exact canonical accepted buffers. Retained first-failure history
 continues to use its immutable snapshot. The host also distinguishes request
 from response corruption and includes both raw frames in any failure line.
 
+Three v0.7.24 qualification attempts then reproduced a different boundary:
+`PREFLIGHT_PING` passed, but the immediately following `GET_SYSTEM_STATUS`
+received no SN32 frame. Source audit showed that a due periodic endpoint probe
+could begin in the same main-loop iteration that had just returned PING. The
+GPIO SPI byte loop did not call `progress()`, so a PC request arriving during
+that background transfer could remain unread long enough for UART RX overrun.
+
+v0.7.25 closes both sides of that race without changing the SPI packet or FPGA
+images:
+
+- every GPIO SPI bit pumps UART ingress only after SCK has returned low;
+- `progress()` still only queues a PC frame and never executes a nested command;
+- automatic endpoint probes require a complete 250 ms quiet PC window and no
+  partial or queued frame;
+- host-triggered SPI, KAT, session and telemetry behavior remains unchanged.
+
 ## Required image identities
 
 ```text
-SN32 architecture_version = 0.7.24
-SN32 build_id             = 0x00070018
+SN32 architecture_version = 0.7.25
+SN32 build_id             = 0x00070019
 Primer #1 build_id        = 0x5031D002
 Primer #2 build_id        = 0x50320001
 ```

@@ -103,7 +103,7 @@ direct P1-to-P2 UART payload path, or qualify the full system.
 
 ## One-shot SN32 hardware qualification
 
-For the v0.7.24 deploy image, use one command after a full cold boot:
+For the v0.7.25 deploy image, use one command after a full cold boot:
 
 ```bat
 trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
@@ -114,6 +114,9 @@ failure, then runs four live CRC/IRQ-checked transactions (`GET_INFO` and
 `GET_STATUS` on both Primers), the separate retained P1/P2 KAT self-tests, and
 ten `system-status`/`ping` liveness rounds. The final acceptance line is:
 
+Any UART deadline failure reports the exact host command and transaction ID;
+the qualification flow does not silently retry a lost request.
+
 ```text
 [SN32_P1_P2_HARDWARE_QUALIFICATION]
 result=PASS
@@ -122,7 +125,7 @@ result=PASS
 This command requires:
 
 ```text
-SN32 version/build = 0.7.24 / 0x00070018
+SN32 version/build = 0.7.25 / 0x00070019
 P1 build           = 0x5031D002
 P2 build           = 0x50320001
 ```

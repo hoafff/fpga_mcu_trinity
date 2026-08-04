@@ -35,8 +35,8 @@ except ImportError:  # pragma: no cover - exercised only on systems without pyse
 
 EXPECTED_P1_BUILD_ID = 0x5031D002
 EXPECTED_P2_BUILD_ID = 0x50320001
-EXPECTED_SN32_BUILD_ID = 0x00070018
-EXPECTED_SN32_VERSION = (0, 7, 24)
+EXPECTED_SN32_BUILD_ID = 0x00070019
+EXPECTED_SN32_VERSION = (0, 7, 25)
 P1_KAT_TEST_MASK = 0x013E
 P2_KAT_TEST_MASK = 0x03E3
 SPI_DIAGNOSTIC_HEADER_SIZE = 24
@@ -312,7 +312,18 @@ class TrinitySerialClient:
 
         deadline = time.monotonic() + timeout
         while True:
-            frame = self._read_wire_frame(deadline)
+            try:
+                frame = self._read_wire_frame(deadline)
+            except TimeoutError as exc:
+                try:
+                    command_name = HostCommand(command_value).name
+                except ValueError:
+                    command_name = "UNKNOWN"
+                raise TimeoutError(
+                    "timed out waiting for SN32 response: "
+                    f"command={command_name}(0x{command_value:02X}), "
+                    f"txid=0x{txid:04X}"
+                ) from exc
             if frame.flags & int(FrameFlags.EVENT):
                 self._handle_event(frame)
                 continue
