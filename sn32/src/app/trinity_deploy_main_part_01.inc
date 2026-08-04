@@ -113,6 +113,7 @@ static bool g_spi_ready;
 static bool g_heartbeat_level;
 static bool g_pc_service_enabled;
 static bool g_pc_poll_active;
+static bool g_pc_frame_pending;
 static bool g_automatic_probe_active;
 static uint16_t g_spi_txid = 1u;
 static uint16_t g_active_host_txid;
