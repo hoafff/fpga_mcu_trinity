@@ -5,6 +5,12 @@
 
 #include "trinity_mlkem.h"
 
+/* Exact pinned mlkem-native reference entry point. */
+int trinity_mlkem512_keypair_derand(
+    uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES],
+    uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES],
+    const uint8_t coins[TRINITY_MLKEM_KEYGEN_COINS_BYTES]);
+
 static uint8_t public_key_a[TRINITY_MLKEM512_PUBLIC_KEY_BYTES];
 static uint8_t public_key_b[TRINITY_MLKEM512_PUBLIC_KEY_BYTES];
 static uint8_t secret_key_a[TRINITY_MLKEM512_SECRET_KEY_BYTES];
@@ -56,6 +62,13 @@ static void test_deterministic_mlkem(void) {
 
     assert(trinity_mlkem512_keygen_deterministic(public_key_a, secret_key_a,
                                                   keygen_coins) == TRINITY_OK);
+    assert(trinity_mlkem512_keypair_derand(public_key_b, secret_key_b,
+                                           keygen_coins) == 0);
+    assert(memcmp(public_key_a, public_key_b, sizeof(public_key_a)) == 0);
+    assert(memcmp(secret_key_a, secret_key_b, sizeof(secret_key_a)) == 0);
+
+    memset(public_key_b, 0, sizeof(public_key_b));
+    memset(secret_key_b, 0, sizeof(secret_key_b));
     assert(trinity_mlkem512_keygen_deterministic(public_key_b, secret_key_b,
                                                   keygen_coins) == TRINITY_OK);
     assert(memcmp(public_key_a, public_key_b, sizeof(public_key_a)) == 0);
@@ -158,6 +171,6 @@ int main(void) {
     trinity_secure_zero(shared_secret_a, sizeof(shared_secret_a));
     trinity_secure_zero(shared_secret_b, sizeof(shared_secret_b));
 
-    puts("PASS: Gate 3 ML-KEM-512 wrapper, deterministic API, KDF and zeroization");
+    puts("PASS: Gate 3 ML-KEM-512 low-RAM keygen, wrapper, KDF and zeroization");
     return 0;
 }
