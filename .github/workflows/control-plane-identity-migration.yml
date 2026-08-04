@@ -48,7 +48,7 @@ jobs:
                   "0x50320001": "0x50320002",
               },
               Path("ai_context/evidence/primer1/P1_CONTROL_PLANE_BRINGUP_GUIDE.md"): {
-                  "0x5031D002": "0x5031D003",
+                  "0x50310001": "0x5031D003",
               },
           }
 
