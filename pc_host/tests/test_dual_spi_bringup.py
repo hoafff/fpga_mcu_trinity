@@ -275,7 +275,10 @@ class DualSpiBringupTests(unittest.TestCase):
         result = client.run_dual_spi_bringup(timeout=0.5, poll_interval=0.0)
 
         self.assertEqual(result.uptime_ms, 123456)
-        self.assertEqual(result.info.architecture_patch, 25)
+        self.assertEqual(
+            result.info.architecture_patch,
+            EXPECTED_SN32_VERSION[2],
+        )
         self.assertEqual(result.info.sn32_build_id, EXPECTED_SN32_BUILD_ID)
         self.assertEqual(result.info.primer1_build_id, EXPECTED_P1_BUILD_ID)
         self.assertEqual(result.info.primer2_build_id, EXPECTED_P2_BUILD_ID)
