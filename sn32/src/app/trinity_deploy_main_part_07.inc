@@ -65,10 +65,10 @@ static void spi_record_startup_residue(void) {
  * Read the eight-byte header and its declared payload/CRC without releasing CS.
  * The Primer mailbox resets its byte index on a new CS assertion, so the two
  * phases must share one assertion. Clocking only the declared frame also avoids
- * an artificial 76-byte tail after IRQ has already been released.
+ * an artificial maximum-packet tail after IRQ has already been released.
  */
-static trinity_error_code_t spi_capture_response(endpoint_t *ep,
-                                                  size_t *response_len) {
+static trinity_error_code_t spi_capture_response_once(endpoint_t *ep,
+                                                       size_t *response_len) {
     trinity_error_code_t rc;
     uint16_t payload_length;
     size_t frame_len = 0u;
@@ -124,6 +124,33 @@ static trinity_error_code_t spi_capture_response(endpoint_t *ep,
         g_spi_trace.response_capture_length = (uint16_t)captured;
         if (captured != 0u)
             memcpy(g_spi_trace.response_bytes, g_spi_buf, captured);
+    }
+    return rc;
+}
+
+static bool spi_response_read_retryable(const endpoint_t *ep,
+                                        trinity_error_code_t rc) {
+    if (ep == NULL || !irq_active(ep)) return false;
+    return rc == TRINITY_BAD_MAGIC ||
+           rc == TRINITY_BAD_VERSION ||
+           rc == TRINITY_BAD_LENGTH ||
+           rc == TRINITY_FRAME_TIMEOUT;
+}
+
+/*
+ * A short or corrupted first read does not consume the Primer mailbox. Because
+ * CS rising resets the FPGA transmit index while IRQ remains active, retry the
+ * same pending response under a fresh CS instead of issuing another request.
+ */
+static trinity_error_code_t spi_capture_response(endpoint_t *ep,
+                                                  size_t *response_len) {
+    trinity_error_code_t rc = TRINITY_INTERNAL_FAULT;
+    unsigned attempt;
+    for (attempt = 0u; attempt < 2u; ++attempt) {
+        rc = spi_capture_response_once(ep, response_len);
+        if (rc == TRINITY_OK) return TRINITY_OK;
+        if (!spi_response_read_retryable(ep, rc)) return rc;
+        wait_ms(TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS);
     }
     return rc;
 }
