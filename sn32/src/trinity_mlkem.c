@@ -8,16 +8,40 @@
 #define MLK_CONFIG_API_NO_SUPERCOP
 #include "mlkem_native.h"
 
+/* The exact pinned mlkem-native build also exposes its namespaced internal
+ * single-polynomial primitives.  The SN32 key-generation path below reuses
+ * those primitives while deliberately avoiding the upstream stack-heavy
+ * polymat/polyvec orchestration. */
+#include "src/compress.h"
+#include "src/poly.h"
+#include "src/poly_k.h"
+#include "src/sampling.h"
+
 /* These one-shot FIPS-202 functions are part of the exact pinned upstream
- * implementation and use MLK_CONFIG_NAMESPACE_PREFIX at link time.
- */
+ * implementation and use MLK_CONFIG_NAMESPACE_PREFIX at link time. */
 void trinity_mlkem512_sha3_256(uint8_t output[32],
+                               const uint8_t *input,
+                               size_t input_length);
+void trinity_mlkem512_sha3_512(uint8_t output[64],
                                const uint8_t *input,
                                size_t input_length);
 void trinity_mlkem512_shake256(uint8_t *output,
                                size_t output_length,
                                const uint8_t *input,
                                size_t input_length);
+
+typedef struct {
+    mlk_poly accumulator;
+    mlk_poly matrix_entry;
+    mlk_poly vector_entry;
+    mlk_poly_mulcache vector_cache;
+} trinity_mlkem512_lowram_keygen_workspace_t;
+
+/* One shared, non-reentrant workspace replaces the upstream keygen stack
+ * frame containing a full 2x2 matrix and three complete polyvec objects.
+ * Firmware dispatch is single-threaded and allows only one managed crypto
+ * transaction at a time. */
+static trinity_mlkem512_lowram_keygen_workspace_t g_lowram_keygen;
 
 static trinity_error_code_t trinity_upstream_result(int result,
                                                      void *primary_output,
@@ -36,19 +60,172 @@ static trinity_error_code_t trinity_upstream_result(int result,
     return error;
 }
 
+static void trinity_lowram_sample_eta1(mlk_poly *output,
+                                       const uint8_t seed[MLKEM_SYMBYTES],
+                                       uint8_t nonce) {
+    uint8_t input[MLKEM_SYMBYTES + 1u];
+    uint8_t sample[MLKEM_ETA1 * MLKEM_N / 4u];
+
+    memcpy(input, seed, MLKEM_SYMBYTES);
+    input[MLKEM_SYMBYTES] = nonce;
+    trinity_mlkem512_shake256(sample, sizeof(sample), input, sizeof(input));
+#if MLKEM_ETA1 == 3
+    mlk_poly_cbd3(output, sample);
+#elif MLKEM_ETA1 == 2
+    mlk_poly_cbd2(output, sample);
+#else
+#error "Unsupported ML-KEM eta1"
+#endif
+    trinity_secure_zero(sample, sizeof(sample));
+    trinity_secure_zero(input, sizeof(input));
+}
+
+static void trinity_lowram_matrix_entry(
+    mlk_poly *output,
+    const uint8_t seed[MLKEM_SYMBYTES],
+    uint8_t row,
+    uint8_t column,
+    int transposed) {
+    uint8_t extended_seed[MLKEM_SYMBYTES + 2u];
+
+    memcpy(extended_seed, seed, MLKEM_SYMBYTES);
+    if (transposed != 0) {
+        extended_seed[MLKEM_SYMBYTES] = row;
+        extended_seed[MLKEM_SYMBYTES + 1u] = column;
+    } else {
+        extended_seed[MLKEM_SYMBYTES] = column;
+        extended_seed[MLKEM_SYMBYTES + 1u] = row;
+    }
+    mlk_poly_rej_uniform(output, extended_seed);
+    trinity_secure_zero(extended_seed, sizeof(extended_seed));
+}
+
+static void trinity_lowram_basemul_accumulate(
+    mlk_poly *accumulator,
+    const mlk_poly *left,
+    const mlk_poly *right,
+    const mlk_poly_mulcache *right_cache,
+    int initialize) {
+    unsigned index;
+
+    for (index = 0u; index < MLKEM_N / 2u; ++index) {
+        int32_t value0;
+        int32_t value1;
+        int16_t reduced0;
+        int16_t reduced1;
+
+        value0 = (int32_t)left->coeffs[2u * index + 1u] *
+                 right_cache->coeffs[index];
+        value0 += (int32_t)left->coeffs[2u * index] *
+                  right->coeffs[2u * index];
+        value1 = (int32_t)left->coeffs[2u * index] *
+                 right->coeffs[2u * index + 1u];
+        value1 += (int32_t)left->coeffs[2u * index + 1u] *
+                  right->coeffs[2u * index];
+        reduced0 = mlk_montgomery_reduce(value0);
+        reduced1 = mlk_montgomery_reduce(value1);
+
+        if (initialize != 0) {
+            accumulator->coeffs[2u * index] = reduced0;
+            accumulator->coeffs[2u * index + 1u] = reduced1;
+        } else {
+            accumulator->coeffs[2u * index] =
+                (int16_t)(accumulator->coeffs[2u * index] + reduced0);
+            accumulator->coeffs[2u * index + 1u] =
+                (int16_t)(accumulator->coeffs[2u * index + 1u] + reduced1);
+        }
+    }
+}
+
+static trinity_error_code_t trinity_mlkem512_keygen_deterministic_lowram(
+    uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES],
+    uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES],
+    const uint8_t coins[TRINITY_MLKEM_KEYGEN_COINS_BYTES]) {
+    uint8_t seeds[2u * MLKEM_SYMBYTES];
+    uint8_t coins_with_domain_separator[MLKEM_SYMBYTES + 1u];
+    unsigned row;
+    unsigned column;
+
+    memcpy(coins_with_domain_separator, coins, MLKEM_SYMBYTES);
+    coins_with_domain_separator[MLKEM_SYMBYTES] = MLKEM_K;
+    trinity_mlkem512_sha3_512(seeds, coins_with_domain_separator,
+                              sizeof(coins_with_domain_separator));
+
+    /* Serialize each secret polynomial immediately.  This avoids retaining
+     * the complete secret polyvec while preserving the exact FIPS 203 byte
+     * representation used by the pinned backend. */
+    for (column = 0u; column < MLKEM_K; ++column) {
+        trinity_lowram_sample_eta1(&g_lowram_keygen.vector_entry,
+                                   &seeds[MLKEM_SYMBYTES],
+                                   (uint8_t)column);
+        mlk_poly_ntt(&g_lowram_keygen.vector_entry);
+        mlk_poly_reduce(&g_lowram_keygen.vector_entry);
+        mlk_poly_tobytes(secret_key + column * MLKEM_POLYBYTES,
+                         &g_lowram_keygen.vector_entry);
+    }
+
+    /* Recreate one matrix entry and one serialized secret polynomial at a
+     * time.  Recomputing/unpacking trades execution time for a bounded RAM
+     * footprint and keeps the public-key result byte-compatible. */
+    for (row = 0u; row < MLKEM_K; ++row) {
+        for (column = 0u; column < MLKEM_K; ++column) {
+            trinity_lowram_matrix_entry(&g_lowram_keygen.matrix_entry,
+                                        seeds,
+                                        (uint8_t)row,
+                                        (uint8_t)column,
+                                        0);
+            mlk_poly_frombytes(&g_lowram_keygen.vector_entry,
+                               secret_key + column * MLKEM_POLYBYTES);
+            mlk_poly_mulcache_compute(&g_lowram_keygen.vector_cache,
+                                      &g_lowram_keygen.vector_entry);
+            trinity_lowram_basemul_accumulate(
+                &g_lowram_keygen.accumulator,
+                &g_lowram_keygen.matrix_entry,
+                &g_lowram_keygen.vector_entry,
+                &g_lowram_keygen.vector_cache,
+                column == 0u);
+        }
+
+        mlk_poly_tomont(&g_lowram_keygen.accumulator);
+        trinity_lowram_sample_eta1(&g_lowram_keygen.vector_entry,
+                                   &seeds[MLKEM_SYMBYTES],
+                                   (uint8_t)(MLKEM_K + row));
+        mlk_poly_ntt(&g_lowram_keygen.vector_entry);
+        mlk_poly_add(&g_lowram_keygen.accumulator,
+                     &g_lowram_keygen.vector_entry);
+        mlk_poly_reduce(&g_lowram_keygen.accumulator);
+        mlk_poly_tobytes(public_key + row * MLKEM_POLYBYTES,
+                         &g_lowram_keygen.accumulator);
+    }
+
+    memcpy(public_key + MLKEM_POLYVECBYTES, seeds, MLKEM_SYMBYTES);
+    if (public_key != secret_key + TRINITY_MLKEM512_PUBLIC_KEY_IN_SECRET_KEY_OFFSET) {
+        memcpy(secret_key + TRINITY_MLKEM512_PUBLIC_KEY_IN_SECRET_KEY_OFFSET,
+               public_key, TRINITY_MLKEM512_PUBLIC_KEY_BYTES);
+    }
+    trinity_mlkem512_sha3_256(
+        secret_key + TRINITY_MLKEM512_SECRET_KEY_BYTES - 2u * MLKEM_SYMBYTES,
+        public_key, TRINITY_MLKEM512_PUBLIC_KEY_BYTES);
+    memcpy(secret_key + TRINITY_MLKEM512_SECRET_KEY_BYTES - MLKEM_SYMBYTES,
+           coins + MLKEM_SYMBYTES, MLKEM_SYMBYTES);
+
+    trinity_secure_zero(&g_lowram_keygen, sizeof(g_lowram_keygen));
+    trinity_secure_zero(seeds, sizeof(seeds));
+    trinity_secure_zero(coins_with_domain_separator,
+                        sizeof(coins_with_domain_separator));
+    return TRINITY_OK;
+}
+
 trinity_error_code_t trinity_mlkem512_keygen_deterministic(
     uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES],
     uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES],
     const uint8_t coins[TRINITY_MLKEM_KEYGEN_COINS_BYTES]) {
-    int result;
     if (public_key == NULL || secret_key == NULL || coins == NULL) {
         return TRINITY_INTERNAL_FAULT;
     }
     trinity_mlkem_backend_clear_error();
-    result = trinity_mlkem512_keypair_derand(public_key, secret_key, coins);
-    return trinity_upstream_result(result,
-                                   public_key, TRINITY_MLKEM512_PUBLIC_KEY_BYTES,
-                                   secret_key, TRINITY_MLKEM512_SECRET_KEY_BYTES);
+    return trinity_mlkem512_keygen_deterministic_lowram(
+        public_key, secret_key, coins);
 }
 
 trinity_error_code_t trinity_mlkem512_encaps_deterministic(
