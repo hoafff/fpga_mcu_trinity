@@ -83,17 +83,18 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 15):
-        fail(f"pointer-retained trace image must be v0.7.15, got {version}")
+    if version != (0, 7, 16):
+        fail(f"non-recursive PC service image must be v0.7.16, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("qualification SPI clock divider must remain 59")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x0007000F)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070010)", "identity")
 
     for token in (
         "static bool g_pc_service_enabled;",
         "static bool g_pc_poll_active;",
+        "static bool g_pc_frame_pending;",
         "static bool g_automatic_probe_active;",
         "static spi_exchange_trace_t g_spi_trace_slots[2];",
         "static spi_exchange_trace_t *g_spi_trace_work",
@@ -102,7 +103,7 @@ def main() -> int:
         "static bool g_spi_retained_startup_residue;",
         "#define g_spi_trace (*g_spi_trace_work)",
     ):
-        require(p01, token, "trace slot state")
+        require(p01, token, "runtime state")
     forbid(p01, "static spi_exchange_trace_t g_spi_first_failure;",
            "trace slot state")
     forbid(p01, "static spi_exchange_trace_t g_spi_startup_residue;",
@@ -118,12 +119,21 @@ def main() -> int:
         require(p02, token, "disjoint transport storage")
     forbid(p02, "g_transport_scratch", "disjoint transport storage")
 
+    progress_body = section(
+        p04,
+        "static void progress(void)",
+        "static void crypto_progress_lease_begin(void)",
+        "progress body",
+    )
     for token in (
+        "static void pc_receive(void);",
         "static void pc_poll(void);",
         "if (g_pc_service_enabled && !g_pc_poll_active)",
-        "pc_poll();",
+        "pc_receive();",
     ):
-        require(p04, token, "progress PC service")
+        require(p04, token, "deferred PC service")
+    forbid(progress_body, "pc_poll();", "progress body")
+    forbid(progress_body, "handle_request", "progress body")
 
     for token in (
         "SN_SPI0->CTRL0_b.DL = 7u;",
@@ -213,10 +223,35 @@ def main() -> int:
     ):
         require(p15, token, "automatic probe command guard")
 
+    receive_body = section(
+        p16,
+        "static void pc_receive(void)",
+        "static void pc_poll(void)",
+        "PC receive body",
+    )
+    poll_body = section(
+        p16,
+        "static void pc_poll(void)",
+        "static trinity_error_code_t hardware_init(void)",
+        "PC poll body",
+    )
     for token in (
-        "if (!g_pc_service_enabled || g_pc_poll_active) return;",
+        "if (!g_pc_service_enabled || g_pc_frame_pending) return;",
+        "while (!g_pc_frame_pending && uart_read(&byte))",
+        "g_pc_frame_pending = true;",
+    ):
+        require(receive_body, token, "PC ingress queue")
+    forbid(receive_body, "pc_process();", "PC ingress queue")
+    forbid(receive_body, "handle_request", "PC ingress queue")
+    for token in (
         "g_pc_poll_active = true;",
+        "pc_receive();",
+        "if (g_pc_frame_pending) pc_process();",
         "g_pc_poll_active = false;",
+    ):
+        require(poll_body, token, "main-level PC execution")
+    for token in (
+        "g_pc_frame_pending = false;",
         "g_spi_trace_work = &g_spi_trace_slots[0];",
         "g_spi_retained_trace = NULL;",
         "memset(g_spi_trace_slots, 0, sizeof(g_spi_trace_slots));",
@@ -224,19 +259,21 @@ def main() -> int:
         require(p16, token, "runtime initialization")
 
     for token in (
-        "g_pc_service_enabled = true;",
+        "startup_wait_start = g_ms;",
+        "while (!expired(startup_wait_start, SPI_STARTUP_WARMUP_MS))",
+        "pc_poll();",
         "g_automatic_probe_active = false;",
         "g_automatic_probe_active = true;",
         "!g_spi_retained_failure",
     ):
-        require(p17, token, "live PC and retained-failure probe policy")
+        require(p17, token, "main-level startup/periodic service")
 
-    print("PASS: v0.7.15 identity and 100 kHz profile are locked")
-    print("PASS: two SPI trace slots replace three persistent trace structures")
-    print("PASS: retained traces are frozen by pointer rotation, not struct copy")
-    print("PASS: PC UART remains live during warm-up and automatic probes")
-    print("PASS: split request/response transport remains locked")
-    print("NOTE: source PASS does not claim Keil build, flash or hardware PASS")
+    print("PASS: v0.7.16 identity and 100 kHz profile are locked")
+    print("PASS: progress drains UART bytes but cannot execute PC commands")
+    print("PASS: one complete PC frame is deferred to main-level pc_poll")
+    print("PASS: startup warm-up remains responsive without recursive call stacks")
+    print("PASS: retained trace and split SPI transport remain locked")
+    print("NOTE: source PASS does not claim Keil stack report, flash or hardware PASS")
     return 0
 
 
