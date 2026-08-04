@@ -91,21 +91,21 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 21):
-        fail(f"validated-mailbox recovery image must be v0.7.21, got {version}")
+    if version != (0, 7, 22):
+        fail(f"nonblocking-status recovery image must be v0.7.22, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("qualification SPI clock divider must remain 59")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 200:
-        fail("v0.7.21 must retain the 200 us diagnostic CS guard")
+        fail("v0.7.22 must retain the 200 us diagnostic CS guard")
     if macro(config, "TRINITY_DEPLOY_P1_CS_SETUP_US") != 200:
         fail("P1 diagnostic setup marker must remain 200 us")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_REISSUE_MAX") != 2:
         fail("read-only recovery must permit exactly two bounded reissues")
     if macro(config, "TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS") != 20:
         fail("read-only recovery backoff must remain 20 ms")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070015)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070016)", "identity")
     require(
         p00,
         "#if TRINITY_DEPLOY_P1_CS_SETUP_US < TRINITY_DEPLOY_SPI_CS_GUARD_US",
@@ -280,6 +280,22 @@ def main() -> int:
     ):
         require(system_info, token, "system info")
 
+    system_status = section(
+        p12,
+        "static void handle_get_system_status(",
+        "static void handle_get_last_error(",
+        "system status",
+    )
+    for token in (
+        "GET_SYSTEM_STATUS is a local snapshot",
+        "g_controller.last_error",
+        "g_fault && g_error.code != TRINITY_OK",
+        "response_send();",
+    ):
+        require(system_status, token, "nonblocking system status")
+    for token in ("full_probe_all", "full_refresh_all", "endpoint_exchange"):
+        forbid(system_status, token, "nonblocking system status")
+
     for token in (
         "if (g_spi_retained_failure)",
         "trace = &g_spi_retained_trace;",
@@ -363,13 +379,14 @@ def main() -> int:
     forbid(p17, "!g_spi_retained_failure",
            "periodic read-only recovery after retained history")
 
-    print("PASS: v0.7.21 identity and 100 kHz profile are locked")
+    print("PASS: v0.7.22 identity and 100 kHz profile are locked")
     print("PASS: encoded four/nine-byte BAD_LENGTH captures prove truncation")
     print("PASS: every CS guard remains 200 us for the P1 start-edge diagnostic")
     print("PASS: CRC-invalid active mailboxes are reread before request replay")
     print("PASS: only zero-payload GET_INFO/GET_STATUS may be reissued twice")
     print("PASS: side-effect commands remain non-replayed")
     print("PASS: periodic read-only recovery continues after retained history")
+    print("PASS: system-status is a local snapshot and cannot nest SPI refresh")
     print("PASS: retained failure bytes use a dedicated copy snapshot")
     print("PASS: a full refresh clears active transport fault but keeps history")
     print("PASS: non-recursive PC service and split SPI transport remain locked")

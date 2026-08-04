@@ -164,6 +164,16 @@ def check_fragment_boundaries() -> None:
         if forbidden in system_info:
             fail(f"handle_get_system_info must be side-effect free; found {forbidden}")
 
+    system_status_start = system_info_end
+    system_status_end = part_12.find("static void handle_get_last_error")
+    system_status = part_12[system_status_start:system_status_end]
+    for forbidden in ("full_probe_all", "full_refresh_all", "endpoint_exchange"):
+        if forbidden in system_status:
+            fail(f"handle_get_system_status must be side-effect free; found {forbidden}")
+    for token in ("local snapshot", "g_controller.last_error", "response_send"):
+        if token not in system_status:
+            fail(f"handle_get_system_status missing {token}")
+
     assembled = "\n".join(part.read_text(encoding="utf-8") for part in PARTS)
     for handler in (
         "handle_ping",
@@ -181,7 +191,7 @@ def check_fragment_boundaries() -> None:
             fail(f"expected one definition of {handler}, found {definitions}")
 
     print("PASS: all 18 deploy .inc delimiter signatures match the locked composition")
-    print("PASS: handle_get_system_info is complete, local and side-effect free")
+    print("PASS: system info/status handlers are complete, local and side-effect free")
 
 
 def check_system_clock_fallback() -> None:

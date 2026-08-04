@@ -243,8 +243,8 @@ def _build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("ports", help="list serial ports")
     sub.add_parser("ping", help="send standalone PC→SN32 PING")
-    sub.add_parser("system-info", help="probe both Primer SPI endpoints and show build IDs")
-    sub.add_parser("system-status", help="refresh both Primer SPI endpoints and show status")
+    sub.add_parser("system-info", help="show local identity and cached Primer build IDs")
+    sub.add_parser("system-status", help="show the latest cached SN32/Primer status snapshot")
 
     spi_diag = sub.add_parser(
         "spi-diag",

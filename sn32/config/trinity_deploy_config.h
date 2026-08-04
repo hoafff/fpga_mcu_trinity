@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 21u
+#define TRINITY_DEPLOY_VERSION_PATCH 22u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -33,7 +33,7 @@
 #define TRINITY_DEPLOY_ENDPOINT_PROBE_MS         2000u
 /* P1 diagnostic D002 returned fields matching the request after its first six
  * bits were removed. At 100 kHz that is 60 us. v0.7.18 expanded the existing
- * CS guard to 200 us before and after every transaction. v0.7.21 retains that
+ * CS guard to 200 us before and after every transaction. v0.7.22 retains that
  * timing, validates a complete mailbox before accepting it and permits two
  * bounded reissues of side-effect-free discovery/status reads after transport
  * corruption. Applying the same policy to P2 avoids a target-dependent path;

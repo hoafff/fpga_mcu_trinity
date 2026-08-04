@@ -35,19 +35,23 @@ static void handle_get_system_info(const trinity_pc_frame_t *req) {
 }
 
 static void handle_get_system_status(const trinity_pc_frame_t *req) {
-    trinity_error_code_t rc = TRINITY_OK;
+    trinity_error_code_t active_error;
     uint8_t ready_mask;
     uint8_t fault_mask;
     if (!request_length_is(req, 0u)) {
         response_error(req, TRINITY_BAD_LENGTH, TRINITY_SOURCE_HOST_PROTOCOL, 0u);
         return;
     }
-    if (!g_fault) rc = full_refresh_all();
-    if (rc != TRINITY_OK) {
-        response_error(req, rc, g_controller.last_error_source,
-                       (uint16_t)g_controller.last_error_detail);
-        return;
-    }
+
+    /*
+     * GET_SYSTEM_STATUS is a local snapshot, just like GET_SYSTEM_INFO.
+     * Startup and periodic probes, invoked directly by main(), are the sole
+     * owners of implicit SPI discovery/refresh. Hardware v0.7.21 reproduced a
+     * loss of PC-UART service whenever this handler nested a live SPI refresh
+     * below pc_poll(); the same automatic refresh path remains live from the
+     * shallower main-level call site. Keeping this handler side-effect free
+     * also guarantees that transport faults remain observable over UART.
+     */
 
     ready_mask = trinity_controller_ready_mask(&g_controller);
 #if !FPST_SN32F407_HARNESS_VERIFIED
@@ -65,10 +69,9 @@ static void handle_get_system_status(const trinity_pc_frame_t *req) {
                        g_controller.session_material_valid
                            ? g_controller.session.session_id : 0u);
     trinity_write_be64(&g_pc_rsp.payload[8], g_controller.current_sequence);
-    trinity_write_be16(&g_pc_rsp.payload[16],
-                       (uint16_t)(g_error.code != TRINITY_OK
-                                      ? g_error.code
-                                      : g_controller.last_error));
+    active_error = g_fault && g_error.code != TRINITY_OK
+                       ? g_error.code : g_controller.last_error;
+    trinity_write_be16(&g_pc_rsp.payload[16], (uint16_t)active_error);
     trinity_write_be16(&g_pc_rsp.payload[18], g_active_host_txid);
     (void)response_send();
 }

@@ -1,0 +1,65 @@
+SN32F407 dual-SPI control plane
+v0.7.21 system-status / PC-UART liveness failure evidence
+Date: 2026-08-04 (Asia/Bangkok)
+
+Image identity reported by hardware:
+
+  architecture_version=0.7.21
+  sn32_build_id=0x00070015
+  primer1_build_id=0x5031D002
+  primer2_build_id=0x50320001
+
+Run 1:
+
+  PING PASS at uptime_ms=7165.
+  STARTUP_DRAIN_P1 retained BAD_CRC while reading a 16-byte mailbox.
+  SYSTEM_INFO PASS with all three build IDs above.
+  SYSTEM_STATUS then timed out.
+  Every immediately following PING timed out until UART framing later
+  resynchronized; a subsequent PING again passed.
+
+Run 2 after a fresh program/boot:
+
+  PING repeatedly passed through uptime_ms=60005.
+  A retained PERIODIC_PROBE P1 GET_STATUS failure was present:
+    transport_result=BAD_LENGTH(0x0103)
+    target_txid=0x000C
+    request_length=10
+    response_capture_length=16
+    response_crc_match=True
+    IRQ sequence=0 -> 1 -> 1 -> 0
+  Later PING commands still passed, proving that this retained SPI history did
+  not itself stop PC-UART service.
+  SYSTEM_STATUS then timed out.
+  The immediately following PING also timed out.
+
+Observed conclusion:
+
+  Across two independent runs, ordinary PING remained live before the first
+  SYSTEM_STATUS request, and loss of PC-UART responses began at that request.
+  The v0.7.21 firmware therefore does not pass the PC-UART liveness requirement.
+
+Source correlation:
+
+  handle_get_system_status() synchronously called full_refresh_all() below the
+  pc_poll()/request-handler call chain. Automatic periodic refresh called the
+  same controller operation directly from main(). The synchronous nested call
+  is the software trigger that distinguishes SYSTEM_STATUS from PING and
+  SYSTEM_INFO. Whether the target-level failure mechanism is stack exhaustion
+  or a lower-level stall is not claimed without an exact ArmClang call-graph or
+  on-target fault capture.
+
+Correction selected for v0.7.22:
+
+  - GET_SYSTEM_STATUS returns only the cached controller snapshot.
+  - Startup/periodic probes invoked directly by main() remain the only owners
+    of implicit SPI refresh.
+  - Explicit spi-diag remains available for a requested live read-only SPI
+    exchange.
+  - Active status error is separated from retained diagnostic history.
+
+Qualification status:
+
+  v0.7.21 PC-UART liveness after SYSTEM_STATUS: FAIL
+  v0.7.22 source correction:                 PENDING TEST
+  SN32 dual-SPI control-plane hardware gate: BLOCKED

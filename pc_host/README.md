@@ -42,18 +42,25 @@ This command qualifies only the PC-to-SN32 UART PING path.
 
 ## Generic system queries
 
-These commands cause SN32 to access both Primer SPI endpoints:
+These commands read local SN32 telemetry and do not start an SPI transaction:
 
 ```bat
 trinity-host --port COM3 system-info
 trinity-host --port COM3 system-status
 ```
 
-They are not standalone UART tests. Both P1 and P2 must be correctly wired and
-running compatible bitstreams.
+`system-info` reports local identity plus the latest successfully discovered
+Primer build IDs. `system-status` reports the latest status snapshot maintained
+by the automatic startup/periodic probe. The snapshot is normally no more than
+one probe interval old; a missing ready bit or nonzero active error remains
+visible without risking PC-UART liveness during an SPI transport fault.
+
+Use `spi-diag` only when an explicit, side-effect-free live Primer transaction
+is required. A local query by itself qualifies only PC-to-SN32 UART framing; it
+does not qualify either SPI endpoint.
 
 The older `p1-info` and `p1-status` spellings remain compatibility aliases for
-these full-system queries.
+these local queries.
 
 ## Scoped SN32 dual-SPI control-plane gate
 
