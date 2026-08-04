@@ -50,7 +50,10 @@ jobs:
           run_check REFERENCE_STATIC_AND_RTL python3 primer2/tb/run.py
           run_check DIFF_CHECK git diff --check \
             36822a09c234f509adfa5dace6aa05e4bbd40d54..HEAD -- \
-            primer2 .github/workflows/primer2-rtl-verification.yml
+            primer2 \
+            ':(exclude)primer2/docs/RTL_SIMULATION_LATEST.md' \
+            ':(exclude)primer2/docs/TESTBENCH_PORTABILITY_MIGRATION_LATEST.md' \
+            .github/workflows/primer2-rtl-verification.yml
           run_check P1_GUARD git diff --exit-code \
             e52488614c5610f2b3f5ffcd77b1a98b370494bc..HEAD -- \
             primer1/rtl primer1/tb primer1/scripts primer1/constraints \
@@ -73,6 +76,9 @@ jobs:
           log = Path("primer2_rtl_verification.log").read_text(
               encoding="utf-8", errors="replace"
           )
+          clean_log = "\n".join(
+              line.rstrip() for line in log.rstrip().splitlines()
+          )
           exit_code = int(os.environ["VERIFY_EXIT_CODE"])
           status = "PASS" if exit_code == 0 else "FAIL"
           report = f"""# Primer #2 RTL simulation evidence — latest main run
@@ -89,9 +95,10 @@ jobs:
           place-and-route, timing or hardware evidence.
 
           ```text
-          {log.rstrip()}
+          {clean_log}
           ```
           """
+          report = "\n".join(line.rstrip() for line in report.splitlines()) + "\n"
           Path("primer2/docs").mkdir(parents=True, exist_ok=True)
           Path("primer2/docs/RTL_SIMULATION_LATEST.md").write_text(
               report, encoding="utf-8"
