@@ -56,6 +56,11 @@ static trinity_error_code_t hardware_init(void) {
     g_automatic_probe_active = true;
     g_spi_txid = 1u;
     g_active_host_txid = 0u;
+    g_spi_trace_work = &g_spi_trace_slots[0];
+    g_spi_retained_trace = NULL;
+    g_spi_retained_failure = false;
+    g_spi_retained_startup_residue = false;
+    memset(g_spi_trace_slots, 0, sizeof(g_spi_trace_slots));
     memset(&g_error, 0, sizeof(g_error));
     memset(&g_host_txn, 0, sizeof(g_host_txn));
     pc_reset();
