@@ -45,6 +45,8 @@ module spi_packet_endpoint (
   logic [6:0] rx_byte_count, tx_byte_index;
   logic [15:0] tx_bits_sent;
   logic rx_mode, tx_mode;
+  logic rx_end_pending;
+  logic [1:0] rx_end_settle;
   logic [6:0] transaction_byte_count;
 
   typedef enum logic [1:0] {PARSE_IDLE, PARSE_HEADER, PARSE_CRC} parse_state_e;
@@ -132,6 +134,7 @@ module spi_packet_endpoint (
       rx_bit_count <= 0; tx_bit_count <= 0;
       rx_byte_count <= 0; tx_byte_index <= 0; tx_bits_sent <= 0;
       rx_mode <= 1'b0; tx_mode <= 1'b0;
+      rx_end_pending <= 1'b0; rx_end_settle <= 0;
       transaction_byte_count <= 0;
       parse_state <= PARSE_IDLE; parse_payload_length <= 0;
       parse_index <= 0; parse_crc <= 16'hFFFF; parse_fingerprint <= 32'hFFFFFFFF;
@@ -164,6 +167,8 @@ module spi_packet_endpoint (
         tx_byte_index <= 0;
         tx_bits_sent <= 0;
         rx_shift <= 0;
+        rx_end_pending <= 1'b0;
+        rx_end_settle <= 0;
         if (mailbox_pending_o) begin
           tx_mode <= 1'b1;
           rx_mode <= 1'b0;
@@ -174,7 +179,13 @@ module spi_packet_endpoint (
         end
       end
 
-      if (!cs_sync && rx_mode && sck_rise) begin
+      /*
+       * CS and SCK are independently synchronized. On the failing P1 route the
+       * synchronized CS rise can be observed in the same cycle as, or slightly
+       * before, the last synchronized SCK rise. Keep accepting SCK while the
+       * end-settle window is open so the final CRC-low byte is not discarded.
+       */
+      if (rx_mode && sck_rise && (!cs_sync || cs_rise || rx_end_pending)) begin
         rx_shift <= {rx_shift[6:0], mosi_sync};
         if (rx_bit_count == 3'd7) begin
           if (rx_byte_count < SPI_MAX_PACKET)
@@ -186,7 +197,7 @@ module spi_packet_endpoint (
         end
       end
 
-      if (!cs_sync && tx_mode && sck_rise)
+      if (tx_mode && sck_rise && (!cs_sync || cs_rise))
         tx_bits_sent <= tx_bits_sent + 1'b1;
 
       if (!cs_sync && tx_mode && sck_fall) begin
@@ -206,14 +217,26 @@ module spi_packet_endpoint (
 
       if (cs_rise) begin
         if (rx_mode) begin
+          rx_end_pending <= 1'b1;
+          rx_end_settle <= 2'd2;
+        end
+        if (tx_mode &&
+            ((tx_bits_sent + (sck_rise ? 16'd1 : 16'd0)) >=
+             (mailbox_length << 3)))
+          mailbox_pending_o <= 1'b0;
+        tx_mode <= 1'b0;
+      end
+
+      if (rx_end_pending) begin
+        if (rx_end_settle != 0) begin
+          rx_end_settle <= rx_end_settle - 1'b1;
+        end else begin
           transaction_byte_count <= rx_byte_count;
           if (parse_state == PARSE_IDLE)
             parse_state <= PARSE_HEADER;
+          rx_mode <= 1'b0;
+          rx_end_pending <= 1'b0;
         end
-        if (tx_mode && (tx_bits_sent >= (mailbox_length << 3)))
-          mailbox_pending_o <= 1'b0;
-        rx_mode <= 1'b0;
-        tx_mode <= 1'b0;
       end
 
       case (parse_state)
