@@ -16,7 +16,7 @@
         return rc;
     }
 
-    /* PC liveness begins immediately after UART init, before any SPI wait. */
+    /* PC ingress begins immediately after UART init, before any SPI wait. */
     g_pc_service_enabled = true;
     progress();
 
@@ -30,6 +30,7 @@
 
 int main(void) {
     uint32_t last_probe;
+    uint32_t startup_wait_start;
     trinity_error_code_t startup_rc;
     trinity_source_t startup_source = TRINITY_SOURCE_PRIMER1;
     SystemInit();
@@ -39,12 +40,24 @@ int main(void) {
     }
 
     /*
-     * Endpoint warm-up and discovery may take several seconds when a stale
-     * mailbox or transport timeout is present. progress() services PC UART
-     * throughout this phase, so PING/SYSTEM_INFO never depend on SPI success.
+     * Keep PING/SYSTEM_INFO live during the two-second warm-up without allowing
+     * progress() to execute commands from inside a nested SPI/crypto stack.
+     * All command execution in this loop occurs directly under main().
      */
-    wait_ms(SPI_STARTUP_WARMUP_MS);
-    wait_ms(TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS);
+    startup_wait_start = g_ms;
+    while (!expired(startup_wait_start, SPI_STARTUP_WARMUP_MS)) {
+        progress();
+        full_contain_tiny_fault();
+        pc_poll();
+    }
+    startup_wait_start = g_ms;
+    while (!expired(startup_wait_start,
+                    TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS)) {
+        progress();
+        full_contain_tiny_fault();
+        pc_poll();
+    }
+
     g_spi_trace_context = SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1;
     startup_rc = spi_drain_startup_mailbox(&g_p1);
     if (startup_rc == TRINITY_OK) {
@@ -61,6 +74,7 @@ int main(void) {
     g_spi_trace_context = SPI_TRACE_CONTEXT_NONE;
     g_automatic_probe_active = false;
     progress();
+    pc_poll();
     last_probe = g_ms;
 
     for (;;) {
@@ -78,6 +92,7 @@ int main(void) {
             g_spi_trace_context = SPI_TRACE_CONTEXT_NONE;
             g_automatic_probe_active = false;
             progress();
+            pc_poll();
             last_probe = g_ms;
         }
     }
