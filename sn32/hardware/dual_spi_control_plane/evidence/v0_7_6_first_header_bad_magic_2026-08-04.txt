@@ -1,0 +1,137 @@
+SN32 v0.7.6 first-response-header failure evidence
+Date: 2026-08-04
+Scope: SN32 -> P1/P2 dual-SPI control-plane gate only
+Source commit tested: 7dc882bae2960930a0a4e916e14611c26ac3a548
+Result: FAIL / ROOT CAUSE LOCALIZED TO SN32 FIRST RESPONSE READ
+
+IMAGE
+architecture_version: 0.7.6
+sn32_build_id: 0x00070006
+spi_frequency_hz: 100000
+spi_mode: 0
+spi_bit_order: MSB_FIRST
+
+POWER AND RESET AUDIT
+- PC <-> SN32 UART PING passed in every reported run.
+- SN32 was completely removed from power between runs.
+- In a later run the SN32 common-ground wire was also removed while SN32 was
+  unpowered; no board LED remained illuminated.
+- P1 and P2 were reset before SN32 was reconnected in the final run.
+- The failure class persisted, so PC UART back-power, SN32 power retention and
+  the common-ground connection are not accepted as the explanation.
+
+FIRST ACTIVE FAILURE, RUN 1
+context=STARTUP_PROBE
+target_id=1
+command=0x01
+error_source=1
+transport_result=BAD_MAGIC(0x0101)
+target_txid=0x0001
+request_fingerprint=0x9522E17F
+request_length=10
+response_capture_length=8
+response_frame_length=0
+request_crc=0x3598
+response_crc_received=0x0000
+response_crc_calculated=0x0000
+response_crc_match=False
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=1
+request_bytes=a5 01 01 00 00 01 00 00 35 98
+response_bytes=13 00 00 00 00 01 00 0c
+transfer_stage=NONE
+transfer_direction=RESPONSE
+transfer_byte_index=0
+transfer_length=8
+transfer_completed=8
+spi_status=0x00000035
+
+FOLLOW-UP P1 GET_INFO
+request_txid=0x0003
+transport_result=TRANSACTION_CONFLICT(0x0205)
+response_capture_length=22
+response_frame_length=22
+response_crc_match=True
+response_txid=0x0001
+response_bytes=a5 01 01 01 00 01 00 0c 01 01 00 00 11 ff 50 31 00 01 00 00 d2 6c
+
+INTERPRETATION
+- P1 accepted startup GET_INFO txid 0x0001 and built the correct response.
+- The first SN32 read captured an invalid eight-byte header and released CS
+  before consuming the 22-byte mailbox; IRQ therefore remained active.
+- The later command recovered the valid old txid-0x0001 response with a valid
+  CRC. TRANSACTION_CONFLICT was a correlation consequence, not a P1 command-core
+  conflict.
+
+FOLLOW-UP P1 GET_STATUS
+request_txid=0x0004
+transport_result=TRANSACTION_CONFLICT(0x0205)
+response_capture_length=16
+response_frame_length=16
+response_crc_match=True
+response_bytes=a5 01 00 03 00 00 00 06 01 03 01 00 00 00 a4 65
+interpretation=exact command-0 txid-0 BAD_LENGTH reset-residue mailbox
+
+FOLLOW-UP P2 GET_INFO
+request_txid=0x0005
+transport_result=TRANSACTION_CONFLICT(0x0205)
+response_capture_length=22
+response_frame_length=22
+response_crc_match=True
+response_txid=0x0002
+response_bytes=a5 01 01 01 00 02 00 0c 02 01 00 00 1e 0f 50 32 00 01 00 00 2c 5e
+interpretation=P2 was probed after P1 failed and retained its old response
+
+FOLLOW-UP P2 GET_STATUS
+request_txid=0x0006
+transport_result=OK(0x0000)
+response_capture_length=26
+response_frame_length=26
+response_crc_match=True
+response_bytes=a5 01 02 01 00 06 00 10 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 9f 91
+
+FIRST ACTIVE FAILURE, RUN 2 AFTER COMPLETE SN32 POWER REMOVAL
+context=STARTUP_PROBE
+target_id=1
+command=0x01
+transport_result=BAD_MAGIC(0x0101)
+target_txid=0x0001
+response_capture_length=8
+response_frame_length=0
+irq_after_response=1
+response_bytes=11 00 00 00 00 00 00 06
+transfer_stage=NONE
+transfer_direction=RESPONSE
+transfer_length=8
+transfer_completed=8
+spi_status=0x00000035
+
+FINAL RUN AFTER P1/P2 RESET AND SN32/COMMON-GROUND REMOVAL
+p2_get_status_request_txid=0x0003
+transport_result=TRANSACTION_CONFLICT(0x0205)
+response_capture_length=16
+response_frame_length=16
+response_crc_match=True
+response_bytes=a5 01 00 03 00 00 00 06 01 03 01 00 00 00 a4 65
+interpretation=old exact reset-residue mailbox, not a new GET_STATUS response
+
+CORRECTIVE DISPOSITION FOR V0.7.7
+- reset SPI/FIFO while SPI is disabled before each CS window;
+- restore completed-frame polling order: TX write, BUSY clear, RX ready, DATA read;
+- if a malformed first header leaves IRQ active, retry the same pending mailbox
+  under a fresh CS without issuing another request or allocating another txid;
+- return immediately on P1 discovery failure before probing P2.
+
+EXPLICIT NON-CLAIMS
+dual_spi_control_plane_hardware: FAIL_AT_V0_7_6
+P1_hardware_defect: NOT_PROVEN
+P2_hardware_defect: NOT_PROVEN
+Primer_RTL_defect: NOT_PROVEN
+session_stage_commit_hardware: PENDING
+direct_uart_under_sn32_orchestration: PENDING
+authenticated_telemetry_via_sn32: PENDING
+full_system_qualification: PENDING
+hardware_qualified: false
+full_system_hardware_qualified: false
