@@ -105,6 +105,10 @@ def _spi_trace_dict(trace: SpiDiagnosticTrace) -> dict[str, object]:
     }
 
 
+def _hex_words(words: list[int]) -> str:
+    return " ".join(f"0x{word:08X}" for word in words)
+
+
 def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
     if len(payload) < 2:
         raise HostProtocolError(
@@ -133,14 +137,11 @@ def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
     request_length = struct.unpack_from(">H", trace_payload, 12)[0]
     response_capture_length = struct.unpack_from(">H", trace_payload, 14)[0]
     trace_length = 24 + request_length + response_capture_length
-    expected_length = 2 + trace_length + 12
-    if len(payload) != expected_length:
-        raise HostProtocolError(
-            f"first SPI failure payload length {len(payload)} != {expected_length}"
-        )
+    extension = payload[2 + trace_length:]
+    if len(extension) < 12:
+        raise HostProtocolError("first SPI failure transfer extension is truncated")
 
     trace = SpiDiagnosticTrace.decode(payload[2:2 + trace_length])
-    extension = payload[2 + trace_length:]
     transfer_stage_raw, transfer_direction_raw = extension[:2]
     (
         transfer_byte_index,
@@ -148,7 +149,7 @@ def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
         transfer_completed,
         spi_status,
     ) = struct.unpack_from(">HHHI", extension, 2)
-    transfer = {
+    transfer: dict[str, object] = {
         "transfer_stage": _SPI_TRANSFER_STAGE_NAMES.get(
             transfer_stage_raw, f"UNKNOWN_{transfer_stage_raw}"
         ),
@@ -160,6 +161,45 @@ def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
         "transfer_completed": transfer_completed,
         "spi_status": f"0x{spi_status:08X}",
     }
+
+    if len(extension) == 12:
+        pass
+    elif len(extension) >= 32:
+        spi_ctrl0, spi_ctrl1, spi_clkdiv, spi_fifo_th = struct.unpack_from(
+            ">IIII", extension, 12
+        )
+        sample_count = extension[28]
+        expected_extension_length = 32 + sample_count * 12
+        if len(extension) != expected_extension_length:
+            raise HostProtocolError(
+                "first SPI failure register telemetry length "
+                f"{len(extension)} != {expected_extension_length}"
+            )
+        status_before: list[int] = []
+        data_words: list[int] = []
+        status_after: list[int] = []
+        offset = 32
+        for _ in range(sample_count):
+            before, data_word, after = struct.unpack_from(">III", extension, offset)
+            status_before.append(before)
+            data_words.append(data_word)
+            status_after.append(after)
+            offset += 12
+        transfer.update({
+            "spi_ctrl0": f"0x{spi_ctrl0:08X}",
+            "spi_ctrl1": f"0x{spi_ctrl1:08X}",
+            "spi_clkdiv": f"0x{spi_clkdiv:08X}",
+            "spi_fifo_th": f"0x{spi_fifo_th:08X}",
+            "response_sample_count": sample_count,
+            "response_status_before_read": _hex_words(status_before),
+            "response_data_words": _hex_words(data_words),
+            "response_status_after_read": _hex_words(status_after),
+        })
+    else:
+        raise HostProtocolError(
+            f"unsupported first SPI failure extension length {len(extension)}"
+        )
+
     if latched_raw == 0:
         if context not in {1, 2}:
             raise HostProtocolError(
