@@ -28,11 +28,13 @@ static void spi_init(void) {
     SN_SPI0->CTRL0_b.SDODIS = 0u;
 
     /*
-     * Keep the optional threshold extension disabled. SN32F407 uses the
-     * documented 8 x 16-bit FIFO; DL=7 right-justifies each 8-bit frame in
-     * DATA[7:0]. FIFO_TH changes thresholds only, not frame organization.
+     * NEW_TH_EN selects the SN32F407 16 x 8-bit FIFO organization. The deploy
+     * protocol is byte-oriented and every DATA access transfers one DL=7 frame;
+     * leaving the reset-default 8 x 16-bit organization produced a repeatable
+     * stale/packed prefix on the first mailbox read while the trailing header
+     * fields were already correct.
      */
-    SN_SPI0->FIFO_TH = 0u;
+    SN_SPI0->FIFO_TH = (1u << 31);
 
     SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;
     SN_SPI0->CTRL1 = 0u; /* Mode 0, MSB first. */
