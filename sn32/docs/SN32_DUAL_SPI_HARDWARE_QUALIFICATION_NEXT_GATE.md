@@ -14,27 +14,43 @@ SN32 -> P1/P2 DUAL-SPI CONTROL PLANE HARDWARE: PASS
 It does not qualify session activation, direct P1-to-P2 UART telemetry, Tiny,
 live-session ML-KEM or the full system.
 
-## Locked evidence through v0.7.7
+## Locked hardware evidence through v0.7.8
 
-Repeated cold boots established one deterministic failure:
-
-1. P1 accepted startup GET_INFO txid `0x0001` and committed a valid mailbox.
-2. The first SN32 response capture returned an invalid eight-byte header such as
-   `68 00 00 20 00 00 00 06` while P1 IRQ remained active.
-3. A later read recovered the complete old txid-1 response with valid CRC.
-4. Once that pending mailbox was consumed, P1 GET_STATUS, P2 GET_INFO and P2
-   GET_STATUS all completed with exact frame lengths, valid CRC and IRQ sequence.
-5. Increasing startup warmup to 2 s and response settle to 15 ms did not change
-   the deterministic first-read signature.
-
-Therefore the remaining failure is local to SN32 SPI FSM/FIFO reset completion,
-not Primer command processing, CRC, wiring, common ground or endpoint timing.
-
-## Required corrective image
+The v0.7.8 image identity was verified on hardware as:
 
 ```text
 architecture_version = 0.7.8
 sn32_build_id         = 0x00070008
+```
+
+Its startup trace proved:
+
+1. SN32 sent byte-exact P1 GET_INFO request txid `0x0001` with CRC `0x3598`.
+2. P1 accepted that request, asserted IRQ and built the valid 22-byte response.
+3. The first two eight-byte SN32 response captures returned malformed headers
+   while IRQ remained active, so the mailbox was not consumed.
+4. A later host `spi-diag --target p1 --command get-info` first clocked ten bytes
+   from the already-pending mailbox during its nominal request phase.
+5. Under the next fresh CS, SN32 recovered the exact original response:
+
+```text
+a5 01 01 01 00 01 00 0c 01 01 00 00 11 ff 50 31 00 01 00 00 d2 6c
+```
+
+6. Received and calculated CRC both equalled `0xD26C` and IRQ released `1 -> 0`.
+7. The apparent `TRANSACTION_CONFLICT` was only host correlation against the new
+   diagnostic txid `0x0002`; the recovered frame correctly belonged to startup
+   txid `0x0001`.
+
+This proves the Primer request path, command core, response builder, mailbox,
+CRC, CS restart and IRQ release are correct. The remaining defect is restricted
+to SN32's initial mailbox receive sequence.
+
+## Required corrective image
+
+```text
+architecture_version = 0.7.9
+sn32_build_id         = 0x00070009
 ```
 
 Locked transport profile:
@@ -52,33 +68,44 @@ header + declared remainder        = one continuous CS
 response capture                   = exact declared frame length
 ```
 
-The v0.7.8 correction is:
+## v0.7.9 bounded recovery
+
+Normal behavior is unchanged:
+
+1. Send one GET_INFO request with one target transaction ID.
+2. Wait for the target IRQ.
+3. Attempt to read the eight-byte header and declared remainder under one CS.
+4. If a malformed header leaves IRQ active, retry the same mailbox under a fresh
+   CS without sending another request.
+
+Only when both normal eight-byte startup GET_INFO reads fail while IRQ remains
+active, v0.7.9 performs the exact sequence proven by the v0.7.8 hardware log:
 
 ```text
-keep SPIEN enabled during FRESET
-wait for FRESET self-clear before CS
-apply one reset before each CS only
-read DATA[7:0] after BUSY clear and RX ready
-system-info is local and side-effect free
+selected-CS mailbox prime = 10 bytes discarded
+release CS
+fresh CS
+read the same pending mailbox from byte 0
 ```
 
-Detailed behavior:
+Safety constraints:
 
-1. Keep all CS lines high and wait for `BUSY=0`.
-2. With `SPIEN=1`, write `FRESET=3`.
-3. Wait until hardware self-clears `FRESET` before asserting any CS.
-4. Verify RX FIFO is empty; bounded drain is retained only as a safeguard.
-5. Assert exactly one Primer CS after the guard interval.
-6. For each byte, write DATA, wait for BUSY to clear, wait for RX non-empty,
-   then read the right-justified byte from `DATA[7:0]`.
-7. Release CS without performing a second reset. The next `spi_select()` owns the
-   single reset for the next transfer window.
-8. Read the eight-byte response header and declared remainder under one CS.
-9. A malformed header may retry the same pending mailbox without issuing a new
-   request or allocating a new target transaction ID.
-10. P1 discovery remains fail-fast before P2.
-11. `system-info` returns local firmware identity and cached endpoint IDs without
-    generating hidden SPI traffic.
+```text
+no new SPI request
+no new target transaction ID
+only context STARTUP_PROBE
+only command GET_INFO
+only while endpoint IRQ remains active
+prime length exactly 10 bytes
+known GET_INFO response length = 22 bytes
+```
+
+Ten clocks cannot retire the 22-byte GET_INFO mailbox. The FPGA resets its
+mailbox transmit index on the next CS, so the final capture starts at byte zero.
+The existing two-attempt path remains unchanged for all other commands.
+
+`system-info` remains local and side-effect free, allowing the SN32 firmware
+identity to be verified even if SPI startup fails.
 
 ## Wiring preflight
 
@@ -120,7 +147,13 @@ git submodule update --init --recursive
 git rev-parse HEAD
 ```
 
-Rebuild `sn32/keil/trinity_sn32f407_deploy.uvprojx` and accept only:
+Rebuild:
+
+```text
+sn32/keil/trinity_sn32f407_deploy.uvprojx
+```
+
+Accept only:
 
 ```text
 0 Error(s), 0 Warning(s)
@@ -130,7 +163,7 @@ AXF generation: PASS
 HEX generation: PASS
 ```
 
-Flash and Verify through SN-LINK. Do not reuse any v0.7.7 HEX.
+Flash and Verify through SN-LINK. Do not reuse any v0.7.8 HEX.
 
 After reset, verify the loaded image before interpreting SPI evidence:
 
@@ -143,22 +176,22 @@ Required local identity:
 
 ```text
 protocol_version=1
-architecture_version=0.7.8
-sn32_build_id=0x00070008
+architecture_version=0.7.9
+sn32_build_id=0x00070009
 ```
 
-`primer1_build_id` and `primer2_build_id` may be zero until successful probes are
-cached. `system-info` must succeed even when the startup SPI latch is set.
+`primer1_build_id` and `primer2_build_id` may initially be zero only if endpoint
+probing has not completed. `system-info` itself must not generate SPI traffic.
 
-## Mandatory v0.7.8 rerun
+## Mandatory v0.7.9 rerun
 
 1. Power off SN32 completely.
-2. Reset or reconfigure P1 and P2 to clear pending mailboxes.
+2. Reset or reconfigure P1 and P2 to clear the old pending mailbox.
 3. Keep common ground connected.
-4. Power or reset SN32 last with the v0.7.8 image.
-5. Wait at least 3 s.
+4. Power or reset SN32 last with the verified v0.7.9 image.
+5. Wait at least 3 seconds.
 
-Run:
+Run only:
 
 ```bat
 trinity-host --port COM3 ping
@@ -169,10 +202,15 @@ trinity-host --port COM3 spi-first-failure
 Expected result:
 
 ```text
-architecture_version=0.7.8
-sn32_build_id=0x00070008
+architecture_version=0.7.9
+sn32_build_id=0x00070009
+primer1_build_id=0x50310001
+primer2_build_id=0x50320001
 latched=False
 ```
+
+If `latched=True`, stop and retain the full first-failure trace. Do not issue a
+new diagnostic request until that trace has been audited.
 
 Only when the first active failure latch is clear, run:
 
@@ -184,7 +222,7 @@ trinity-host --port COM3 spi-diag --target p2 --command get-status
 trinity-host --port COM3 spi-first-failure
 ```
 
-Each active trace must satisfy:
+Each active diagnostic must satisfy:
 
 ```text
 transport_result = OK
@@ -198,17 +236,9 @@ GET_STATUS response_capture_length = 26
 Then run:
 
 ```bat
-trinity-host --port COM3 system-info
 trinity-host --port COM3 system-status
 trinity-host --port COM3 dual-spi-bringup --timeout 10 --poll 0.1
 trinity-host --port COM3 spi-first-failure
-```
-
-Expected final endpoint identity:
-
-```text
-primer1_build_id=0x50310001
-primer2_build_id=0x50320001
 ```
 
 Retained KAT masks remain:
@@ -221,10 +251,10 @@ P2 = 0x03E3
 ## Acceptance criteria
 
 ```text
-v0.7.8 exact Keil rebuild:                         PASS
-v0.7.8 SN-LINK program/verify:                     PASS
-v0.7.8 local identity readback:                    PASS
-v0.7.8 standalone PC UART PING:                    PASS
+v0.7.9 exact Keil rebuild:                         PASS
+v0.7.9 SN-LINK program/verify:                     PASS
+v0.7.9 local identity readback:                    PASS
+v0.7.9 standalone PC UART PING:                    PASS
 first active SPI failure immediately postboot:     CLEAR
 P1 GET_INFO raw active diagnostic:                 PASS
 P1 GET_STATUS raw active diagnostic:               PASS
