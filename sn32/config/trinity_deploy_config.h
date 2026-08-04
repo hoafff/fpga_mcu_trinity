@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 26u
+#define TRINITY_DEPLOY_VERSION_PATCH 27u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -25,12 +25,9 @@
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
 /*
- * v0.7.26 keeps the GPIO-driven mode-0 SPI backend on the existing DB_SPI pins.
- * Repeated hardware captures proved that SPI0 polling could emit a request for
- * which P1 captured only four or nine of ten bytes, while the same P1/P2 RTL
- * and wiring protocol passed with the ESP32-C3 controller. Driving every edge
- * explicitly removes the SPI0 FIFO/start race without changing the wire
- * protocol, board wiring, CS/IRQ ownership or fail-closed transaction policy.
+ * v0.7.27 preserves the hardware-qualified GPIO-driven mode-0 SPI backend and
+ * existing DB_SPI wiring from v0.7.26. The only functional candidate change is
+ * the phase-shared low-RAM ML-KEM-512 key-generation path.
  *
  * The half-period loop is deliberately conservative: loop overhead can only
  * make SCK slower than the 100 kHz ceiling. Both Primer endpoints accept gaps
