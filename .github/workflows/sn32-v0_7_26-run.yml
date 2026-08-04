@@ -1,0 +1,60 @@
+name: SN32 v0.7.26 gated migration runner
+
+on:
+  push:
+    paths:
+      - ".github/triggers/sn32-v0_7_26"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sn32-v0-7-26-gated-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Apply deterministic migration
+        run: python .github/scripts/migrate_sn32_v0_7_26.py
+
+      - name: Run SN32 source gates
+        run: |
+          python sn32/tests/deploy/check_v0_7_26_stack_spi_state.py
+          python sn32/tests/deploy/check_dual_spi_gate_profile.py
+          python sn32/tests/deploy/check_deploy_project.py
+          python sn32/tests/deploy/check_inc_boundaries.py
+
+      - name: Run PC host tests
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pip install ./pc_host
+          python -m pytest -q pc_host/tests
+
+      - name: Check diff hygiene
+        run: git diff --check
+
+      - name: Commit only after every gate passes
+        shell: bash
+        run: |
+          rm -f .github/workflows/sn32-v0_7_26-migration.yml
+          rm -f .github/workflows/sn32-v0_7_26-run.yml
+          rm -f .github/scripts/migrate_sn32_v0_7_26.py
+          rm -f .github/triggers/sn32-v0_7_26
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git add -f sn32/keil/RTE/Device/SN32F407F/startup_SN32F400.s
+          git commit -m "fix(sn32): enlarge stack and isolate SPI transport state"
+          git pull --rebase origin main
+          git push origin HEAD:main
