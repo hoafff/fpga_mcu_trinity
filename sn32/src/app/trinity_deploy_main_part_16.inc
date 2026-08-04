@@ -18,6 +18,9 @@ static void pc_process(void) {
 
 static void pc_poll(void) {
     uint8_t byte;
+    if (!g_pc_service_enabled || g_pc_poll_active) return;
+    g_pc_poll_active = true;
+
     if (g_pc_wire_len != 0u && expired(g_pc_frame_start, PC_FRAME_TIMEOUT_MS)) {
         pc_reset();
         set_error(TRINITY_FRAME_TIMEOUT, TRINITY_SOURCE_HOST_PROTOCOL, 0u);
@@ -34,6 +37,8 @@ static void pc_poll(void) {
             set_error(TRINITY_BAD_LENGTH, TRINITY_SOURCE_HOST_PROTOCOL, 0u);
         }
     }
+
+    g_pc_poll_active = false;
 }
 
 static trinity_error_code_t hardware_init(void) {
@@ -46,6 +51,9 @@ static trinity_error_code_t hardware_init(void) {
     g_crypto_lease_active = false;
     g_fault = g_spi_selected = false;
     g_uart_ready = g_spi_ready = g_heartbeat_level = false;
+    g_pc_service_enabled = false;
+    g_pc_poll_active = false;
+    g_automatic_probe_active = true;
     g_spi_txid = 1u;
     g_active_host_txid = 0u;
     memset(&g_error, 0, sizeof(g_error));
