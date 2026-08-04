@@ -20,6 +20,10 @@ PART14 = ROOT / "sn32/src/app/trinity_deploy_main_part_14.inc"
 PART15 = ROOT / "sn32/src/app/trinity_deploy_main_part_15.inc"
 PART16 = ROOT / "sn32/src/app/trinity_deploy_main_part_16.inc"
 PART17 = ROOT / "sn32/src/app/trinity_deploy_main_part_17.inc"
+CONTROLLER_PART00 = ROOT / "sn32/src/app/trinity_full_controller_part_00.inc"
+CONTROLLER_PART03 = ROOT / "sn32/src/app/trinity_full_controller_part_03.inc"
+CONTROLLER_PART07 = ROOT / "sn32/src/app/trinity_full_controller_part_07.inc"
+SPI_PROTOCOL = ROOT / "sn32/src/trinity_spi_protocol.c"
 
 
 def fail(message: str) -> None:
@@ -77,23 +81,27 @@ def main() -> int:
     p15 = read(PART15)
     p16 = read(PART16)
     p17 = read(PART17)
+    controller00 = read(CONTROLLER_PART00)
+    controller03 = read(CONTROLLER_PART03)
+    controller07 = read(CONTROLLER_PART07)
+    spi_protocol = read(SPI_PROTOCOL)
 
     version = (
         macro(config, "TRINITY_DEPLOY_VERSION_MAJOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 19):
-        fail(f"short-CS residue recovery image must be v0.7.19, got {version}")
+    if version != (0, 7, 20):
+        fail(f"truncated-read recovery image must be v0.7.20, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("qualification SPI clock divider must remain 59")
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 200:
-        fail("v0.7.19 must retain the 200 us diagnostic CS guard")
+        fail("v0.7.20 must retain the 200 us diagnostic CS guard")
     if macro(config, "TRINITY_DEPLOY_P1_CS_SETUP_US") != 200:
         fail("P1 diagnostic setup marker must remain 200 us")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070013)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070014)", "identity")
     require(
         p00,
         "#if TRINITY_DEPLOY_P1_CS_SETUP_US < TRINITY_DEPLOY_SPI_CS_GUARD_US",
@@ -105,18 +113,15 @@ def main() -> int:
         "static bool g_pc_poll_active;",
         "static bool g_pc_frame_pending;",
         "static bool g_automatic_probe_active;",
-        "static spi_exchange_trace_t g_spi_trace_slots[2];",
-        "static spi_exchange_trace_t *g_spi_trace_work",
-        "static const spi_exchange_trace_t *g_spi_retained_trace;",
+        "static spi_exchange_trace_t g_spi_trace;",
+        "static spi_exchange_trace_t g_spi_retained_trace;",
         "static bool g_spi_retained_failure;",
         "static bool g_spi_retained_startup_residue;",
-        "#define g_spi_trace (*g_spi_trace_work)",
     ):
         require(p01, token, "runtime state")
-    forbid(p01, "static spi_exchange_trace_t g_spi_first_failure;",
-           "trace slot state")
-    forbid(p01, "static spi_exchange_trace_t g_spi_startup_residue;",
-           "trace slot state")
+    for token in ("g_spi_trace_slots", "g_spi_trace_work",
+                  "*g_spi_retained_trace"):
+        forbid(p01, token, "immutable retained trace state")
 
     for token in (
         "static uint8_t g_pc_raw[TRINITY_PC_MAX_RAW_FRAME];",
@@ -188,31 +193,30 @@ def main() -> int:
     require(p06, "spi_guard_delay();", "CS guard use")
 
     for token in (
-        "static void spi_trace_rotate_work_slot(void)",
-        "g_spi_retained_trace = g_spi_trace_work;",
-        "g_spi_retained_failure = true;",
-        "g_spi_retained_startup_residue = true;",
-        "spi_trace_rotate_work_slot();",
+        "static void spi_retain_current_trace(bool failure)",
+        "memcpy(&g_spi_retained_trace, &g_spi_trace,",
+        "g_spi_retained_failure = failure;",
+        "g_spi_retained_startup_residue = !failure;",
         "static trinity_error_code_t spi_prepare_request_window(",
         "spi_write_request_bytes(g_spi_request_wire, request_len)",
-        "static bool spi_decoded_is_short_transaction_residue(void)",
-        "static bool spi_command_allows_residue_retry(",
+        "static bool spi_decoded_proves_truncated_request(",
+        "trinity_spi_bad_length_detail_proves_truncation(",
+        "static bool spi_command_allows_read_retry(",
         "command == TRINITY_SPI_GET_INFO",
         "command == TRINITY_SPI_GET_STATUS",
-        "unsigned residue_retry = 0u;",
+        "unsigned read_retry = 0u;",
         "retry_request:",
     ):
-        require(p07, token, "bounded residue recovery")
+        require(p07, token, "bounded read truncation recovery")
     if p07.count("trinity_spi_bad_length_detail_is_short_cs(") != 2:
         fail("startup drain and decoded retry must share the short-CS helper")
     forbid(p07, "rsp[12] == 0u && rsp[13] == 0u",
            "legacy-only trace residue check")
     forbid(p07, "g_spi_rsp.payload[5] == 0u",
            "legacy-only decoded residue check")
-    forbid(p07, "g_spi_first_failure = g_spi_trace",
-           "pointer-retained trace")
-    forbid(p07, "g_spi_startup_residue = g_spi_trace",
-           "pointer-retained trace")
+    for token in ("spi_trace_rotate_work_slot", "g_spi_trace_work",
+                  "g_spi_retained_trace ="):
+        forbid(p07, token, "copy-retained trace")
     forbid(p07, "TRINITY_SPI_RUN_SELF_TEST ||",
            "residue retry command scope")
     forbid(p07, "TRINITY_SPI_ZEROIZE ||",
@@ -222,17 +226,25 @@ def main() -> int:
         "g_spi_response_wire[0] != TRINITY_SPI_MAGIC",
         "trinity_crc16_ccitt_false(g_spi_response_wire",
         "trinity_spi_decode(g_spi_response_wire",
-        "spi_decoded_is_short_transaction_residue()",
-        "spi_command_allows_residue_retry(command, payload_length)",
-        "residue_retry == 0u",
+        "spi_decoded_proves_truncated_request(request_len)",
+        "spi_command_allows_read_retry(command, payload_length)",
+        "read_retry == 0u",
         "g_spi_trace.result_code = TRINITY_BAD_LENGTH;",
         "spi_record_startup_residue();",
-        "residue_retry = 1u;",
+        "read_retry = 1u;",
+        "rc = TRINITY_BAD_LENGTH;",
         "goto retry_request;",
     ):
-        require(p08, token, "single read-only residue retry")
-    forbid(p08, "residue_retry++", "bounded residue retry")
-    forbid(p08, "endpoint_exchange(", "non-recursive residue retry")
+        require(p08, token, "single read-only truncation retry")
+    forbid(p08, "read_retry++", "bounded read retry")
+    forbid(p08, "endpoint_exchange(", "non-recursive read retry")
+
+    for token in (
+        "int trinity_spi_bad_length_detail_proves_truncation(",
+        "byte_count >= expected_wire_length",
+        "byte_count < TRINITY_SPI_HEADER_SIZE",
+    ):
+        require(spi_protocol, token, "BAD_LENGTH truncation proof")
 
     system_info = section(
         p12,
@@ -249,8 +261,8 @@ def main() -> int:
         require(system_info, token, "system info")
 
     for token in (
-        "if (g_spi_retained_failure && g_spi_retained_trace != NULL)",
-        "trace = g_spi_retained_trace;",
+        "if (g_spi_retained_failure)",
+        "trace = &g_spi_retained_trace;",
         "g_spi_retained_startup_residue",
     ):
         require(p14, token, "retained trace serializer")
@@ -292,11 +304,33 @@ def main() -> int:
         require(poll_body, token, "main-level PC execution")
     for token in (
         "g_pc_frame_pending = false;",
-        "g_spi_trace_work = &g_spi_trace_slots[0];",
-        "g_spi_retained_trace = NULL;",
-        "memset(g_spi_trace_slots, 0, sizeof(g_spi_trace_slots));",
+        "memset(&g_spi_trace, 0, sizeof(g_spi_trace));",
+        "memset(&g_spi_retained_trace, 0, sizeof(g_spi_retained_trace));",
     ):
         require(p16, token, "runtime initialization")
+
+    for token in (
+        "static bool controller_error_is_transport(",
+        "code == TRINITY_BAD_LENGTH",
+        "static void controller_clear_recovered_transport_error(",
+        "controller->last_error = TRINITY_OK;",
+        "controller->last_error_detail = 0u;",
+    ):
+        require(controller00, token, "recovered controller state")
+    if controller03.count(
+        "controller_clear_recovered_transport_error(controller);"
+    ) != 2:
+        fail("probe and full refresh must both clear recovered active errors")
+    require(
+        controller07,
+        "controller_error_is_transport(controller->last_error)",
+        "transport fault mask",
+    )
+    require(
+        p12,
+        "g_error.code != TRINITY_OK",
+        "historical last_error telemetry",
+    )
 
     for token in (
         "startup_wait_start = g_ms;",
@@ -308,11 +342,13 @@ def main() -> int:
     ):
         require(p17, token, "main-level startup/periodic service")
 
-    print("PASS: v0.7.19 identity and 100 kHz profile are locked")
-    print("PASS: legacy 0x0000 and encoded short-CS details share one classifier")
+    print("PASS: v0.7.20 identity and 100 kHz profile are locked")
+    print("PASS: encoded four/nine-byte BAD_LENGTH captures prove truncation")
     print("PASS: every CS guard remains 200 us for the P1 start-edge diagnostic")
-    print("PASS: only zero-payload GET_INFO/GET_STATUS may retry once")
+    print("PASS: only zero-payload GET_INFO/GET_STATUS may be reissued once")
     print("PASS: side-effect commands remain non-replayed")
+    print("PASS: retained failure bytes use a dedicated copy snapshot")
+    print("PASS: a full refresh clears active transport fault but keeps history")
     print("PASS: non-recursive PC service and split SPI transport remain locked")
     print("NOTE: source PASS does not claim Keil build, flash or hardware PASS")
     return 0

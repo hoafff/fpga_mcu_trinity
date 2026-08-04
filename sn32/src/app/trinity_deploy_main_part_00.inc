@@ -45,7 +45,7 @@
 #error "P1 diagnostic CS setup must not be shorter than the common guard"
 #endif
 
-#define DEPLOY_BUILD_ID UINT32_C(0x00070013)
+#define DEPLOY_BUILD_ID UINT32_C(0x00070014)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)

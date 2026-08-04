@@ -27,6 +27,25 @@ static void controller_latch_error(trinity_controller_t *controller,
     }
 }
 
+static bool controller_error_is_transport(trinity_error_code_t code) {
+    return code == TRINITY_BAD_MAGIC || code == TRINITY_BAD_VERSION ||
+           code == TRINITY_BAD_LENGTH || code == TRINITY_BAD_CRC ||
+           code == TRINITY_BAD_FLAGS || code == TRINITY_MALFORMED_FRAME ||
+           code == TRINITY_FRAME_TIMEOUT ||
+           code == TRINITY_TRANSACTION_CONFLICT;
+}
+
+static void controller_clear_recovered_transport_error(
+    trinity_controller_t *controller) {
+    if (controller == NULL ||
+        controller->state == TRINITY_SYSTEM_FAULT_LOCKED ||
+        !controller_error_is_transport(controller->last_error))
+        return;
+    controller->last_error = TRINITY_OK;
+    controller->last_error_source = TRINITY_SOURCE_SN32;
+    controller->last_error_detail = 0u;
+}
+
 void trinity_controller_secure_clear(void *buffer, size_t length) {
     volatile uint8_t *cursor = (volatile uint8_t *)buffer;
     if (cursor == NULL) return;

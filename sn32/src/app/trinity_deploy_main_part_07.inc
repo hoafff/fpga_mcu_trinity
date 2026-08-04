@@ -6,13 +6,6 @@ static trinity_source_t endpoint_source(const endpoint_t *ep) {
                ? TRINITY_SOURCE_PRIMER1 : TRINITY_SOURCE_PRIMER2;
 }
 
-static void spi_trace_rotate_work_slot(void) {
-    g_spi_trace_work =
-        g_spi_trace_work == &g_spi_trace_slots[0]
-            ? &g_spi_trace_slots[1]
-            : &g_spi_trace_slots[0];
-}
-
 static void spi_trace_begin(endpoint_t *ep, uint8_t command,
                             uint16_t txid, uint32_t fingerprint) {
     memset(&g_spi_trace, 0, sizeof(g_spi_trace));
@@ -26,13 +19,17 @@ static void spi_trace_begin(endpoint_t *ep, uint8_t command,
     g_spi_trace.request_fingerprint = fingerprint;
 }
 
+static void spi_retain_current_trace(bool failure) {
+    memcpy(&g_spi_retained_trace, &g_spi_trace,
+           sizeof(g_spi_retained_trace));
+    g_spi_retained_failure = failure;
+    g_spi_retained_startup_residue = !failure;
+}
+
 static void spi_latch_first_failure(void) {
     if (!g_spi_retained_failure && g_spi_trace.valid &&
         g_spi_trace.result_code != TRINITY_OK) {
-        g_spi_retained_trace = g_spi_trace_work;
-        g_spi_retained_failure = true;
-        g_spi_retained_startup_residue = false;
-        spi_trace_rotate_work_slot();
+        spi_retain_current_trace(true);
     }
 }
 
@@ -75,25 +72,30 @@ static bool spi_trace_is_startup_reset_residue(
 static void spi_record_startup_residue(void) {
     if (!g_spi_retained_failure && !g_spi_retained_startup_residue &&
         spi_trace_is_startup_reset_residue(&g_spi_trace)) {
-        g_spi_retained_trace = g_spi_trace_work;
-        g_spi_retained_startup_residue = true;
-        spi_trace_rotate_work_slot();
+        spi_retain_current_trace(false);
     }
 }
 
-static bool spi_decoded_is_short_transaction_residue(void) {
-    return g_spi_rsp.command == 0u &&
-           g_spi_rsp.transaction_id == 0u &&
-           g_spi_rsp.flags ==
-               (TRINITY_FLAG_RESPONSE | TRINITY_FLAG_ERROR) &&
-           g_spi_rsp.payload_length == 6u &&
-           trinity_read_be16(g_spi_rsp.payload) == TRINITY_BAD_LENGTH &&
-           trinity_spi_bad_length_detail_is_short_cs(
-               trinity_read_be16(&g_spi_rsp.payload[4]));
+static bool spi_decoded_proves_truncated_request(
+    size_t expected_wire_length) {
+    uint16_t detail;
+    if (g_spi_rsp.flags !=
+            (TRINITY_FLAG_RESPONSE | TRINITY_FLAG_ERROR) ||
+        g_spi_rsp.payload_length != 6u ||
+        trinity_read_be16(g_spi_rsp.payload) != TRINITY_BAD_LENGTH)
+        return false;
+
+    detail = trinity_read_be16(&g_spi_rsp.payload[4]);
+    if (g_spi_rsp.command == 0u && g_spi_rsp.transaction_id == 0u &&
+        trinity_spi_bad_length_detail_is_short_cs(detail))
+        return true;
+
+    return trinity_spi_bad_length_detail_proves_truncation(
+               detail, expected_wire_length) != 0;
 }
 
-static bool spi_command_allows_residue_retry(uint8_t command,
-                                              uint16_t payload_length) {
+static bool spi_command_allows_read_retry(uint8_t command,
+                                           uint16_t payload_length) {
     return payload_length == 0u &&
            (command == TRINITY_SPI_GET_INFO ||
             command == TRINITY_SPI_GET_STATUS);
@@ -265,7 +267,7 @@ static trinity_error_code_t endpoint_exchange(
     uint16_t response_payload_length;
     uint16_t txid;
     uint32_t wait_start;
-    unsigned residue_retry = 0u;
+    unsigned read_retry = 0u;
 
     if (issued_txid != NULL) *issued_txid = 0u;
     if (payload_length > TRINITY_SPI_MAX_PAYLOAD ||

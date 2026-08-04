@@ -27,6 +27,8 @@ typedef struct {
     unsigned commit_low_calls;
     unsigned commit_high_calls;
     unsigned retained_not_ready_reads;
+    uint8_t fail_get_status_target;
+    unsigned fail_get_status_count;
     mock_endpoint_t p1;
     mock_endpoint_t p2;
     uint8_t telemetry[32];
@@ -94,6 +96,11 @@ static trinity_error_code_t mock_exchange(
             return TRINITY_OK;
         }
         case TRINITY_SPI_GET_STATUS:
+            if (target == bus->fail_get_status_target &&
+                bus->fail_get_status_count != 0u) {
+                bus->fail_get_status_count -= 1u;
+                return TRINITY_TRANSACTION_CONFLICT;
+            }
             assert(response_capacity >= 16u);
             put_status(ep, response);
             *response_length = 16u;

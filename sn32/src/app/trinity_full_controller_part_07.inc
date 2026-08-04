@@ -42,9 +42,7 @@ uint8_t trinity_controller_fault_mask(const trinity_controller_t *controller) {
         mask |= TRINITY_FAULT_HEARTBEAT_TIMEOUT;
     if (controller->last_error == TRINITY_AUTH_THRESHOLD)
         mask |= TRINITY_FAULT_AUTH_THRESHOLD;
-    if (controller->last_error == TRINITY_FRAME_TIMEOUT ||
-        controller->last_error == TRINITY_BAD_CRC ||
-        controller->last_error == TRINITY_TRANSACTION_CONFLICT)
+    if (controller_error_is_transport(controller->last_error))
         mask |= TRINITY_FAULT_TRANSPORT;
     return mask;
 }

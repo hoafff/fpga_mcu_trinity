@@ -128,13 +128,12 @@ static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
         return;
     }
 
-    if (g_spi_retained_failure && g_spi_retained_trace != NULL) {
+    if (g_spi_retained_failure) {
         g_pc_rsp.payload[0] = 1u;
-        trace = g_spi_retained_trace;
-    } else if (g_spi_retained_startup_residue &&
-               g_spi_retained_trace != NULL) {
+        trace = &g_spi_retained_trace;
+    } else if (g_spi_retained_startup_residue) {
         g_pc_rsp.payload[0] = 0u;
-        trace = g_spi_retained_trace;
+        trace = &g_spi_retained_trace;
     } else {
         g_pc_rsp.payload[0] = 0u;
     }

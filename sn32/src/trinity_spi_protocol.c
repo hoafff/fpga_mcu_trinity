@@ -69,6 +69,31 @@ int trinity_spi_bad_length_detail_is_short_cs(uint16_t detail) {
            (byte_count_and_length_high >> 1) < TRINITY_SPI_HEADER_SIZE;
 }
 
+int trinity_spi_bad_length_detail_proves_truncation(
+    uint16_t detail, size_t expected_wire_length) {
+    uint8_t byte_count_and_length_high;
+    size_t byte_count;
+
+    /* A legacy zero detail carries no byte-count proof by itself. */
+    if (detail == 0u ||
+        expected_wire_length < TRINITY_SPI_HEADER_SIZE + TRINITY_SPI_CRC_SIZE ||
+        expected_wire_length > TRINITY_SPI_MAX_PACKET)
+        return 0;
+
+    byte_count_and_length_high = (uint8_t)(detail >> 8);
+    byte_count = (size_t)(byte_count_and_length_high >> 1);
+    if (byte_count >= expected_wire_length) return 0;
+
+    /* Before byte 8, the diagnostic encoding must mark length as unknown. */
+    if (byte_count < TRINITY_SPI_HEADER_SIZE) {
+        return (byte_count_and_length_high & 1u) == 0u &&
+               (detail & UINT16_C(0x00FF)) == UINT16_C(0x00FF);
+    }
+
+    /* At byte 8 or later the captured length field may contain any value. */
+    return 1;
+}
+
 uint32_t trinity_spi_request_fingerprint(uint8_t command, uint8_t flags,
                                          const uint8_t *payload, uint16_t payload_length) {
     uint32_t crc = 0xFFFFFFFFu;

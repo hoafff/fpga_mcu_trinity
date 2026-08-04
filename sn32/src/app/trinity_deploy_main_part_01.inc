@@ -121,17 +121,15 @@ static uint8_t g_spi_trace_context;
 static error_record_t g_error;
 
 /*
- * Two fixed slots are enough: one mutable work trace and one immutable retained
- * trace. Retention rotates pointers instead of copying the 316-byte structure.
- * A later real failure may replace an earlier startup-residue slot without a
- * memory copy, and the newly retained slot is never modified again.
+ * Work and retained traces have separate, fixed storage. Hardware v0.7.19
+ * showed retained byte data changing even while the sampled SPI DATA words
+ * remained correct. A failure is now copied once into this dedicated snapshot
+ * and no transport path writes it.
  */
-static spi_exchange_trace_t g_spi_trace_slots[2];
-static spi_exchange_trace_t *g_spi_trace_work = &g_spi_trace_slots[0];
-static const spi_exchange_trace_t *g_spi_retained_trace;
+static spi_exchange_trace_t g_spi_trace;
+static spi_exchange_trace_t g_spi_retained_trace;
 static bool g_spi_retained_failure;
 static bool g_spi_retained_startup_residue;
-#define g_spi_trace (*g_spi_trace_work)
 
 static host_transaction_t g_host_txn;
 static trinity_controller_t g_controller;

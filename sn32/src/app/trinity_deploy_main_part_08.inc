@@ -28,21 +28,24 @@
         if (rc != TRINITY_OK) goto failed;
 
         /*
-         * A CRC-valid command=0/txid=0 BAD_LENGTH frame is the Primer's exact
-         * signature for an earlier empty/short CS transaction. It can become
-         * visible in the narrow interval after the last IRQ check but before
-         * the following request CS edge. Recover once only for idempotent,
-         * zero-payload discovery/status reads. Side-effect commands are never
-         * replayed here.
+         * P1 diagnostic images encode the number of request bytes actually
+         * captured in BAD_LENGTH detail. This covers both the legacy empty-CS
+         * response and the hardware-proven four/nine-byte truncated requests,
+         * whose echoed command and txid cannot be correlated. Replay at most
+         * once and only for idempotent, zero-payload discovery/status reads.
          */
-        if (spi_decoded_is_short_transaction_residue() &&
-            spi_command_allows_residue_retry(command, payload_length) &&
-            residue_retry == 0u) {
+        if (spi_decoded_proves_truncated_request(request_len)) {
             g_spi_trace.result_code = TRINITY_BAD_LENGTH;
-            spi_record_startup_residue();
-            residue_retry = 1u;
-            wait_ms(TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS);
-            goto retry_request;
+            if (spi_trace_is_startup_reset_residue(&g_spi_trace))
+                spi_record_startup_residue();
+            if (spi_command_allows_read_retry(command, payload_length) &&
+                read_retry == 0u) {
+                read_retry = 1u;
+                wait_ms(TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS);
+                goto retry_request;
+            }
+            rc = TRINITY_BAD_LENGTH;
+            goto failed;
         }
 
         if (g_spi_rsp.command != command ||

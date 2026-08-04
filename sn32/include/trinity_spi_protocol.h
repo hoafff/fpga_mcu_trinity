@@ -130,6 +130,8 @@ trinity_error_code_t trinity_spi_encode(const trinity_spi_packet_t *packet,
 trinity_error_code_t trinity_spi_decode(const uint8_t *input, size_t input_length,
                                          trinity_spi_packet_t *packet);
 int trinity_spi_bad_length_detail_is_short_cs(uint16_t detail);
+int trinity_spi_bad_length_detail_proves_truncation(
+    uint16_t detail, size_t expected_wire_length);
 uint32_t trinity_spi_request_fingerprint(uint8_t command, uint8_t flags,
                                          const uint8_t *payload, uint16_t payload_length);
 trinity_error_code_t trinity_spi_build_poly_chunk(uint8_t slot_id, uint8_t chunk_index,

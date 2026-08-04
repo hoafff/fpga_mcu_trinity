@@ -61,12 +61,12 @@ trinity_error_code_t trinity_controller_probe_all(
     rc = controller_probe_endpoint(controller, &controller->p2);
     if (rc != TRINITY_OK) return rc;
 
+    controller_clear_recovered_transport_error(controller);
     controller->state =
         (controller->p1.session_state == TRINITY_SESSION_SELF_TEST_REQUIRED ||
          controller->p2.session_state == TRINITY_SESSION_SELF_TEST_REQUIRED)
             ? TRINITY_SYSTEM_SELF_TEST_REQUIRED
             : TRINITY_SYSTEM_READY_NO_SESSION;
-    controller->last_error = TRINITY_OK;
     return TRINITY_OK;
 }
 
@@ -78,6 +78,13 @@ trinity_error_code_t trinity_controller_refresh_status(
     if (rc != TRINITY_OK) return rc;
     rc = controller_get_status(controller, &controller->p2);
     if (rc != TRINITY_OK) return rc;
+
+    /*
+     * A complete two-endpoint refresh clears only the active transport error
+     * used by fault_flags. Safety errors remain latched. The deploy layer keeps
+     * g_error as diagnostic history, so user-facing last_error is preserved.
+     */
+    controller_clear_recovered_transport_error(controller);
 
     if (controller->p1.session_state == TRINITY_SESSION_ACTIVE &&
         controller->p2.session_state == TRINITY_SESSION_ACTIVE &&

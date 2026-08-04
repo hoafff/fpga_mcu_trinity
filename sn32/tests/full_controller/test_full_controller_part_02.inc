@@ -45,6 +45,23 @@ int main(void) {
     assert(trinity_controller_ready_mask(&controller) == 0x0Fu);
     assert(controller.state == TRINITY_SYSTEM_SELF_TEST_REQUIRED);
 
+    bus.fail_get_status_target = TRINITY_TARGET_PRIMER1;
+    bus.fail_get_status_count = 1u;
+    assert(trinity_controller_refresh_status(&controller) ==
+           TRINITY_TRANSACTION_CONFLICT);
+    assert(controller.last_error == TRINITY_TRANSACTION_CONFLICT);
+    assert((trinity_controller_fault_mask(&controller) &
+            TRINITY_FAULT_TRANSPORT) != 0u);
+    assert(trinity_controller_refresh_status(&controller) == TRINITY_OK);
+    assert(controller.last_error == TRINITY_OK);
+    assert((trinity_controller_fault_mask(&controller) &
+            TRINITY_FAULT_TRANSPORT) == 0u);
+    assert(trinity_controller_ready_mask(&controller) == 0x0Fu);
+    controller.last_error = TRINITY_BAD_LENGTH;
+    assert((trinity_controller_fault_mask(&controller) &
+            TRINITY_FAULT_TRANSPORT) != 0u);
+    controller.last_error = TRINITY_OK;
+
     assert(trinity_controller_run_self_test(&controller,
         TRINITY_READY_PRIMER1 | TRINITY_READY_PRIMER2,
         0x013Eu, 1000u) == TRINITY_OK);
@@ -98,6 +115,7 @@ int main(void) {
     assert((trinity_controller_fault_mask(&controller) & TRINITY_FAULT_TINY1P5) != 0u);
 
     puts("PASS: delayed retained-result polling does not latch a false controller error");
+    puts("PASS: a complete refresh clears the active transport fault");
     puts("PASS: dual-endpoint probe, retained self-test, staged/committed activation");
     puts("PASS: repeatable Tiny LOW>=2ms to HIGH commit edge and zeroize deassertion");
     puts("PASS: direct P1->P2 telemetry authentication, ACK and pending-result protection");
