@@ -33,8 +33,8 @@ except ImportError:  # pragma: no cover - exercised only on systems without pyse
     serial = None
     list_ports = None
 
-EXPECTED_P1_BUILD_ID = 0x5031D002
-EXPECTED_P2_BUILD_ID = 0x50320001
+EXPECTED_P1_BUILD_ID = 0x5031D003
+EXPECTED_P2_BUILD_ID = 0x50320002
 EXPECTED_SN32_BUILD_ID = 0x00070019
 EXPECTED_SN32_VERSION = (0, 7, 25)
 P1_KAT_TEST_MASK = 0x013E

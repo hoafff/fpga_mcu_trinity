@@ -94,8 +94,8 @@ SN32 -> P1/P2 GET_STATUS final confirmation
 It requires exact build IDs:
 
 ```text
-P1 = 0x5031D002
-P2 = 0x50320001
+P1 = 0x5031D003
+P2 = 0x50320002
 ```
 
 It does not stage or commit a session, drive Tiny, send telemetry, exercise the
@@ -126,8 +126,8 @@ This command requires:
 
 ```text
 SN32 version/build = 0.7.25 / 0x00070019
-P1 build           = 0x5031D002
-P2 build           = 0x50320001
+P1 build           = 0x5031D003
+P2 build           = 0x50320002
 ```
 
 ## Earlier P1-only compatibility flow

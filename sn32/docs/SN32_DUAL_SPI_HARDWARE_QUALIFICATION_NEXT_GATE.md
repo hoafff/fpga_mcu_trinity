@@ -62,8 +62,8 @@ images:
 ```text
 SN32 architecture_version = 0.7.25
 SN32 build_id             = 0x00070019
-Primer #1 build_id        = 0x5031D002
-Primer #2 build_id        = 0x50320001
+Primer #1 build_id        = 0x5031D003
+Primer #2 build_id        = 0x50320002
 ```
 
 ## Build and flash

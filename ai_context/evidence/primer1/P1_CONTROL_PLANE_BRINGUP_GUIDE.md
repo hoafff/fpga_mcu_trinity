@@ -95,7 +95,7 @@ result=PASS
 
 [P1_GET_INFO]
 result=PASS
-primer1_build_id=0x50310001
+primer1_build_id=0x5031D003
 
 [P1_GET_STATUS]
 result=PASS
