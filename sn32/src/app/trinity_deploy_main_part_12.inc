@@ -1,18 +1,15 @@
 static void handle_get_system_info(const trinity_pc_frame_t *req) {
-    trinity_error_code_t rc;
-
     if (!request_length_is(req, 0u)) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_HOST_PROTOCOL, 0u);
         return;
     }
 
-    rc = full_probe_all();
-    if (rc != TRINITY_OK) {
-        response_error(req, rc, g_controller.last_error_source,
-                       (uint16_t)g_controller.last_error_detail);
-        return;
-    }
+    /*
+     * GET_SYSTEM_INFO is local identity telemetry. It must remain available
+     * when startup SPI qualification fails and must not issue hidden probes.
+     * Endpoint build IDs are the latest successfully cached values, or zero.
+     */
     g_pc_rsp.payload_length = 20u;
     g_pc_rsp.payload[0] = TRINITY_PROTOCOL_VERSION;
     g_pc_rsp.payload[1] = TRINITY_DEPLOY_VERSION_MAJOR;
