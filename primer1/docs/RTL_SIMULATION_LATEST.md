@@ -1,8 +1,8 @@
 # Primer #1 RTL simulation evidence — latest main run
 
-- Source commit: `ee6265fc2f9beb587237f7f7730bfc8a439f7cf9`
-- Workflow run: `30890901777`
-- Generated UTC: `2026-08-04T08:11:47.221466+00:00`
+- Source commit: `4cf6c70f9552e111939421108ea2b893b0b778d2`
+- Workflow run: `30890970766`
+- Generated UTC: `2026-08-04T08:12:36.619605+00:00`
 - Verification status: **PASS**
 - Exit code: `0`
 
@@ -122,8 +122,9 @@ PASS ascon_abort_zeroizes_state
 === RUN tb_spi_packet_endpoint ===
 PASS spi_mode0_max_payload_request
 PASS spi_bad_crc_rejected
+PASS spi_bad_length_detail_count9_length0
 PASS spi_response_mailbox_build
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_spi_packet_endpoint.sv:159: $finish called at 57265000 (1ps)
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer1/tb/tb_spi_packet_endpoint.sv:186: $finish called at 64165000 (1ps)
 
 === COMPILE tb_uart_tx_byte ===
 === RUN tb_uart_tx_byte ===
