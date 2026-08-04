@@ -83,13 +83,13 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 16):
-        fail(f"non-recursive PC service image must be v0.7.16, got {version}")
+    if version != (0, 7, 17):
+        fail(f"bounded residue recovery image must be v0.7.17, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("qualification SPI clock divider must remain 59")
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070010)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070011)", "identity")
 
     for token in (
         "static bool g_pc_service_enabled;",
@@ -180,19 +180,38 @@ def main() -> int:
         "spi_trace_rotate_work_slot();",
         "static trinity_error_code_t spi_prepare_request_window(",
         "spi_write_request_bytes(g_spi_request_wire, request_len)",
+        "static bool spi_decoded_is_short_transaction_residue(void)",
+        "static bool spi_command_allows_residue_retry(",
+        "command == TRINITY_SPI_GET_INFO",
+        "command == TRINITY_SPI_GET_STATUS",
+        "unsigned residue_retry = 0u;",
+        "retry_request:",
     ):
-        require(p07, token, "pointer-retained trace")
+        require(p07, token, "bounded residue recovery")
     forbid(p07, "g_spi_first_failure = g_spi_trace",
            "pointer-retained trace")
     forbid(p07, "g_spi_startup_residue = g_spi_trace",
            "pointer-retained trace")
+    forbid(p07, "TRINITY_SPI_RUN_SELF_TEST ||",
+           "residue retry command scope")
+    forbid(p07, "TRINITY_SPI_ZEROIZE ||",
+           "residue retry command scope")
 
     for token in (
         "g_spi_response_wire[0] != TRINITY_SPI_MAGIC",
         "trinity_crc16_ccitt_false(g_spi_response_wire",
         "trinity_spi_decode(g_spi_response_wire",
+        "spi_decoded_is_short_transaction_residue()",
+        "spi_command_allows_residue_retry(command, payload_length)",
+        "residue_retry == 0u",
+        "g_spi_trace.result_code = TRINITY_BAD_LENGTH;",
+        "spi_record_startup_residue();",
+        "residue_retry = 1u;",
+        "goto retry_request;",
     ):
-        require(p08, token, "response validation")
+        require(p08, token, "single read-only residue retry")
+    forbid(p08, "residue_retry++", "bounded residue retry")
+    forbid(p08, "endpoint_exchange(", "non-recursive residue retry")
 
     system_info = section(
         p12,
@@ -268,12 +287,12 @@ def main() -> int:
     ):
         require(p17, token, "main-level startup/periodic service")
 
-    print("PASS: v0.7.16 identity and 100 kHz profile are locked")
-    print("PASS: progress drains UART bytes but cannot execute PC commands")
-    print("PASS: one complete PC frame is deferred to main-level pc_poll")
-    print("PASS: startup warm-up remains responsive without recursive call stacks")
-    print("PASS: retained trace and split SPI transport remain locked")
-    print("NOTE: source PASS does not claim Keil stack report, flash or hardware PASS")
+    print("PASS: v0.7.17 identity and 100 kHz profile are locked")
+    print("PASS: exact CRC-valid short-CS residue is recognized from response bytes")
+    print("PASS: only zero-payload GET_INFO/GET_STATUS may retry once")
+    print("PASS: side-effect commands remain non-replayed")
+    print("PASS: non-recursive PC service and split SPI transport remain locked")
+    print("NOTE: source PASS does not claim Keil build, flash or hardware PASS")
     return 0
 
 
