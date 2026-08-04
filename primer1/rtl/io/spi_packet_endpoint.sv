@@ -101,6 +101,19 @@ module spi_packet_endpoint (
     end
   endfunction
 
+  function automatic logic [15:0] bad_length_detail(
+      input logic [6:0] byte_count
+  );
+    logic length_high_nonzero;
+    logic [7:0] length_low_or_unknown;
+    begin
+      length_high_nonzero = (byte_count > 7'd7) && (rx_mem[6] != 8'h00);
+      length_low_or_unknown = (byte_count > 7'd7) ? rx_mem[7] : 8'hFF;
+      bad_length_detail = {byte_count, length_high_nonzero,
+                           length_low_or_unknown};
+    end
+  endfunction
+
   wire [15:0] parse_crc_next = crc16_update_byte(parse_crc, rx_mem[parse_index]);
   wire [31:0] parse_fingerprint_next = fingerprint_byte_selected(parse_index) ?
       crc32c_update_byte(parse_fingerprint, rx_mem[parse_index]) : parse_fingerprint;
@@ -209,6 +222,7 @@ module spi_packet_endpoint (
           transport_error_command_o <= (transaction_byte_count > 2) ? rx_mem[2] : 8'h00;
           transport_error_txid_o <= (transaction_byte_count > 5) ? {rx_mem[4],rx_mem[5]} : 16'h0000;
           if (transaction_byte_count < 10) begin
+            request_payload_length_o <= bad_length_detail(transaction_byte_count);
             transport_error_code_o <= ERR_BAD_LENGTH;
             transport_error_valid_o <= 1'b1;
             parse_state <= PARSE_IDLE;
@@ -226,6 +240,7 @@ module spi_packet_endpoint (
             parse_state <= PARSE_IDLE;
           end else if ({rx_mem[6],rx_mem[7]} > SPI_MAX_PAYLOAD ||
                        transaction_byte_count != (10 + {rx_mem[6],rx_mem[7]})) begin
+            request_payload_length_o <= bad_length_detail(transaction_byte_count);
             transport_error_code_o <= ERR_BAD_LENGTH;
             transport_error_valid_o <= 1'b1;
             parse_state <= PARSE_IDLE;
