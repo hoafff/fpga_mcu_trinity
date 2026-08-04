@@ -1,8 +1,8 @@
 # Primer #2 RTL simulation evidence — latest main run
 
-- Source commit: `f1af992d184f3db8cf866006cac63a85ab07d72a`
-- Workflow run: `30941966602`
-- Generated UTC: `2026-08-04T19:09:49.378473+00:00`
+- Source commit: `d3c164c394a15741041196817e04e53a0744e830`
+- Workflow run: `30943006797`
+- Generated UTC: `2026-08-04T19:23:11.868311+00:00`
 - Verification status: **FAIL**
 - Exit code: `1`
 
@@ -14,19 +14,8 @@ place-and-route, timing or hardware evidence.
 ```text
 
 ===== REFERENCE_STATIC_AND_RTL =====
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_bad_tag_threshold.sv:210: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_bad_tag_threshold.sv:210: error: Syntax error in task/function port declaration.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_bad_tag_threshold.sv:219: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_bad_tag_threshold.sv:219: error: Malformed statement
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_fault_output.sv:55: syntax error
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_fault_output.sv:61: error: Syntax error in task/function port declaration.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_fault_output.sv:62: error: 'expected' has already been declared in this scope.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_fault_output.sv:54:      : It was declared here as a variable.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_fault_output.sv:62: syntax error
-I give up.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_reset_states.sv:65: error: automatically allocated variables may not be referenced in procedural force statements.
-/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_reset_states.sv:70: error: automatically allocated variables may not be referenced in procedural force statements.
-2 error(s) during elaboration.
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_reset_states.sv:65: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_reset_states.sv:70: vvp.tgt sorry: procedural continuous assignments are not yet fully supported. The RHS of this assignment will only be evaluated once, at the time the assignment statement is executed.
 STATIC RTL CHECK PASS (7 files)
 KAT_CT E6896DFDE9C67FB12505040A2B87C401917A1A93C02CAE64
 KAT_TAG E85FD9296FE784086CC5665283819E4B
@@ -57,8 +46,8 @@ PASS ascon_abort_zeroizes_candidate
 === RUN tb_uart_rx_byte ===
 PASS uart_rx_8n1_byte
 PASS uart_rx_framing_error
-FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_uart_rx_byte.sv:24: abort left UART busy
-       Time: 3415000  Scope: tb_uart_rx_byte
+PASS uart_rx_abort
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_uart_rx_byte.sv:30: $finish called at 2475000 (1ps)
 
 === COMPILE tb_uart_frame_receiver ===
 === RUN tb_uart_frame_receiver ===
@@ -103,27 +92,74 @@ PASS fatal_latch_fault_locked
 /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_primer2_command_core.sv:166: $finish called at 7165000 (1ps)
 
 === COMPILE tb_bad_tag_threshold ===
+=== RUN tb_bad_tag_threshold ===
+PASS three_consecutive_bad_tags_fault_and_zeroize
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_bad_tag_threshold.sv:305: $finish called at 3435000 (1ps)
 
 === COMPILE tb_fault_output ===
+=== RUN tb_fault_output ===
+PASS reset_fault_output_deterministic
+PASS normal_idle_fault_output_clear
+PASS external_fatal_asserts_fault_and_zeroize
+PASS fault_persists_after_external_fatal_removed
+PASS zeroize_does_not_clear_latched_fault
+PASS reset_clears_fault_and_requires_selftest
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_fault_output.sv:119: $finish called at 408000 (1ps)
 
 === COMPILE tb_reset_states ===
+=== RUN tb_reset_states ===
+PASS reset_from_critical_state_1
+PASS reset_from_critical_state_2
+PASS reset_from_critical_state_3
+PASS reset_from_critical_state_4
+PASS reset_from_critical_state_5
+PASS reset_from_critical_state_6
+PASS reset_from_critical_state_7
+PASS reset_from_critical_state_8
+PASS reset_all_critical_states_zeroize_secrets
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_reset_states.sv:206: $finish called at 195000 (1ps)
 
 === COMPILE tb_primer2_top ===
 === RUN tb_primer2_top ===
 PASS top_idle_miso_irq_safety
+PASS top_irq_mailbox_only
 PASS top_heartbeat
-FATAL: /home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_primer2_top.sv:20: fatal did not enter fault locked
-       Time: 1345000  Scope: tb_primer2_top
+PASS top_fatal_fail_closed
+/home/runner/work/fpga_mcu_trinity/fpga_mcu_trinity/primer2/tb/tb_primer2_top.sv:41: $finish called at 1595000 (1ps)
 
-PRIMER2 RTL REGRESSION FAIL
-FAIL tb_uart_rx_byte: simulation
-FAIL tb_bad_tag_threshold: compile
-FAIL tb_fault_output: compile
-FAIL tb_reset_states: compile
-FAIL tb_primer2_top: simulation
+PRIMER2 RTL REGRESSION PASS
 
 ===== DIFF_CHECK =====
 
 ===== P1_GUARD =====
+diff --git a/primer1/tb/tb_primer1_top.sv b/primer1/tb/tb_primer1_top.sv
+index a9a3efa..eadce38 100644
+--- a/primer1/tb/tb_primer1_top.sv
++++ b/primer1/tb/tb_primer1_top.sv
+@@ -44,6 +44,24 @@ module tb_primer1_top;
+       $fatal(1, "top idle outputs mismatch irq=%b uart=%b fault=%b", irq_n, uart_tx, fault);
+     $display("PASS primer1_top_idle_and_miso_high_z");
+ 
++    // Retained/event application state must not masquerade as an unread SPI
++    // mailbox. Only mailbox_pending is allowed to assert transport IRQ_N.
++    force dut.mailbox_pending = 1'b0;
++    force dut.retained_pending = 1'b1;
++    force dut.event_pending = 1'b1;
++    #1;
++    if (irq_n !== 1'b1)
++      $fatal(1, "retained/event state incorrectly asserted IRQ_N");
++    force dut.mailbox_pending = 1'b1;
++    #1;
++    if (irq_n !== 1'b0)
++      $fatal(1, "response mailbox did not assert IRQ_N");
++    release dut.mailbox_pending;
++    release dut.retained_pending;
++    release dut.event_pending;
++    #1;
++    $display("PASS primer1_top_irq_mailbox_only");
++
+     previous_heartbeat = heartbeat;
+     @(negedge clk);
+     dut.u_core.heartbeat_counter = 22'd2699999;
 verification_exit_code=1
 ```
