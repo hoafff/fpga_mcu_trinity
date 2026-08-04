@@ -26,7 +26,7 @@ assert "DEPLOY_BUILD_ID UINT32_C(0x0007001A)" in p00
 assert "g_spi_trace.transfer_direction !=" not in p06
 assert "Transport continuation is determined by the caller's canonical" in p06
 assert "!g_spi_retained_failure" in p17
-assert 'version = "0.3.9"' in host_project
+assert 'version = "0.4.0"' in host_project
 assert "EXPECTED_SN32_BUILD_ID = 0x0007001A" in host_facade
 assert "EXPECTED_SN32_VERSION = (0, 7, 26)" in host_facade
 assert "exec(compile(_impl_source" in host_facade
