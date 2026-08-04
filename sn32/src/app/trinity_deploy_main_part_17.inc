@@ -33,6 +33,12 @@ int main(void) {
         for (;;) __NOP();
     }
 
+    /*
+     * The qualified ESP32 bring-up waits for endpoint startup/scrub completion
+     * before its first control-plane transaction. Do the same here so the
+     * immutable first-failure latch does not record an avoidably early read.
+     */
+    wait_ms(SPI_STARTUP_WARMUP_MS);
     wait_ms(TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS);
     g_spi_trace_context = SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1;
     startup_rc = spi_drain_startup_mailbox(&g_p1);
