@@ -50,6 +50,25 @@ trinity_error_code_t trinity_spi_decode(const uint8_t *input, size_t input_lengt
     return TRINITY_OK;
 }
 
+int trinity_spi_bad_length_detail_is_short_cs(uint16_t detail) {
+    uint8_t byte_count_and_length_high;
+
+    /* Older Primer images reported no detail for the same startup residue. */
+    if (detail == 0u) return 1;
+
+    /*
+     * Diagnostic P1 encodes BAD_LENGTH detail as:
+     *   {transaction_byte_count[6:0], length_high_nonzero,
+     *    length_low_or_0xff}
+     * A transaction shorter than the eight-byte header has no complete length
+     * field, so its low byte is 0xff and length_high_nonzero must be clear.
+     */
+    if ((detail & UINT16_C(0x00FF)) != UINT16_C(0x00FF)) return 0;
+    byte_count_and_length_high = (uint8_t)(detail >> 8);
+    return (byte_count_and_length_high & 1u) == 0u &&
+           (byte_count_and_length_high >> 1) < TRINITY_SPI_HEADER_SIZE;
+}
+
 uint32_t trinity_spi_request_fingerprint(uint8_t command, uint8_t flags,
                                          const uint8_t *payload, uint16_t payload_length) {
     uint32_t crc = 0xFFFFFFFFu;

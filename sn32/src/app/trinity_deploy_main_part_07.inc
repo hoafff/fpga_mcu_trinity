@@ -38,9 +38,11 @@ static void spi_latch_first_failure(void) {
 
 /*
  * A short/empty CS transaction is reported by Primer as an exact, CRC-valid
- * command=0, txid=0 BAD_LENGTH frame. The residue can be observed while a
- * later read-only request is already in flight, so recognition must depend on
- * the response frame itself rather than the request metadata stored in trace.
+ * command=0, txid=0 BAD_LENGTH frame. Older images used detail=0; diagnostic
+ * images encode the captured byte count and use 0xff for an unavailable length
+ * byte. The residue can be observed while a later read-only request is already
+ * in flight, so recognition must depend on the response frame itself rather
+ * than the request metadata stored in trace.
  */
 static bool spi_trace_is_startup_reset_residue(
     const spi_exchange_trace_t *trace) {
@@ -66,7 +68,8 @@ static bool spi_trace_is_startup_reset_residue(
            rsp[6] == 0u && rsp[7] == 6u &&
            rsp[8] == (uint8_t)(TRINITY_BAD_LENGTH >> 8) &&
            rsp[9] == (uint8_t)TRINITY_BAD_LENGTH &&
-           rsp[12] == 0u && rsp[13] == 0u;
+           trinity_spi_bad_length_detail_is_short_cs(
+               trinity_read_be16(&rsp[12]));
 }
 
 static void spi_record_startup_residue(void) {
@@ -85,8 +88,8 @@ static bool spi_decoded_is_short_transaction_residue(void) {
                (TRINITY_FLAG_RESPONSE | TRINITY_FLAG_ERROR) &&
            g_spi_rsp.payload_length == 6u &&
            trinity_read_be16(g_spi_rsp.payload) == TRINITY_BAD_LENGTH &&
-           g_spi_rsp.payload[4] == 0u &&
-           g_spi_rsp.payload[5] == 0u;
+           trinity_spi_bad_length_detail_is_short_cs(
+               trinity_read_be16(&g_spi_rsp.payload[4]));
 }
 
 static bool spi_command_allows_residue_retry(uint8_t command,

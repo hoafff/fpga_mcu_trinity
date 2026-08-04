@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 18u
+#define TRINITY_DEPLOY_VERSION_PATCH 19u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -32,9 +32,10 @@
 #define TRINITY_DEPLOY_SPI_TIMEOUT_MS            100u
 #define TRINITY_DEPLOY_ENDPOINT_PROBE_MS         2000u
 /* P1 diagnostic D002 returned fields matching the request after its first six
- * bits were removed. At 100 kHz that is 60 us. v0.7.18 therefore expands the
- * existing CS guard to 200 us before and after every transaction. Applying the
- * same diagnostic guard to P2 avoids a target-dependent transport code path;
+ * bits were removed. At 100 kHz that is 60 us. v0.7.18 expanded the existing
+ * CS guard to 200 us before and after every transaction; v0.7.19 retains that
+ * proven diagnostic timing while fixing short-CS residue classification.
+ * Applying the same guard to P2 avoids a target-dependent transport code path;
  * it does not change packet bytes, SPI mode or clock rate. */
 #define TRINITY_DEPLOY_SPI_CS_GUARD_US            200u
 #define TRINITY_DEPLOY_P1_CS_SETUP_US              200u

@@ -44,6 +44,30 @@ static void test_spi_roundtrip(void) {
     assert(memcmp(out.payload, in.payload, 66u) == 0);
 }
 
+static void test_short_cs_startup_residue(void) {
+    static const uint8_t frame[] = {
+        0xA5u, 0x01u, 0x00u, 0x03u, 0x00u, 0x00u, 0x00u, 0x06u,
+        0x01u, 0x03u, 0x01u, 0x00u, 0x00u, 0xFFu, 0xBAu, 0x95u,
+    };
+    trinity_spi_packet_t packet = {0};
+
+    assert(sizeof(frame) == 16u);
+    assert(trinity_crc16_ccitt_false(frame, sizeof(frame) - 2u) == 0xBA95u);
+    assert(trinity_spi_decode(frame, sizeof(frame), &packet) == TRINITY_OK);
+    assert(packet.command == 0u);
+    assert(packet.transaction_id == 0u);
+    assert(packet.flags == (TRINITY_FLAG_RESPONSE | TRINITY_FLAG_ERROR));
+    assert(packet.payload_length == 6u);
+    assert(trinity_read_be16(packet.payload) == TRINITY_BAD_LENGTH);
+    assert(trinity_spi_bad_length_detail_is_short_cs(
+        trinity_read_be16(&packet.payload[4])));
+
+    assert(trinity_spi_bad_length_detail_is_short_cs(0x0000u));
+    assert(trinity_spi_bad_length_detail_is_short_cs(0x0EFFu));
+    assert(!trinity_spi_bad_length_detail_is_short_cs(0x0100u));
+    assert(!trinity_spi_bad_length_detail_is_short_cs(0x10FFu));
+}
+
 static void test_poly_chunk_and_fingerprint(void) {
     uint8_t data[64] = {0}, payload[66];
     uint32_t a, b, c;
@@ -61,6 +85,7 @@ int main(void) {
     test_crc();
     test_pc_roundtrip();
     test_spi_roundtrip();
+    test_short_cs_startup_residue();
     test_poly_chunk_and_fingerprint();
     puts("PASS: Trinity portable protocol tests");
     return 0;
