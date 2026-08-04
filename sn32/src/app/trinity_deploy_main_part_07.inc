@@ -138,9 +138,9 @@ static bool spi_response_read_retryable(const endpoint_t *ep,
 }
 
 /*
- * A short or corrupted first read does not consume the Primer mailbox. Because
- * CS rising resets the FPGA transmit index while IRQ remains active, retry the
- * same pending response under a fresh CS instead of issuing another request.
+ * A short or corrupted first read does not consume the Primer mailbox.
+ * retry the same pending response under a fresh CS instead of issuing another
+ * request because CS rising resets the FPGA transmit index while IRQ is active.
  */
 static trinity_error_code_t spi_capture_response(endpoint_t *ep,
                                                   size_t *response_len) {
