@@ -23,6 +23,7 @@ CONTROLLER03 = ROOT / "sn32/src/app/trinity_full_controller_part_03.inc"
 PC_CONSTANTS = ROOT / "pc_host/src/trinity_host/protocol/constants.py"
 CLIENT = ROOT / "pc_host/src/trinity_host/serial_client.py"
 CLI = ROOT / "pc_host/src/trinity_host/cli.py"
+FIRST_FAILURE_TEST = ROOT / "pc_host/tests/test_spi_first_failure.py"
 REGISTRY = ROOT / "ai_context/interfaces/PROTOCOL_REGISTRY_v0.1.json"
 GATE_DOC = ROOT / "sn32/docs/SN32_DUAL_SPI_HARDWARE_QUALIFICATION_NEXT_GATE.md"
 EVIDENCE = ROOT / "sn32/hardware/dual_spi_control_plane/evidence/run_manifest_TEMPLATE.txt"
@@ -85,6 +86,7 @@ def main() -> int:
     constants = read(PC_CONSTANTS)
     client = read(CLIENT)
     cli = read(CLI)
+    first_failure_test = read(FIRST_FAILURE_TEST)
     gate_doc = read(GATE_DOC)
     evidence = read(EVIDENCE)
     registry = json.loads(read(REGISTRY))
@@ -94,35 +96,39 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 10):
-        fail(f"byte-FIFO image must be v0.7.10, got {version}")
+    if version != (0, 7, 11):
+        fail(f"raw-telemetry image must be v0.7.11, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("qualification SPI clock must remain 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
         fail("12 MHz qualification clock must use CLKDIV=59")
 
-    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x0007000A)", "identity")
+    require(p00, "#define DEPLOY_BUILD_ID UINT32_C(0x0007000B)", "identity")
     require(p00, "SPI qualification clock and CLKDIV disagree", "clock lock")
 
     for token in (
         "SPI_RESPONSE_SETTLE_MS = 15u",
         "SPI_STARTUP_WARMUP_MS = 2000u",
+        "SPI_RESPONSE_SAMPLE_MAX = 8u",
+        "uint32_t spi_ctrl0;",
+        "uint32_t spi_ctrl1;",
+        "uint32_t spi_clkdiv;",
+        "uint32_t spi_fifo_th;",
+        "response_status_before_read[SPI_RESPONSE_SAMPLE_MAX]",
+        "response_data_words[SPI_RESPONSE_SAMPLE_MAX]",
+        "response_status_after_read[SPI_RESPONSE_SAMPLE_MAX]",
         "g_spi_first_failure",
-        "g_spi_startup_residue",
     ):
-        require(p01, token, "timing/telemetry")
+        require(p01, token, "trace storage")
 
     for token in (
         "SN_SPI0->CTRL0_b.DL = 7u;",
         "SN_SPI0->FIFO_TH = (1u << 31);",
-        "16 x 8-bit FIFO organization",
         "SN_SPI0->CLKDIV_b.DIV = TRINITY_DEPLOY_SPI_CLKDIV;",
         "SN_SPI0->CTRL1 = 0u;",
         "SN_SPI0->CTRL0_b.SPIEN = 1u;",
     ):
         require(p05, token, "SPI init")
-    forbid(p05, "SN_SPI0->FIFO_TH = 0u;", "SPI init")
-    forbid(p05, "Keep the optional threshold extension disabled", "SPI init")
 
     reset_idle = section(
         p06,
@@ -148,10 +154,24 @@ def main() -> int:
         transfer.find("SN_SPI0->DATA ="),
         transfer.find("while ((SN_SPI0->STAT & SPI_BUSY)"),
         transfer.find("while ((SN_SPI0->STAT & SPI_RX_EMPTY)"),
-        transfer.find("SN_SPI0->DATA & UINT32_C(0xFF)"),
+        transfer.find("status_before_read = SN_SPI0->STAT;"),
+        transfer.find("data_word = SN_SPI0->DATA;"),
+        transfer.find("status_after_read = SN_SPI0->STAT;"),
+        transfer.find("value = (uint8_t)(data_word & UINT32_C(0xFF));"),
     ]
     if min(order) < 0 or order != sorted(order):
-        fail("SPI byte order must be TX -> BUSY clear -> RX ready -> DATA[7:0]")
+        fail("SPI telemetry order must be TX -> complete -> RX ready -> STAT/DATA/STAT")
+    for token in (
+        "g_spi_trace.spi_ctrl0 = SN_SPI0->CTRL0;",
+        "g_spi_trace.spi_ctrl1 = SN_SPI0->CTRL1;",
+        "g_spi_trace.spi_clkdiv = SN_SPI0->CLKDIV;",
+        "g_spi_trace.spi_fifo_th = SN_SPI0->FIFO_TH;",
+        "trace_index < SPI_RESPONSE_SAMPLE_MAX",
+        "response_status_before_read[trace_index]",
+        "response_data_words[trace_index]",
+        "response_status_after_read[trace_index]",
+    ):
+        require(transfer, token, "raw response telemetry")
 
     capture = section(
         p07,
@@ -164,7 +184,6 @@ def main() -> int:
     if capture.count("spi_bytes_segment(") != 2:
         fail("response capture must contain header and declared remainder")
     require(capture, "frame_len - TRINITY_SPI_HEADER_SIZE", "response capture")
-    require(capture, "g_spi_trace.response_capture_length", "response telemetry")
 
     retry = section(
         p07,
@@ -176,7 +195,6 @@ def main() -> int:
     require(retry, "spi_capture_response_once(ep, response_len)", "mailbox retry")
     forbid(retry, "spi_prime_pending_startup_get_info", "mailbox retry")
     forbid(p07, "spi_bytes(NULL, NULL, 10u)", "disproven startup prime")
-    forbid(retry, "trinity_spi_encode", "response-only recovery")
 
     for token in (
         "response_crc_received",
@@ -204,12 +222,78 @@ def main() -> int:
         forbid(system_info, token, "side-effect-free system info")
 
     for token in (
+        "trace->spi_ctrl0",
+        "trace->spi_ctrl1",
+        "trace->spi_clkdiv",
+        "trace->spi_fifo_th",
+        "trace->response_sample_count",
+        "trace->response_status_before_read[i]",
+        "trace->response_data_words[i]",
+        "trace->response_status_after_read[i]",
+        "max_samples",
+    ):
+        require(p14, token, "first-failure serializer")
+    require(p15, "case TRINITY_PC_SPI_DIAGNOSTIC:", "PC dispatch")
+    require(p15, "case TRINITY_PC_GET_FIRST_SPI_FAILURE:", "PC dispatch")
+
+    for token in (
+        '"spi_ctrl0"',
+        '"spi_ctrl1"',
+        '"spi_clkdiv"',
+        '"spi_fifo_th"',
+        '"response_sample_count"',
+        '"response_status_before_read"',
+        '"response_data_words"',
+        '"response_status_after_read"',
+        "if len(extension) == 12:",
+    ):
+        require(cli, token, "PC telemetry decoder")
+    require(first_failure_test, "test_extended_register_telemetry_is_decoded", "PC regression")
+
+    require(constants, "SPI_DIAGNOSTIC = 0x7", "PC constants")
+    require(constants, "GET_FIRST_SPI_FAILURE = 0x8", "PC constants")
+    require(client, "class SpiDiagnosticTrace", "PC decoder")
+    if registry["pc"]["commands"].get("SPI_DIAGNOSTIC") != 7:
+        fail("registry SPI_DIAGNOSTIC must remain 7")
+    if registry["pc"]["commands"].get("GET_FIRST_SPI_FAILURE") != 8:
+        fail("registry GET_FIRST_SPI_FAILURE must remain 8")
+
+    for token in (
+        "architecture_version = 0.7.11",
+        "sn32_build_id         = 0x0007000B",
+        "full 32-bit DATA register value",
+        "No further transport behavior may be changed",
+        "Do not run `spi-diag`",
+        "full_system_hardware_qualified:            false",
+    ):
+        require(gate_doc, token, "dual-SPI gate")
+
+    for token in (
+        'implementation_status = "V0_7_11_RAW_SPI_DATA_WORD_TELEMETRY_SOURCE_READY"',
+        'qualification_build_id = "0x0007000B"',
+        'qualification_architecture_version = "0.7.11"',
+        'qualification_first_failure_telemetry = "TRANSFER_METADATA_PLUS_CTRL0_CTRL1_CLKDIV_FIFO_TH_AND_FIRST_8_RESPONSE_DATA_WORDS_WITH_STATUS_BEFORE_AFTER_READ"',
+        'deploy_translation_unit_compile = "PENDING_CI_FOR_V0_7_11"',
+    ):
+        require(target, token, "target metadata")
+
+    for token in (
+        "sn32_architecture_version: 0.7.11",
+        "sn32_build_id: 0x0007000B",
+        "full_32bit_data_register_captured:",
+        "response_status_before_read:",
+        "response_data_words:",
+        "response_status_after_read:",
+        "full_system_hardware_qualified: false",
+    ):
+        require(evidence, token, "evidence template")
+
+    for token in (
         "SPI_STARTUP_WARMUP_MS",
         "SPI_TRACE_CONTEXT_STARTUP_PROBE",
         "!g_spi_first_failure.valid",
     ):
         require(p17, token, "startup policy")
-
     for token in (
         "Probe fail-fast",
         "controller_probe_endpoint(controller, &controller->p1)",
@@ -218,63 +302,10 @@ def main() -> int:
     ):
         require(controller03, token, "fail-fast discovery")
 
-    for token in (
-        "handle_spi_diagnostic",
-        "handle_get_first_spi_failure",
-        "serialize_spi_trace",
-        "trace->spi_status",
-    ):
-        require(p14, token, "diagnostic handlers")
-    require(p15, "case TRINITY_PC_SPI_DIAGNOSTIC:", "PC dispatch")
-    require(p15, "case TRINITY_PC_GET_FIRST_SPI_FAILURE:", "PC dispatch")
-
-    require(constants, "SPI_DIAGNOSTIC = 0x7", "PC constants")
-    require(constants, "GET_FIRST_SPI_FAILURE = 0x8", "PC constants")
-    require(client, "class SpiDiagnosticTrace", "PC decoder")
-    require(client, "def spi_diagnostic(", "PC decoder")
-    require(cli, '"spi-first-failure"', "PC CLI")
-
-    if registry["pc"]["commands"].get("SPI_DIAGNOSTIC") != 7:
-        fail("registry SPI_DIAGNOSTIC must remain 7")
-    if registry["pc"]["commands"].get("GET_FIRST_SPI_FAILURE") != 8:
-        fail("registry GET_FIRST_SPI_FAILURE must remain 8")
-
-    for token in (
-        "architecture_version = 0.7.10",
-        "sn32_build_id         = 0x0007000A",
-        "FIFO_TH.NEW_TH_EN = 1",
-        "16 x 8-bit",
-        "remove disproven startup mailbox prime",
-        "system-info remains local and side-effect free",
-        "full_system_hardware_qualified:            false",
-    ):
-        require(gate_doc, token, "dual-SPI gate")
-
-    for token in (
-        'implementation_status = "V0_7_10_16X8_SPI_FIFO_SOURCE_READY"',
-        'qualification_build_id = "0x0007000A"',
-        'qualification_architecture_version = "0.7.10"',
-        'qualification_fifo_organization = "NEW_TH_EN_1_16X8_BYTE_FIFO"',
-        'qualification_startup_prime = "REMOVED_DISPROVEN_BY_V0_7_9_HARDWARE"',
-        'deploy_translation_unit_compile = "PENDING_CI_FOR_V0_7_10"',
-    ):
-        require(target, token, "target metadata")
-
-    for token in (
-        "sn32_architecture_version: 0.7.10",
-        "sn32_build_id: 0x0007000A",
-        "spi_fifo_organization: 16_X_8_BIT",
-        "new_th_en_16x8_fifo_enabled:",
-        "startup_mailbox_prime_removed:",
-        "v0_7_10_exact_keil_rebuild:",
-        "full_system_hardware_qualified: false",
-    ):
-        require(evidence, token, "evidence template")
-
-    print("PASS: v0.7.10 identity and 100 kHz profile are locked")
-    print("PASS: NEW_TH_EN selects the 16 x 8-bit FIFO for byte traffic")
-    print("PASS: disproven startup mailbox priming is absent")
-    print("PASS: reset, exact-frame capture, retry and diagnostics remain locked")
+    print("PASS: v0.7.11 identity and 100 kHz measurement profile are locked")
+    print("PASS: full DATA words and STAT-before/after samples are retained")
+    print("PASS: runtime CTRL0/CTRL1/CLKDIV/FIFO_TH readback is serialized")
+    print("PASS: transport behavior remains unchanged while root cause is measured")
     print("NOTE: static PASS does not claim Keil build, flash or hardware PASS")
     return 0
 
