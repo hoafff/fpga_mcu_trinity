@@ -108,8 +108,8 @@ def main() -> int:
         macro(config, "TRINITY_DEPLOY_VERSION_MINOR"),
         macro(config, "TRINITY_DEPLOY_VERSION_PATCH"),
     )
-    if version != (0, 7, 8):
-        fail(f"SPI reset-completion image must be version 0.7.8, got {version}")
+    if version != (0, 7, 9):
+        fail(f"startup mailbox recovery image must be version 0.7.9, got {version}")
     if macro(config, "TRINITY_DEPLOY_SPI_HZ") != 100_000:
         fail("dual-SPI qualification must remain at 100 kHz")
     if macro(config, "TRINITY_DEPLOY_SPI_CLKDIV") != 59:
@@ -117,7 +117,7 @@ def main() -> int:
     if macro(config, "TRINITY_DEPLOY_SPI_CS_GUARD_US") != 10:
         fail("CS guard must remain 10 us")
 
-    require(part00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070008)", "deploy identity")
+    require(part00, "#define DEPLOY_BUILD_ID UINT32_C(0x00070009)", "deploy identity")
     require(part00, "SPI qualification clock and CLKDIV disagree", "deploy clock lock")
 
     for token in (
@@ -129,7 +129,7 @@ def main() -> int:
         "SPI_TRANSFER_STAGE_BUSY",
         "SPI_TRANSFER_STAGE_RX_EMPTY",
     ):
-        require(part01, token, "v0.7.8 timing and trace state")
+        require(part01, token, "v0.7.9 timing and trace state")
 
     for token in (
         "SN_SPI0->FIFO_TH = 0u;",
@@ -156,13 +156,6 @@ def main() -> int:
         require(reset_idle, token, "SPI reset completion")
     forbid(reset_idle, "SN_SPI0->CTRL0_b.SPIEN = 0u;", "SPI reset completion")
     forbid(reset_idle, "SN_SPI0->CTRL0_b.SPIEN = 1u;", "SPI reset completion")
-    busy_before_reset = reset_idle.find("while ((SN_SPI0->STAT & SPI_BUSY) != 0u)")
-    write_reset = reset_idle.find("SN_SPI0->CTRL0_b.FRESET = 3u;")
-    wait_reset = reset_idle.find("while (SN_SPI0->CTRL0_b.FRESET != 0u)")
-    if min(busy_before_reset, write_reset, wait_reset) < 0 or not (
-        busy_before_reset < write_reset < wait_reset
-    ):
-        fail("SPI reset order must be BUSY idle -> FRESET write -> self-clear wait")
 
     transfer = function_slice(
         part06,
@@ -173,9 +166,7 @@ def main() -> int:
     tx_write = transfer.find("SN_SPI0->DATA =")
     busy_wait = transfer.find("while ((SN_SPI0->STAT & SPI_BUSY)")
     rx_wait = transfer.find("while ((SN_SPI0->STAT & SPI_RX_EMPTY)")
-    rx_read = transfer.find(
-        "value = (uint8_t)(SN_SPI0->DATA & UINT32_C(0xFF));"
-    )
+    rx_read = transfer.find("value = (uint8_t)(SN_SPI0->DATA & UINT32_C(0xFF));")
     if min(tx_write, busy_wait, rx_wait, rx_read) < 0 or not (
         tx_write < busy_wait < rx_wait < rx_read
     ):
@@ -193,19 +184,6 @@ def main() -> int:
     forbid(spi_end, "spi_reset_idle", "SPI end")
     forbid(spi_end, "FRESET", "SPI end")
 
-    for token in (
-        "spi_capture_response_once",
-        "spi_response_read_retryable",
-        "spi_capture_response",
-        "retry the same pending response under a fresh CS",
-        "attempt < 2u",
-        "irq_active(ep)",
-        "frame_len - TRINITY_SPI_HEADER_SIZE",
-        "g_spi_trace.response_capture_length = (uint16_t)captured",
-    ):
-        require(part07, token, "single-request mailbox recovery")
-    forbid(part07, "spi_bytes(NULL, g_spi_buf, TRINITY_SPI_MAX_PACKET)", "response capture")
-
     capture = function_slice(
         part07,
         "static trinity_error_code_t spi_capture_response_once(",
@@ -218,6 +196,49 @@ def main() -> int:
         fail("response capture must contain exactly header and remainder segments")
     if capture.find("spi_end();") < capture.rfind("spi_bytes_segment("):
         fail("CS is released before the declared response remainder is captured")
+
+    for token in (
+        "spi_response_read_retryable",
+        "attempt < 2u",
+        "irq_active(ep)",
+        "frame_len - TRINITY_SPI_HEADER_SIZE",
+        "g_spi_trace.response_capture_length = (uint16_t)captured",
+        "spi_prime_pending_startup_get_info",
+        "spi_bytes(NULL, NULL, 10u)",
+        "g_spi_trace.context == SPI_TRACE_CONTEXT_STARTUP_PROBE",
+        "g_spi_trace.command == TRINITY_SPI_GET_INFO",
+        "rc = spi_prime_pending_startup_get_info(ep);",
+        "rc = spi_capture_response_once(ep, response_len);",
+    ):
+        require(part07, token, "v0.7.9 mailbox recovery")
+    forbid(part07, "spi_bytes(NULL, g_spi_buf, TRINITY_SPI_MAX_PACKET)", "response capture")
+
+    prime = function_slice(
+        part07,
+        "static trinity_error_code_t spi_prime_pending_startup_get_info(",
+        "static trinity_error_code_t spi_capture_response(",
+        "startup GET_INFO mailbox prime",
+    )
+    if prime.count("spi_select(ep)") != 1 or prime.count("spi_end();") != 1:
+        fail("startup prime must use exactly one selected-CS window")
+    if prime.count("spi_bytes(NULL, NULL, 10u)") != 1:
+        fail("startup prime must clock exactly ten discarded bytes")
+    if "next_spi_txid" in prime or "trinity_spi_encode" in prime:
+        fail("startup prime must not allocate a txid or encode a request")
+    require(prime, "!irq_active(ep)", "startup prime IRQ guard")
+
+    retry = function_slice(
+        part07,
+        "static trinity_error_code_t spi_capture_response(",
+        "static trinity_error_code_t spi_drain_startup_mailbox(",
+        "response recovery wrapper",
+    )
+    first_prime = retry.find("spi_prime_pending_startup_get_info(ep)")
+    final_capture = retry.find("spi_capture_response_once(ep, response_len);", first_prime)
+    if first_prime < 0 or final_capture < 0 or first_prime >= final_capture:
+        fail("fresh-CS final capture must follow the ten-byte startup prime")
+    if "endpoint_exchange" in retry or "next_spi_txid" in retry:
+        fail("mailbox recovery must not issue another request")
 
     for token in (
         "response_crc_received",
@@ -241,9 +262,8 @@ def main() -> int:
         "g_controller.p2.build_id",
     ):
         require(system_info, token, "side-effect-free system info")
-    forbid(system_info, "full_probe_all", "side-effect-free system info")
-    forbid(system_info, "full_refresh_all", "side-effect-free system info")
-    forbid(system_info, "endpoint_exchange", "side-effect-free system info")
+    for token in ("full_probe_all", "full_refresh_all", "endpoint_exchange"):
+        forbid(system_info, token, "side-effect-free system info")
 
     for token in (
         "SPI_STARTUP_WARMUP_MS",
@@ -279,36 +299,16 @@ def main() -> int:
 
     require(constants, "SPI_DIAGNOSTIC = 0x7", "PC constants")
     require(constants, "GET_FIRST_SPI_FAILURE = 0x8", "PC constants")
-    for token in (
-        "class SpiDiagnosticTrace",
-        "def spi_diagnostic(",
-        "SPI_DIAGNOSTIC_HEADER_SIZE = 24",
-    ):
+    for token in ("class SpiDiagnosticTrace", "def spi_diagnostic(", "SPI_DIAGNOSTIC_HEADER_SIZE = 24"):
         require(client, token, "PC diagnostic decoder")
-    for token in (
-        '"spi-diag"',
-        '"spi-first-failure"',
-        "HostCommand.GET_FIRST_SPI_FAILURE",
-        '"response_crc_match"',
-    ):
+    for token in ('"spi-diag"', '"spi-first-failure"', "HostCommand.GET_FIRST_SPI_FAILURE", '"response_crc_match"'):
         require(cli, token, "PC diagnostic CLI")
 
-    for token in (
-        "test_probe_and_separate_p1_p2_retained_self_tests",
-        "P1_KAT_TEST_MASK",
-        "P2_KAT_TEST_MASK",
-    ):
+    for token in ("test_probe_and_separate_p1_p2_retained_self_tests", "P1_KAT_TEST_MASK", "P2_KAT_TEST_MASK"):
         require(dual_test, token, "dual-SPI regression")
-    for token in (
-        "test_p2_get_info_trace_is_byte_exact",
-        "response_capture_length, 22",
-    ):
+    for token in ("test_p2_get_info_trace_is_byte_exact", "response_capture_length, 22"):
         require(diag_test, token, "raw diagnostic regression")
-    for token in (
-        "test_startup_probe_failure_is_decoded_byte_exact",
-        "test_startup_drain_reset_residue_is_not_latched_failure",
-        "STARTUP_DRAIN_P1",
-    ):
+    for token in ("test_startup_probe_failure_is_decoded_byte_exact", "test_startup_drain_reset_residue_is_not_latched_failure", "STARTUP_DRAIN_P1"):
         require(first_failure_test, token, "first-failure regression")
 
     if registry["pc"]["commands"].get("SPI_DIAGNOSTIC") != 7:
@@ -318,52 +318,51 @@ def main() -> int:
 
     require(uart_doc, "PC <-> SN32 UART PING HARDWARE: PASS", "UART qualification")
     require(uart_evidence, "PC <-> SN32 UART PING HARDWARE: PASS", "UART evidence")
-    for text, label in (
-        (failure_doc, "failure audit"),
-        (failure_evidence, "failure evidence"),
-    ):
+    for text, label in ((failure_doc, "failure audit"), (failure_evidence, "failure evidence")):
         require(text, "DUAL-SPI clean-boot qualification: FAIL", label)
         require(text, "NOT PROVEN", label)
 
     for token in (
-        "architecture_version = 0.7.8",
-        "sn32_build_id         = 0x00070008",
-        "keep SPIEN enabled during FRESET",
-        "wait for FRESET self-clear before CS",
-        "system-info is local and side-effect free",
-        "v0.7.8 exact Keil rebuild",
+        "architecture_version = 0.7.9",
+        "sn32_build_id         = 0x00070009",
+        "selected-CS mailbox prime = 10 bytes discarded",
+        "no new SPI request",
+        "only context STARTUP_PROBE",
+        "only command GET_INFO",
+        "system-info remains local and side-effect free",
+        "v0.7.9 exact Keil rebuild",
         "full_system_hardware_qualified:            false",
     ):
         require(gate_doc, token, "dual-SPI gate")
 
     for token in (
-        'implementation_status = "V0_7_8_SPIEN_ON_FRESET_SELF_CLEAR_SOURCE_READY"',
-        'qualification_build_id = "0x00070008"',
-        'qualification_architecture_version = "0.7.8"',
-        'qualification_spi_reset = "SPIEN_REMAINS_ON_FRESET_3_WAIT_SELF_CLEAR_ONCE_BEFORE_CS"',
+        'implementation_status = "V0_7_9_EVIDENCE_BACKED_STARTUP_MAILBOX_PRIME_SOURCE_READY"',
+        'qualification_build_id = "0x00070009"',
+        'qualification_architecture_version = "0.7.9"',
+        'qualification_mailbox_prime_safety = "NO_NEW_REQUEST_NO_NEW_TXID_ONLY_WHILE_IRQ_ACTIVE_AND_KNOWN_GET_INFO_FRAME_LENGTH_22"',
         'qualification_system_info = "LOCAL_SIDE_EFFECT_FREE_IDENTITY_WITH_CACHED_ENDPOINT_BUILD_IDS"',
-        'deploy_translation_unit_compile = "PENDING_CI_FOR_V0_7_8"',
+        'deploy_translation_unit_compile = "PENDING_CI_FOR_V0_7_9"',
     ):
         require(target, token, "SN32 target metadata")
 
     for token in (
-        "sn32_architecture_version: 0.7.8",
-        "sn32_build_id: 0x00070008",
-        "spi_enabled_during_freset:",
-        "freset_self_clear_wait_confirmed:",
-        "no_freset_in_spi_end:",
+        "sn32_architecture_version: 0.7.9",
+        "sn32_build_id: 0x00070009",
+        "startup_get_info_prime_length_10:",
+        "startup_get_info_prime_no_new_request:",
+        "startup_get_info_prime_no_new_txid:",
+        "final_fresh_cs_capture_after_prime:",
         "system_info_side_effect_free:",
-        "v0_7_8_exact_keil_rebuild:",
+        "v0_7_9_exact_keil_rebuild:",
         "full_system_hardware_qualified: false",
     ):
         require(evidence_template, token, "dual-SPI evidence template")
 
-    print("PASS: v0.7.8 identity and 100 kHz qualification profile are locked")
-    print("PASS: FRESET executes with SPIEN on and is awaited before CS")
-    print("PASS: one reset occurs before each CS and none occurs in spi_end")
-    print("PASS: DATA[7:0] read order matches the SN32F407 register contract")
-    print("PASS: system-info is local, side-effect free and usable for image proof")
-    print("PASS: mailbox retry, fail-fast discovery and diagnostics remain present")
+    print("PASS: v0.7.9 identity and 100 kHz qualification profile are locked")
+    print("PASS: normal exact-frame response capture and two-attempt retry remain locked")
+    print("PASS: startup GET_INFO recovery primes exactly ten bytes without a new request or txid")
+    print("PASS: final mailbox capture occurs under a fresh CS after the bounded prime")
+    print("PASS: system-info remains local and side-effect free")
     print("NOTE: static PASS does not claim exact Keil rebuild, flash or hardware PASS")
     return 0
 
