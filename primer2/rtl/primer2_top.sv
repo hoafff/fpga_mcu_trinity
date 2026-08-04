@@ -67,10 +67,17 @@ module primer2_top #(
   logic [2:0] operation_state, rx_state;
 
   assign spi_miso_o = spi_cs_ni ? 1'bz : spi_miso_bit;
-  always_comb begin
-    irq_no = ~(mailbox_pending | retained_pending |
-               authenticated_pending | event_pending);
-  end
+
+  /*
+   * IRQ_N is asserted only while a complete SPI response mailbox can be read.
+   * Retained side-effect and authenticated payload buffers are persistent state,
+   * exposed through GET_STATUS and explicit query/read commands; they must not
+   * hold IRQ_N low after the response mailbox is consumed because the master
+   * must remain able to issue GET_TXN_RESULT, RETIRE_TXN_RESULT,
+   * READ_AUTH_RESULT and ACK_AUTH_RESULT.
+   */
+  always_comb irq_no = ~mailbox_pending;
+
   assign receiver_abort = !zeroize_sync | fatal_sync |
                           (session_state == 4'd7) | (session_state == 4'd8);
 
