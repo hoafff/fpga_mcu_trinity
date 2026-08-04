@@ -118,6 +118,10 @@ static void handle_spi_diagnostic(const trinity_pc_frame_t *req) {
 static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
     const spi_exchange_trace_t *trace = NULL;
     uint16_t payload_length;
+    uint16_t sample_offset;
+    uint16_t max_samples;
+    uint8_t sample_count;
+    unsigned i;
     if (!request_length_is(req, 0u)) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_HOST_PROTOCOL, 0u);
@@ -141,11 +145,12 @@ static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
         return;
     }
     if (!serialize_spi_trace(trace, 2u, &payload_length) ||
-        (uint32_t)payload_length + 12u > TRINITY_PC_MAX_PAYLOAD) {
+        (uint32_t)payload_length + 32u > TRINITY_PC_MAX_PAYLOAD) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_SN32, trace->target_txid);
         return;
     }
+
     g_pc_rsp.payload[payload_length + 0u] = trace->transfer_stage;
     g_pc_rsp.payload[payload_length + 1u] = trace->transfer_direction;
     trinity_write_be16(&g_pc_rsp.payload[payload_length + 2u],
@@ -156,6 +161,37 @@ static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
                        trace->transfer_completed);
     trinity_write_be32(&g_pc_rsp.payload[payload_length + 8u],
                        trace->spi_status);
-    g_pc_rsp.payload_length = (uint16_t)(payload_length + 12u);
+    trinity_write_be32(&g_pc_rsp.payload[payload_length + 12u],
+                       trace->spi_ctrl0);
+    trinity_write_be32(&g_pc_rsp.payload[payload_length + 16u],
+                       trace->spi_ctrl1);
+    trinity_write_be32(&g_pc_rsp.payload[payload_length + 20u],
+                       trace->spi_clkdiv);
+    trinity_write_be32(&g_pc_rsp.payload[payload_length + 24u],
+                       trace->spi_fifo_th);
+
+    max_samples = (uint16_t)((TRINITY_PC_MAX_PAYLOAD -
+                              (payload_length + 32u)) / 12u);
+    sample_count = trace->response_sample_count;
+    if (sample_count > SPI_RESPONSE_SAMPLE_MAX)
+        sample_count = SPI_RESPONSE_SAMPLE_MAX;
+    if (sample_count > max_samples)
+        sample_count = (uint8_t)max_samples;
+    g_pc_rsp.payload[payload_length + 28u] = sample_count;
+    g_pc_rsp.payload[payload_length + 29u] = 0u;
+    g_pc_rsp.payload[payload_length + 30u] = 0u;
+    g_pc_rsp.payload[payload_length + 31u] = 0u;
+
+    sample_offset = (uint16_t)(payload_length + 32u);
+    for (i = 0u; i < sample_count; ++i) {
+        trinity_write_be32(&g_pc_rsp.payload[sample_offset + 0u],
+                           trace->response_status_before_read[i]);
+        trinity_write_be32(&g_pc_rsp.payload[sample_offset + 4u],
+                           trace->response_data_words[i]);
+        trinity_write_be32(&g_pc_rsp.payload[sample_offset + 8u],
+                           trace->response_status_after_read[i]);
+        sample_offset = (uint16_t)(sample_offset + 12u);
+    }
+    g_pc_rsp.payload_length = sample_offset;
     (void)response_send();
 }
