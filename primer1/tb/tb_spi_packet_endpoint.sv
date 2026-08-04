@@ -107,6 +107,30 @@ module tb_spi_packet_endpoint;
     end
   endtask
 
+  task automatic send_packet_tight_final_edge;
+    integer bit_index;
+    begin
+      cs_n = 0;
+      repeat (5) @(posedge clk);
+      for (index = 0; index < packet_length - 1; index = index + 1)
+        shift_byte(packet[index]);
+      for (bit_index = 7; bit_index > 0; bit_index = bit_index - 1) begin
+        mosi = packet[packet_length - 1][bit_index];
+        repeat (4) @(posedge clk);
+        sck = 1;
+        repeat (4) @(posedge clk);
+        sck = 0;
+      end
+      mosi = packet[packet_length - 1][0];
+      repeat (4) @(posedge clk);
+      sck = 1;
+      cs_n = 1;
+      repeat (8) @(posedge clk);
+      sck = 0;
+      repeat (5) @(posedge clk);
+    end
+  endtask
+
   always @(posedge clk) begin
     if (transport_error_valid && transport_error_code == ERR_BAD_CRC)
       bad_crc_seen <= 1;
@@ -142,6 +166,21 @@ module tb_spi_packet_endpoint;
       $fatal(1, "valid SPI packet fields mismatch");
     $display("PASS spi_mode0_max_payload_request");
 
+    build_packet(CMD_GET_STATUS, 16'h0E0F, 0);
+    bad_length_seen = 0;
+    send_packet_tight_final_edge();
+    index = 0;
+    while (!request_valid && index < 300) begin
+      @(posedge clk);
+      index = index + 1;
+    end
+    if (!request_valid)
+      $fatal(1, "tight final SCK/CS request did not produce request_valid");
+    if (request_command != CMD_GET_STATUS || request_txid != 16'h0E0F ||
+        request_payload_length != 0 || bad_length_seen)
+      $fatal(1, "tight final SCK/CS request was not retained as 10 bytes");
+    $display("PASS spi_final_sck_cs_race_settled");
+
     build_packet(CMD_GET_INFO, 16'h0102, 0);
     packet[9] = packet[9] ^ 8'h01;
     send_packet();
@@ -151,6 +190,7 @@ module tb_spi_packet_endpoint;
 
     build_packet(CMD_GET_STATUS, 16'h0203, 0);
     packet_length = 9;
+    bad_length_seen = 0;
     send_packet();
     repeat (100) @(posedge clk);
     if (!bad_length_seen) $fatal(1, "short SPI packet was not reported");
