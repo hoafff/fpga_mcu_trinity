@@ -176,7 +176,7 @@ def main() -> int:
     require(retry, "spi_capture_response_once(ep, response_len)", "mailbox retry")
     forbid(retry, "spi_prime_pending_startup_get_info", "mailbox retry")
     forbid(p07, "spi_bytes(NULL, NULL, 10u)", "disproven startup prime")
-    forbid(p07, "trinity_spi_encode", "response-only recovery")
+    forbid(retry, "trinity_spi_encode", "response-only recovery")
 
     for token in (
         "response_crc_received",
