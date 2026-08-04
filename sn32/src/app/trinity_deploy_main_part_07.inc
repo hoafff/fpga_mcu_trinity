@@ -138,9 +138,29 @@ static bool spi_response_read_retryable(const endpoint_t *ep,
 }
 
 /*
+ * Hardware evidence from v0.7.8 showed that two malformed eight-byte startup
+ * reads left the valid GET_INFO mailbox pending, while one selected-CS window
+ * of exactly ten clocks followed by a fresh CS recovered the complete 22-byte
+ * txid-1 response. Reproduce only that bounded, side-effect-free mailbox prime:
+ * no request is encoded, no target txid is allocated and ten clocks cannot
+ * retire the known 22-byte GET_INFO mailbox.
+ */
+static trinity_error_code_t spi_prime_pending_startup_get_info(endpoint_t *ep) {
+    trinity_error_code_t rc;
+    if (ep == NULL || !irq_active(ep)) return TRINITY_BAD_STATE;
+    rc = spi_select(ep);
+    if (rc == TRINITY_OK) rc = spi_bytes(NULL, NULL, 10u);
+    spi_end();
+    wait_ms(TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS);
+    return rc;
+}
+
+/*
  * A short or corrupted first read does not consume the Primer mailbox.
- * retry the same pending response under a fresh CS instead of issuing another
+ * Retry the same pending response under a fresh CS instead of issuing another
  * request because CS rising resets the FPGA transmit index while IRQ is active.
+ * Startup GET_INFO has one additional evidence-backed ten-byte prime before the
+ * final fresh-CS capture.
  */
 static trinity_error_code_t spi_capture_response(endpoint_t *ep,
                                                   size_t *response_len) {
@@ -151,6 +171,14 @@ static trinity_error_code_t spi_capture_response(endpoint_t *ep,
         if (rc == TRINITY_OK) return TRINITY_OK;
         if (!spi_response_read_retryable(ep, rc)) return rc;
         wait_ms(TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS);
+    }
+
+    if (g_spi_trace.context == SPI_TRACE_CONTEXT_STARTUP_PROBE &&
+        g_spi_trace.command == TRINITY_SPI_GET_INFO &&
+        spi_response_read_retryable(ep, rc)) {
+        rc = spi_prime_pending_startup_get_info(ep);
+        if (rc != TRINITY_OK) return rc;
+        rc = spi_capture_response_once(ep, response_len);
     }
     return rc;
 }
