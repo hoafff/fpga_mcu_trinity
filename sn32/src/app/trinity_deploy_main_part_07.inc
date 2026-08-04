@@ -36,17 +36,22 @@ static void spi_latch_first_failure(void) {
     }
 }
 
+/*
+ * A short/empty CS transaction is reported by Primer as an exact, CRC-valid
+ * command=0, txid=0 BAD_LENGTH frame. The residue can be observed while a
+ * later read-only request is already in flight, so recognition must depend on
+ * the response frame itself rather than the request metadata stored in trace.
+ */
 static bool spi_trace_is_startup_reset_residue(
     const spi_exchange_trace_t *trace) {
     const uint8_t *rsp;
     if (trace == NULL || !trace->valid) return false;
     if (trace->context != SPI_TRACE_CONTEXT_STARTUP_DRAIN_P1 &&
         trace->context != SPI_TRACE_CONTEXT_STARTUP_DRAIN_P2 &&
-        trace->context != SPI_TRACE_CONTEXT_STARTUP_PROBE)
+        trace->context != SPI_TRACE_CONTEXT_STARTUP_PROBE &&
+        trace->context != SPI_TRACE_CONTEXT_PERIODIC_PROBE)
         return false;
     if (trace->result_code != TRINITY_BAD_LENGTH ||
-        trace->command != 0u || trace->target_txid != 0u ||
-        trace->request_length != 0u ||
         trace->response_capture_length != 16u ||
         trace->response_frame_length != 16u ||
         trace->response_crc_received != trace->response_crc_calculated)
@@ -61,7 +66,6 @@ static bool spi_trace_is_startup_reset_residue(
            rsp[6] == 0u && rsp[7] == 6u &&
            rsp[8] == (uint8_t)(TRINITY_BAD_LENGTH >> 8) &&
            rsp[9] == (uint8_t)TRINITY_BAD_LENGTH &&
-           rsp[10] == 1u && rsp[11] == 0u &&
            rsp[12] == 0u && rsp[13] == 0u;
 }
 
@@ -72,6 +76,24 @@ static void spi_record_startup_residue(void) {
         g_spi_retained_startup_residue = true;
         spi_trace_rotate_work_slot();
     }
+}
+
+static bool spi_decoded_is_short_transaction_residue(void) {
+    return g_spi_rsp.command == 0u &&
+           g_spi_rsp.transaction_id == 0u &&
+           g_spi_rsp.flags ==
+               (TRINITY_FLAG_RESPONSE | TRINITY_FLAG_ERROR) &&
+           g_spi_rsp.payload_length == 6u &&
+           trinity_read_be16(g_spi_rsp.payload) == TRINITY_BAD_LENGTH &&
+           g_spi_rsp.payload[4] == 0u &&
+           g_spi_rsp.payload[5] == 0u;
+}
+
+static bool spi_command_allows_residue_retry(uint8_t command,
+                                              uint16_t payload_length) {
+    return payload_length == 0u &&
+           (command == TRINITY_SPI_GET_INFO ||
+            command == TRINITY_SPI_GET_STATUS);
 }
 
 static trinity_error_code_t spi_capture_response_once(endpoint_t *ep,
@@ -240,12 +262,15 @@ static trinity_error_code_t endpoint_exchange(
     uint16_t response_payload_length;
     uint16_t txid;
     uint32_t wait_start;
+    unsigned residue_retry = 0u;
 
     if (issued_txid != NULL) *issued_txid = 0u;
     if (payload_length > TRINITY_SPI_MAX_PAYLOAD ||
         (payload == NULL && payload_length != 0u))
         return TRINITY_BAD_LENGTH;
 
+retry_request:
+    request_len = 0u;
     rc = spi_prepare_request_window(ep);
     if (rc != TRINITY_OK) return rc;
 
