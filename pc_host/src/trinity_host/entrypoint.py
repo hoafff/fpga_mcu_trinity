@@ -5,6 +5,16 @@ import sys
 
 from . import cli as legacy_cli
 from . import full_cli
+from .serial_client import HostProtocolError, RemoteError, TrinitySerialClient
+
+_UNSAFE_MLKEM_BUILD_IDS = frozenset({0x0007001A})
+_UNSAFE_MLKEM_COMMANDS = frozenset(
+    {
+        "keypair-generate",
+        "session-create",
+        "sn32-secure-telemetry-qualify",
+    }
+)
 
 
 def _subcommand_help(
@@ -54,10 +64,49 @@ def _build_combined_help_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _option_value(argv: list[str], name: str) -> str | None:
+    prefix = f"{name}="
+    for index, token in enumerate(argv):
+        if token.startswith(prefix):
+            return token[len(prefix):]
+        if token == name and index + 1 < len(argv):
+            return argv[index + 1]
+    return None
+
+
+def _unsafe_mlkem_guard(argv: list[str], command: str | None) -> int | None:
+    if command not in _UNSAFE_MLKEM_COMMANDS:
+        return None
+    port = _option_value(argv, "--port")
+    if port is None:
+        return None
+    baud_text = _option_value(argv, "--baud")
+    try:
+        baud = 115200 if baud_text is None else int(baud_text, 0)
+        with TrinitySerialClient(port, baudrate=baud) as client:
+            info = client.get_system_info()
+    except (RemoteError, HostProtocolError, TimeoutError, OSError, ValueError) as exc:
+        print(f"FAIL: ML-KEM safety preflight failed: {exc}", file=sys.stderr)
+        return 1
+
+    if info.sn32_build_id not in _UNSAFE_MLKEM_BUILD_IDS:
+        return None
+    print(
+        "FAIL: SN32 build 0x0007001A has a confirmed 8 KiB-RAM/2 KiB-stack "
+        "ML-KEM key-generation blocker. Do not run keypair, session creation "
+        "or full secure-telemetry qualification on this image. The dual-SPI "
+        "control-plane command sn32-qualify remains valid within its locked "
+        "scope.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     actual = list(sys.argv[1:] if argv is None else argv)
     commands = _all_command_names()
-    has_command = any(token in commands for token in actual)
+    command = next((token for token in actual if token in commands), None)
+    has_command = command is not None
     asks_for_help = "-h" in actual or "--help" in actual
 
     if asks_for_help and not has_command:
@@ -66,6 +115,10 @@ def main(argv: list[str] | None = None) -> int:
     if not actual:
         _build_combined_help_parser().print_help()
         return 2
+    if not asks_for_help:
+        guarded = _unsafe_mlkem_guard(actual, command)
+        if guarded is not None:
+            return guarded
     return full_cli.main(actual)
 
 
