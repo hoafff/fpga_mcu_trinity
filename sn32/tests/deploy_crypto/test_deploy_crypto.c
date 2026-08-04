@@ -9,6 +9,7 @@
 static bool force_mismatch;
 static unsigned keygen_calls;
 static unsigned encaps_calls;
+static trinity_mlkem512_low_ram_workspace_t *bound_workspace;
 
 void trinity_controller_secure_clear(void *buffer, size_t length) {
     volatile uint8_t *cursor = (volatile uint8_t *)buffer;
@@ -25,6 +26,11 @@ int trinity_constant_time_equal(const uint8_t *a,
     uint8_t difference = 0u;
     while (length-- != 0u) difference |= *a++ ^ *b++;
     return difference == 0u;
+}
+
+void trinity_mlkem512_bind_low_ram_workspace(
+    trinity_mlkem512_low_ram_workspace_t *workspace) {
+    bound_workspace = workspace;
 }
 
 void trinity_shake256(uint8_t *output,
@@ -128,11 +134,16 @@ int main(void) {
     uint8_t digest[32];
     size_t index;
 
-    assert(sizeof(crypto) <= 2600u);
+    assert(sizeof(crypto) <= 3520u);
+    assert(sizeof(crypto.workspace) ==
+           TRINITY_MLKEM512_LOW_RAM_WORKSPACE_BYTES);
     for (index = 0u; index < sizeof(seed); ++index)
         seed[index] = (uint8_t)(index + 1u);
 
     trinity_deploy_crypto_init(&crypto);
+    assert(bound_workspace == &crypto.workspace.low_ram);
+    assert((((uintptr_t)bound_workspace) &
+            (TRINITY_MLKEM512_LOW_RAM_WORKSPACE_ALIGNMENT - 1u)) == 0u);
     assert(all_zero(&crypto, sizeof(crypto)));
     assert(trinity_deploy_crypto_generate_keypair(&crypto, 1u, seed) ==
            TRINITY_OK);
@@ -178,7 +189,7 @@ int main(void) {
 
     trinity_deploy_crypto_zeroize(&crypto);
     assert(all_zero(&crypto, sizeof(crypto)));
-    puts("PASS: deploy ML-KEM key state uses embedded public key within <=2600 bytes");
+    puts("PASS: deploy ML-KEM scratch and session storage are phase-shared");
     puts("PASS: deterministic/demo policies, KEM self-check and explicit zeroization");
     return 0;
 }
