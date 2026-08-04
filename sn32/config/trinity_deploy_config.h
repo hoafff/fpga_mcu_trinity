@@ -3,7 +3,7 @@
 
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
-#define TRINITY_DEPLOY_VERSION_PATCH 17u
+#define TRINITY_DEPLOY_VERSION_PATCH 18u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -34,6 +34,11 @@
 /* Conservative qualification guards around FIFO reset, CS assertion and CS
  * release. The software delay intentionally exceeds the nominal value. */
 #define TRINITY_DEPLOY_SPI_CS_GUARD_US             10u
+/* P1 diagnostic D002 proved that its sampled request matched the SN32 request
+ * only after dropping the first six bits. At 100 kHz this is 60 us, so v0.7.18
+ * holds only P1 CS low for 200 us before the first SCK edge. P2 remains at the
+ * common 10 us guard. This is a diagnostic margin, not yet a final contract. */
+#define TRINITY_DEPLOY_P1_CS_SETUP_US              200u
 #define TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS        5u
 /* Allow the Primer mailbox/IRQ synchronizers to settle after a complete
  * response before issuing the next command to either endpoint. */
