@@ -186,7 +186,7 @@ class FirstSpiFailureTests(unittest.TestCase):
         with self.assertRaisesRegex(HostProtocolError, "invalid first SPI failure"):
             _first_spi_failure_dict(bytes((2, 0)))
 
-    def test_unlatched_non_startup_trace_is_rejected(self) -> None:
+    def test_startup_probe_reset_residue_is_decoded(self) -> None:
         response = bytes.fromhex(
             "A5 01 00 03 00 00 00 06 01 03 01 00 00 00 A4 65"
         ) + bytes(76 - 16)
@@ -196,8 +196,25 @@ class FirstSpiFailureTests(unittest.TestCase):
             0, 0xA465, 0xA465,
         ) + response
         transfer = transfer_extension(0, 2, 0, 76, 76, 0)
-        with self.assertRaisesRegex(HostProtocolError, "startup-drain"):
-            _first_spi_failure_dict(bytes((0, 3)) + diagnostic + transfer)
+        decoded = _first_spi_failure_dict(
+            bytes((0, 3)) + diagnostic + transfer
+        )
+        self.assertFalse(decoded["latched"])
+        self.assertTrue(decoded["startup_residue"])
+        self.assertEqual(decoded["context"], "STARTUP_PROBE")
+
+    def test_unlatched_host_diagnostic_trace_is_rejected(self) -> None:
+        response = bytes.fromhex(
+            "A5 01 00 03 00 00 00 06 01 03 01 00 00 00 A4 65"
+        ) + bytes(76 - 16)
+        diagnostic = bytes((int(TargetId.PRIMER1), 0, 1, 0x04)) + struct.pack(
+            ">HHIHHHHHH",
+            int(ErrorCode.BAD_LENGTH), 0, 0, 0, len(response), 16,
+            0, 0xA465, 0xA465,
+        ) + response
+        transfer = transfer_extension(0, 2, 0, 76, 76, 0)
+        with self.assertRaisesRegex(HostProtocolError, "startup/periodic"):
+            _first_spi_failure_dict(bytes((0, 5)) + diagnostic + transfer)
 
 
 if __name__ == "__main__":

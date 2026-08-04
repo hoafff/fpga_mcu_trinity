@@ -201,9 +201,9 @@ def _first_spi_failure_dict(payload: bytes) -> dict[str, object]:
         )
 
     if latched_raw == 0:
-        if context not in {1, 2}:
+        if context not in {1, 2, 3, 4}:
             raise HostProtocolError(
-                "unlatched SPI trace must be a startup-drain reset residue"
+                "unlatched SPI trace must be a startup/periodic reset residue"
             )
         return {
             "latched": False,
