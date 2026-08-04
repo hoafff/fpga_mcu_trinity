@@ -1,0 +1,113 @@
+name: Primer2 testbench portability migration
+
+on:
+  push:
+    paths:
+      - .github/workflows/primer2-testbench-portability-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Icarus Verilog
+        run: sudo apt-get update && sudo apt-get install -y iverilog
+      - name: Correct portable testbench constructs
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path("primer2/tb/tb_bad_tag_threshold.sv")
+          text = path.read_text(encoding="utf-8")
+          old = "input logic [63:0] sequence,"
+          if text.count(old) != 1:
+              raise SystemExit("unexpected ack_sequence declaration count")
+          text = text.replace(old, "input logic [63:0] sequence_value,")
+          old = "payload[8*(4+i) +: 8] = sequence[63-8*i -: 8];"
+          if text.count(old) != 1:
+              raise SystemExit("unexpected ack_sequence payload count")
+          text = text.replace(
+              old,
+              "payload[8*(4+i) +: 8] = sequence_value[63-8*i -: 8];",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("primer2/tb/tb_reset_states.sv")
+          text = path.read_text(encoding="utf-8")
+          old = "task automatic poison_and_reset(input integer case_id);"
+          if text.count(old) != 1:
+              raise SystemExit("unexpected poison_and_reset declaration count")
+          path.write_text(
+              text.replace(old, "task poison_and_reset(input integer case_id);"),
+              encoding="utf-8",
+          )
+
+          path = Path("primer2/tb/tb_fault_output.sv")
+          text = path.read_text(encoding="utf-8")
+          pattern = re.compile(
+              r"  task automatic expect_known_fault\(input logic expected,\n"
+              r"\s+input string context\);\n"
+              r"    begin\n"
+              r"      #1;\n"
+              r"      if \(\$isunknown\(fault_o\)\)\n"
+              r"        \$fatal\(1, \"fault_o unknown during %s\", context\);\n"
+              r"      if \(fault_o !== expected\)\n"
+              r"        \$fatal\(1, \"fault_o=%b expected=%b during %s\",\n"
+              r"               fault_o, expected, context\);\n"
+              r"    end\n"
+              r"  endtask"
+          )
+          replacement = """  task automatic expect_known_fault(input logic expected_value);
+            begin
+              #1;
+              if ($isunknown(fault_o))
+                $fatal(1, \"fault_o is unknown\");
+              if (fault_o !== expected_value)
+                $fatal(1, \"fault_o=%b expected=%b\", fault_o, expected_value);
+            end
+          endtask"""
+          text, count = pattern.subn(replacement, text)
+          if count != 1:
+              raise SystemExit(f"fault task replacement count={count}")
+          text, count = re.subn(
+              r"expect_known_fault\((1'b[01]),\s*\"[^\"]+\"\);",
+              r"expect_known_fault(\1);",
+              text,
+          )
+          if count != 6:
+              raise SystemExit(f"fault call replacement count={count}")
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("primer2/tb/tb_uart_rx_byte.sv")
+          text = path.read_text(encoding="utf-8")
+          old = "fork send_byte(8'h33,1); begin repeat(20)@(posedge clk);abort=1;@(posedge clk);abort=0; end join"
+          new = "fork send_byte(8'h33,1); begin repeat(20)@(posedge clk);@(negedge clk);abort=1;@(posedge clk);@(negedge clk);abort=0; end join"
+          if text.count(old) != 1:
+              raise SystemExit("unexpected UART abort stimulus count")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+
+          path = Path("primer2/tb/tb_primer2_top.sv")
+          text = path.read_text(encoding="utf-8")
+          old = "fatal=1;repeat(4)@(posedge clk);fatal=0;cycles=0;"
+          new = "@(negedge clk);fatal=1;repeat(6)@(posedge clk);@(negedge clk);fatal=0;cycles=0;"
+          if text.count(old) != 1:
+              raise SystemExit("unexpected top fatal stimulus count")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+      - name: Run complete Primer2 regression
+        run: python3 primer2/tb/run.py
+      - name: Commit verified portability fixes
+        run: |
+          rm .github/workflows/primer2-testbench-portability-migration.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test(primer2): make RTL regression Icarus-portable"
+          git pull --rebase origin main
+          git push origin HEAD:main
