@@ -12,25 +12,25 @@ static endpoint_t g_p2 = {
 };
 #endif
 
+/*
+ * Keep PC framing, SPI request bytes and SPI response bytes in disjoint RAM.
+ * Hardware v0.7.11/v0.7.12 proved the peripheral DATA words were correct while
+ * a shared/aliased software destination was corrupted. These buffers therefore
+ * have one owner each and are never overlaid through a union.
+ */
 static uint8_t g_pc_wire[TRINITY_PC_MAX_WIRE_FRAME];
-static union {
-    uint8_t pc_raw[TRINITY_PC_MAX_RAW_FRAME];
-    uint8_t spi_bytes[TRINITY_SPI_MAX_PACKET];
-} g_transport_scratch;
-#define g_pc_raw g_transport_scratch.pc_raw
-#define g_spi_buf g_transport_scratch.spi_bytes
+static uint8_t g_pc_raw[TRINITY_PC_MAX_RAW_FRAME];
+static uint8_t g_spi_request_wire[TRINITY_SPI_MAX_PACKET];
+static uint8_t g_spi_response_wire[TRINITY_SPI_MAX_PACKET];
 
 static size_t g_pc_wire_len;
 static uint32_t g_pc_frame_start;
 static trinity_pc_frame_t g_pc_req;
 static trinity_pc_frame_t g_pc_rsp;
 
-static union {
-    trinity_spi_packet_t req;
-    trinity_spi_packet_t rsp;
-} g_spi_packet;
-#define g_spi_req g_spi_packet.req
-#define g_spi_rsp g_spi_packet.rsp
+/* Request construction and response decode must not alias each other. */
+static trinity_spi_packet_t g_spi_req;
+static trinity_spi_packet_t g_spi_rsp;
 
 extern void SystemInit(void);
 extern void SystemCoreClockUpdate(void);
