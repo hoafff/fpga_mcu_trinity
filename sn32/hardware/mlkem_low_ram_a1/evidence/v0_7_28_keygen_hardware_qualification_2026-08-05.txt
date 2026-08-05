@@ -1,0 +1,228 @@
+FPGA MCU Trinity — SN32 ML-KEM-512 low-RAM KeyGen A1 hardware qualification
+Date: 2026-08-05
+Scope: SN32 v0.7.28 startup recovery + SN32/P1/P2 control plane + deterministic ML-KEM-512 KeyGen + zeroize + PC-UART liveness
+Non-claim: Encaps, Decaps, session establishment, secure telemetry, Tiny integration and full-system qualification are not qualified by this record.
+
+IDENTITIES
+SN32 architecture_version=0.7.28
+SN32 build_id=0x0007001C
+Primer1 build_id=0x5031D003
+Primer2 build_id=0x50320002
+PC host package=0.4.3
+
+PRE-QUALIFICATION BASELINE
+
+E:\thithithi\fpga_mcu_trinity>trinity-host --port COM3 ping
+[PING]
+result=PASS
+uptime_ms=7298
+
+E:\thithithi\fpga_mcu_trinity>trinity-host --port COM3 system-status
+[SYSTEM_STATUS]
+result=PASS
+system_state=SELF_TEST_REQUIRED
+mode=KAT
+target_ready_mask=0x07
+fault_flags=0x00
+session_id=0x00000000
+current_sequence=0
+last_error=OK
+active_host_txid=0x0000
+
+E:\thithithi\fpga_mcu_trinity>trinity-host --port COM3 spi-first-failure
+[SPI_FIRST_FAILURE]
+latched=False
+startup_residue=False
+context=NONE
+
+CONTROL-PLANE HARDWARE QUALIFICATION
+
+E:\thithithi\fpga_mcu_trinity>trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
+[PREFLIGHT_PING]
+result=PASS
+uptime_ms=24619
+[SPI_FIRST_FAILURE]
+latched=False
+startup_residue=False
+context=NONE
+[LIVE_SPI_P1_GET_INFO]
+result=PASS
+target_id=1
+command=0x01
+error_source=1
+transport_result=OK(0x0000)
+target_txid=0x0017
+request_fingerprint=0x9522E17F
+request_length=10
+response_capture_length=22
+response_frame_length=22
+request_crc=0xC45B
+response_crc_received=0x8CEE
+response_crc_calculated=0x8CEE
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 01 00 00 17 00 00 c4 5b
+response_bytes=a5 01 01 01 00 17 00 0c 01 01 00 00 11 ff 50 31 d0 03 00 00 8c ee
+[LIVE_SPI_P1_GET_STATUS]
+result=PASS
+target_id=1
+command=0x02
+error_source=1
+transport_result=OK(0x0000)
+target_txid=0x0019
+request_fingerprint=0xF7006846
+request_length=10
+response_capture_length=26
+response_frame_length=26
+request_crc=0x11BA
+response_crc_received=0xA3BA
+response_crc_calculated=0xA3BA
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 02 00 00 19 00 00 11 ba
+response_bytes=a5 01 02 01 00 19 00 10 01 00 00 00 00 00 00 00 01 04 00 00 00 00 00 02 a3 ba
+[LIVE_SPI_P2_GET_INFO]
+result=PASS
+target_id=2
+command=0x01
+error_source=2
+transport_result=OK(0x0000)
+target_txid=0x001D
+request_fingerprint=0x9522E17F
+request_length=10
+response_capture_length=22
+response_frame_length=22
+request_crc=0x039A
+response_crc_received=0x6456
+response_crc_calculated=0x6456
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 01 00 00 1d 00 00 03 9a
+response_bytes=a5 01 01 01 00 1d 00 0c 02 01 00 00 1e 0f 50 32 00 02 00 00 64 56
+[LIVE_SPI_P2_GET_STATUS]
+result=PASS
+target_id=2
+command=0x02
+error_source=2
+transport_result=OK(0x0000)
+target_txid=0x001E
+request_fingerprint=0xF7006846
+request_length=10
+response_capture_length=26
+response_frame_length=26
+request_crc=0x942A
+response_crc_received=0x3FF2
+response_crc_calculated=0x3FF2
+response_crc_match=True
+irq_before_request=0
+irq_after_request=1
+irq_before_response=1
+irq_after_response=0
+request_bytes=a5 01 02 00 00 1e 00 00 94 2a
+response_bytes=a5 01 02 01 00 1e 00 10 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3f f2
+[SYSTEM_INFO]
+result=PASS
+protocol_version=1
+architecture_version=0.7.28
+capabilities=0x00000EFB
+sn32_build_id=0x0007001C
+primer1_build_id=0x5031D003
+primer2_build_id=0x50320002
+[P1_KAT_SELF_TEST]
+result=PASS
+queried_txid=0x000D
+state=SUCCEEDED
+original_command=0x10
+result_code=OK
+result_data_hex=013e
+[P2_KAT_SELF_TEST]
+result=PASS
+queried_txid=0x0010
+state=SUCCEEDED
+original_command=0x10
+result_code=OK
+result_data_hex=03e3
+[FINAL_SYSTEM_STATUS]
+result=PASS
+system_state=READY_NO_KEYPAIR
+mode=KAT
+target_ready_mask=0x07
+fault_flags=0x00
+session_id=0x00000000
+current_sequence=0
+last_error=OK
+active_host_txid=0x0000
+[POST_TEST_LIVENESS]
+result=PASS
+iterations=10
+final_uptime_ms=27519
+[FINAL_SPI_FIRST_FAILURE]
+latched=False
+startup_residue=False
+context=NONE
+[SN32_P1_P2_HARDWARE_QUALIFICATION]
+result=PASS
+
+ISOLATED DETERMINISTIC LOW-RAM KEYGEN
+
+E:\thithithi\fpga_mcu_trinity>trinity-host --port COM3 keypair-generate --mode deterministic --timeout 120
+[MLKEM_KEYPAIR]
+result=PASS
+host_txid=0x0001
+public_key_hash=e906a88a8a119a7321543a3cbdf0d6e3fa809951fec835e0e581d37f7eb3e0aa
+
+POST-KEYGEN ZEROIZE AND LIVENESS
+
+E:\thithithi\fpga_mcu_trinity>trinity-host --port COM3 zeroize --scope all --timeout 30
+[ZEROIZE]
+result=PASS
+scope=all
+host_txid=0x0001
+
+E:\thithithi\fpga_mcu_trinity>trinity-host --port COM3 system-status
+[SYSTEM_STATUS]
+result=PASS
+system_state=READY_NO_KEYPAIR
+mode=KAT
+target_ready_mask=0x07
+fault_flags=0x00
+session_id=0x00000000
+current_sequence=0
+last_error=OK
+active_host_txid=0x0000
+
+E:\thithithi\fpga_mcu_trinity>trinity-host --port COM3 ping
+[PING]
+result=PASS
+uptime_ms=53596
+
+QUALIFICATION RESULT
+startup_recovery_v0_7_28=PASS
+sn32_p1_p2_control_plane_regression=PASS
+p1_retained_kat=PASS
+p2_retained_kat=PASS
+mlkem512_deterministic_low_ram_keygen_a1=PASS
+post_keygen_zeroize=PASS
+post_keygen_pc_uart_liveness=PASS
+first_spi_failure_before=NONE
+first_spi_failure_after=NONE
+final_system_state=READY_NO_KEYPAIR
+final_fault_flags=0x00
+final_last_error=OK
+
+QUALIFICATION BOUNDARY
+mlkem_encaps=NOT_QUALIFIED
+mlkem_decaps=NOT_QUALIFIED
+session_stage_commit=NOT_QUALIFIED
+secure_telemetry=NOT_QUALIFIED
+tiny_integration=NOT_QUALIFIED
+full_system=NOT_QUALIFIED
