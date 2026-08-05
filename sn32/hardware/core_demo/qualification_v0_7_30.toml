@@ -1,0 +1,37 @@
+schema_version = 1
+qualification = "SN32_V0_7_30_SESSION_ACTIVATION_RECOVERY_AND_DIAGNOSTICS"
+result = "PENDING_EXACT_BUILD_AND_HARDWARE"
+date = "2026-08-05"
+
+sn32_version = "0.7.30"
+sn32_build_id = "0x0007001E"
+pc_host_version = "0.5.1"
+primer1_build_id = "0x5031D003"
+primer2_build_id = "0x50320002"
+
+p1_p2_rtl_changed = false
+no_tiny_demo_profile = true
+direct_secure_enable_source = "SN32_P2_9_J7"
+direct_secure_enable_targets = "P1_T12_AND_P2_T12"
+
+portable_static_gates = "PASS_PENDING_FINAL_HEAD_CI"
+low_ram_mlkem_regression = "PASS_PENDING_FINAL_HEAD_CI"
+controller_failure_snapshot_test = true
+host_failed_transaction_retirement_test = true
+emergency_zeroize_recovery_test = true
+p2_9_gpio_readback_added = true
+
+exact_target_build = "PENDING"
+exact_target_map_gate = "PENDING"
+flash_programming = "PENDING"
+flash_verify = "PENDING"
+dual_spi_hardware_regression = "PENDING"
+session_activation_hardware = "PENDING"
+one_packet_secure_telemetry_hardware = "PENDING"
+emergency_zeroize_hardware = "PENDING"
+
+mlkem_encaps_decaps_hardware_qualified = false
+session_activation_hardware_qualified = false
+secure_telemetry_hardware_qualified = false
+tiny_integration_qualified = false
+full_system_hardware_qualified = false
