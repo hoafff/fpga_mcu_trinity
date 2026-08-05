@@ -11,10 +11,10 @@ SN32 version/build = 0.7.28 / 0x0007001C
 PC host version    = 0.4.3
 ```
 
-The following hardware claims remain valid:
+Valid hardware claims:
 
 ```text
-SN32 v0.7.28 bounded startup recovery: PASS
+SN32 bounded startup recovery: PASS
 PC <-> SN32 command/UART liveness: PASS
 SN32 -> P1/P2 shared dual-SPI control plane: PASS
 P1/P2 retained KAT lifecycle: PASS
@@ -22,129 +22,91 @@ deterministic ML-KEM-512 low-RAM KeyGen A1: PASS
 post-KeyGen zeroize and PING: PASS
 ```
 
-Evidence:
+## Hardware result that triggered the current fix
+
+The v0.7.29 candidate passed exact-target MAP and dual-SPI qualification, then
+reached ML-KEM KeyGen, Encaps, Decaps and KDF. Session activation ended with:
 
 ```text
-sn32/hardware/mlkem_low_ram_a1/evidence/
-  v0_7_28_keygen_hardware_qualification_2026-08-05.txt
-sn32/hardware/mlkem_low_ram_a1/
-  qualification_v0_7_28.toml
+SESSION_COMMIT_FAILED
+system_state=FAULT_LOCKED
+fault_flags=0x11
 ```
 
-## Active source candidate for the time-bounded demo
+A later full zeroize was blocked by the retained failed host transaction and
+returned `RESULT_PENDING`. This did not qualify session activation or telemetry.
+
+## Active source candidate
 
 ```text
-SN32 version/build = 0.7.29 / 0x0007001D
-PC host version    = 0.5.0
+SN32 version/build = 0.7.30 / 0x0007001E
+PC host version    = 0.5.1
 Primer #1          = unchanged, 0x5031D003
 Primer #2          = unchanged, 0x50320002
-Tiny 1P5           = explicitly omitted from this demo profile
+Tiny 1P5           = omitted from this demo profile
 ```
 
-Version 0.7.29 preserves the v0.7.28 startup recovery, GPIO mode-0 dual-SPI
-backend and low-RAM KeyGen. It adds:
+Version 0.7.30 retains the v0.7.29 low-RAM cryptographic datapath and adds:
 
 ```text
-serialized/recomputed low-RAM ML-KEM-512 Encaps
-serialized/recomputed low-RAM ML-KEM-512 Decaps
-byte-exact ciphertext comparison without a second 768-byte buffer
-constant-time implicit rejection
-Encaps/Decaps shared-secret self-check
-KDF and P1/P2 session activation path
-one-packet authenticated telemetry demo workflow
-Tkinter PC dashboard with progress, identities, result and log export
+P2.9 GPIO readback immediately after secure-enable HIGH
+pre-zeroize P1/P2 session-state and secure-flag snapshot
+failure phase encoding: STAGE_WAIT / COMMIT_WAIT / ACTIVE_WAIT
+ZEROIZE_ALL preemption of a terminal retained host failure
+PC auto-retirement of failed managed commands
+GUI automatic diagnostic read followed by emergency zeroize
+CLI session-diagnostic command
 ```
 
-The pinned reference remains:
+The packed `GET_LAST_ERROR.detail` records:
 
 ```text
-pq-code-package/mlkem-native@048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa
+failure phase
+P2.9 readback HIGH/LOW
+P1 session state and secure flags
+P2 session state and secure flags
 ```
 
-Portable source tests prove:
+Portable source tests cover the recovery path, retained diagnostics, emergency
+cleanup, low-RAM ML-KEM reference equivalence and P1/P2 regressions. These are
+not exact-target or hardware PASS claims.
+
+## No-Tiny wiring
 
 ```text
-KeyGen public key and secret key: byte-exact versus pinned reference
-Encaps ciphertext and shared secret: byte-exact versus pinned reference
-valid Decaps shared secret: equal to Encaps
-modified-ciphertext implicit rejection secret: byte-exact versus pinned reference
-KDF vector: PASS
-host one-packet core workflow and cleanup: PASS
-Primer #2 RTL regression: PASS
+SN32 P2.9 / J7
+    +--> P1 secure_enable_i / T12
+    +--> P2 secure_enable_i / T12
 ```
 
-These are source/portable results. They are not ArmClang fit or hardware demo
-qualification.
+P2.9 heartbeat output is disabled in this profile. No Tiny, ESP32 or second
+output may drive the shared T12 net.
 
-## Temporary no-Tiny demo wiring
-
-The qualified SPI and direct P1-to-P2 UART wiring remains unchanged. For the
-v0.7.29 competition demo, connect:
+## Required hardware gate for v0.7.30
 
 ```text
-SN32 P2.9 / board-visible J7 header pin
-    +--> Primer #1 secure_enable_i / FPGA T12
-    +--> Primer #2 secure_enable_i / FPGA T12
-```
-
-P2.9 is normally the MCU heartbeat output in the complete Tiny architecture.
-For this no-Tiny candidate, the periodic GPIO heartbeat is compile-time disabled
-and P2.9 has one output owner only: LOW-at-staging then HIGH-at-commit direct
-shared secure-enable. Internal SysTick/progress leases and fail-closed timeout
-checks remain active. No Tiny, ESP32 or second output may drive this net.
-
-## Required exact-target and hardware gate
-
-Before v0.7.29 can be called demo-ready:
-
-```text
-1. ArmClang 6.24 rebuild: 0 errors, 0 warnings.
-2. MAP gate: Total RW <= 8192, stack=2048, g_crypto<=3520,
-   at least 256 bytes static RAM headroom, no host fallback workspace.
-3. Flash/Verify only SN32; P1/P2 images remain unchanged.
-4. Startup and SN32/P1/P2 qualification PASS with no first SPI failure.
-5. Deterministic KeyGen PASS.
-6. Encaps/Decaps/KDF and CREATE_SESSION reach ACTIVE.
-7. One 24-byte payload travels P1 -> direct UART -> P2 and returns
-   authenticated plaintext byte-exact through SN32.
-8. READ_LAST_RESULT matches the packet result.
-9. Full zeroize restores READY_NO_KEYPAIR and PING remains live.
-```
-
-Detailed procedure:
-
-```text
-sn32/docs/CORE_DEMO_V0_7_29_HARDWARE_GATE.md
-```
-
-PC GUI command after installing the host package:
-
-```text
-trinity-demo
+1. ArmClang 6.24 rebuild with 0 errors and 0 warnings.
+2. MAP checker PASS within the 8 KB IRAM limit.
+3. Flash/Verify only SN32.
+4. Confirm identity 0.7.30 / 0x0007001E.
+5. Re-run sn32-qualify.
+6. Run one core-demo attempt.
+7. If activation fails, retain the decoded diagnostic and verify automatic
+   emergency zeroize restores a clean controller without reset.
+8. If activation succeeds, require one authenticated telemetry packet,
+   byte-exact readback, final zeroize and PING.
 ```
 
 ## Non-claim boundary
 
-Until the exact-target and hardware gate is executed, do not claim:
+Until the hardware gate succeeds, do not claim:
 
 ```text
-v0.7.29 exact-target fit PASS
 ML-KEM Encaps/Decaps hardware PASS
 session activation hardware PASS
 core secure telemetry hardware PASS
-```
-
-Even after the core demo passes, do not claim:
-
-```text
-Tiny supervisor integration or fault-containment PASS
-random/entropy-qualified ML-KEM PASS
-power-fail recovery PASS
+Tiny integration PASS
 full-system hardware qualification PASS
 ```
 
-Current full-system hardware qualified remains:
-
-```text
-false
-```
+Current full-system hardware qualified remains `false`.
