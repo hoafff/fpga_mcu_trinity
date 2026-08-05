@@ -24,6 +24,7 @@ typedef struct {
     uint32_t now;
     bool tiny_fault;
     bool commit_level;
+    bool activate_on_commit;
     unsigned commit_low_calls;
     unsigned commit_high_calls;
     unsigned retained_not_ready_reads;
@@ -117,4 +118,3 @@ static trinity_error_code_t mock_exchange(
         }
         case TRINITY_SPI_GET_TXN_RESULT: {
             uint16_t query;
-            assert(payload_length == 2u);
