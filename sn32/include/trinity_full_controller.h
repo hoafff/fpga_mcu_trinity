@@ -33,6 +33,28 @@ extern "C" {
      TRINITY_SPI_CAP_ASCON_DECRYPT | TRINITY_SPI_CAP_REPLAY_FILTER | \
      TRINITY_SPI_CAP_AUTH_RESULT_BUFFER | TRINITY_SPI_CAP_DIAGNOSTICS)
 
+/*
+ * GET_LAST_ERROR detail when code == TRINITY_SESSION_COMMIT_FAILED:
+ *   [31:28] failure phase
+ *   [27]    SN32 secure-enable GPIO readback observed HIGH
+ *   [23:20] P1 session state before fail-safe zeroize
+ *   [19:16] P2 session state before fail-safe zeroize
+ *   [15:8]  P1 secure flags before fail-safe zeroize
+ *   [7:0]   P2 secure flags before fail-safe zeroize
+ */
+#define TRINITY_SESSION_FAILURE_PHASE_NONE          0u
+#define TRINITY_SESSION_FAILURE_PHASE_STAGE_WAIT    1u
+#define TRINITY_SESSION_FAILURE_PHASE_COMMIT_WAIT   2u
+#define TRINITY_SESSION_FAILURE_PHASE_ACTIVE_WAIT   3u
+#define TRINITY_SESSION_FAILURE_PHASE_SHIFT         28u
+#define TRINITY_SESSION_FAILURE_GPIO_HIGH           UINT32_C(0x08000000)
+#define TRINITY_SESSION_FAILURE_DETAIL_PACK(phase, p1_state, p2_state, p1_flags, p2_flags) \
+    ((((uint32_t)(phase) & UINT32_C(0x0F)) << 28) | \
+     (((uint32_t)(p1_state) & UINT32_C(0x0F)) << 20) | \
+     (((uint32_t)(p2_state) & UINT32_C(0x0F)) << 16) | \
+     (((uint32_t)(p1_flags) & UINT32_C(0xFF)) << 8) | \
+     ((uint32_t)(p2_flags) & UINT32_C(0xFF)))
+
 typedef struct {
     uint8_t target_id;
     bool ready;
