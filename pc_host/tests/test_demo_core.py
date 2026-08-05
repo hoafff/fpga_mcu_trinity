@@ -17,15 +17,22 @@ from trinity_host.protocol import (
     TransactionResult,
     TransactionState,
 )
-from trinity_host.serial_client import SystemInfo
+from trinity_host.serial_client import (
+    HostProtocolError,
+    LastErrorSnapshot,
+    RemoteError,
+    SystemInfo,
+)
 
 
 class CoreDemoFakeClient:
-    def __init__(self) -> None:
+    def __init__(self, *, fail_session: bool = False) -> None:
         self.next_txid = 1
         self.retained: dict[int, TransactionResult] = {}
         self.commands: list[HostCommand] = []
         self.phase = "ready"
+        self.fail_session = fail_session
+        self.active_host_txid = 0
         self.session_id = 0xA1B2C3D4
         self.sequence = 0
         self.last_payload = b""
@@ -33,7 +40,7 @@ class CoreDemoFakeClient:
             1,
             0,
             7,
-            29,
+            30,
             int(
                 SystemCapability.KAT
                 | SystemCapability.MLKEM512
@@ -41,7 +48,7 @@ class CoreDemoFakeClient:
                 | SystemCapability.PAYLOAD_UART
                 | SystemCapability.TRANSACTION_RECONCILIATION
             ),
-            0x0007001D,
+            0x0007001E,
             0x5031D003,
             0x50320002,
         )
@@ -57,6 +64,7 @@ class CoreDemoFakeClient:
                 ErrorCode.OK,
                 payload,
             )
+            self.active_host_txid = txid
         return SimpleNamespace(transaction_id=txid, payload=payload)
 
     def request(self, command, payload=b"", *, timeout=2.0):
@@ -67,6 +75,24 @@ class CoreDemoFakeClient:
             self.phase = "keypair"
             return self._response(command, bytes(range(32)), True)
         if command == HostCommand.CREATE_SESSION:
+            if self.fail_session:
+                txid = self.next_txid
+                self.next_txid += 1
+                self.active_host_txid = txid
+                self.retained[txid] = TransactionResult(
+                    txid,
+                    TransactionState.FAILED,
+                    int(command),
+                    ErrorCode.SESSION_COMMIT_FAILED,
+                    b"",
+                )
+                self.phase = "fault"
+                raise RemoteError(
+                    ErrorCode.SESSION_COMMIT_FAILED,
+                    int(SystemState.FAULT_LOCKED),
+                    0,
+                    0,
+                )
             self.phase = "active"
             return self._response(
                 command,
@@ -87,6 +113,7 @@ class CoreDemoFakeClient:
         if command == HostCommand.ZEROIZE_SYSTEM:
             self.phase = "ready"
             self.sequence = 0
+            self.active_host_txid = 0
             return self._response(command, b"", True)
         raise AssertionError(command)
 
@@ -95,12 +122,15 @@ class CoreDemoFakeClient:
 
     def retire_transaction_result(self, host_txid: int) -> None:
         del self.retained[host_txid]
+        if self.active_host_txid == host_txid:
+            self.active_host_txid = 0
 
     def get_system_status(self) -> SystemStatus:
         state = {
             "ready": SystemState.READY_NO_KEYPAIR,
             "keypair": SystemState.READY_NO_SESSION,
             "active": SystemState.ACTIVE,
+            "fault": SystemState.FAULT_LOCKED,
         }[self.phase]
         return SystemStatus(
             state,
@@ -110,11 +140,22 @@ class CoreDemoFakeClient:
                 | TargetReadyMask.PRIMER1
                 | TargetReadyMask.PRIMER2
             ),
-            0,
+            0x11 if self.phase == "fault" else 0,
             self.session_id if self.phase == "active" else 0,
             self.sequence if self.phase == "active" else 0,
-            ErrorCode.OK,
+            (
+                ErrorCode.SESSION_COMMIT_FAILED
+                if self.phase == "fault"
+                else ErrorCode.OK
+            ),
+            self.active_host_txid,
+        )
+
+    def get_last_error(self) -> LastErrorSnapshot:
+        return LastErrorSnapshot(
+            ErrorCode.SESSION_COMMIT_FAILED,
             0,
+            0x38550303,
         )
 
     def run_sn32_hardware_qualification(self, **_kwargs):
@@ -135,7 +176,7 @@ class CoreDemoTests(unittest.TestCase):
             on_progress=lambda text, percent: progress.append((text, percent)),
         )
 
-        self.assertEqual(result.info.sn32_build_id, 0x0007001D)
+        self.assertEqual(result.info.sn32_build_id, 0x0007001E)
         self.assertEqual(result.session.session_id, client.session_id)
         self.assertEqual(result.telemetry.sequence, 1)
         self.assertEqual(result.telemetry.plaintext, DEFAULT_PLAINTEXTS[0])
@@ -157,6 +198,20 @@ class CoreDemoTests(unittest.TestCase):
             ],
         )
         self.assertEqual(progress[-1][1], 100)
+
+    def test_commit_failure_is_diagnosed_retired_and_zeroized(self) -> None:
+        client = CoreDemoFakeClient(fail_session=True)
+        with self.assertRaisesRegex(
+            HostProtocolError,
+            r"phase=ACTIVE_WAIT.*P2\.9_readback=HIGH.*"
+            r"P1=COMMITTED_BLOCKED.*P2=COMMITTED_BLOCKED.*"
+            r"emergency_zeroize=PASS",
+        ):
+            run_core_demo(client, timeout=0.1)
+        self.assertEqual(client.phase, "ready")
+        self.assertEqual(client.active_host_txid, 0)
+        self.assertEqual(client.retained, {})
+        self.assertEqual(client.commands[-1], HostCommand.ZEROIZE_SYSTEM)
 
     def test_plaintext_length_is_enforced_before_hardware(self) -> None:
         client = CoreDemoFakeClient()
