@@ -1,0 +1,37 @@
+schema_version = 1
+target = "sn32"
+kind = "core-demo-source-candidate"
+version = "0.7.31"
+build_id = "0x0007001F"
+pc_host_version = "0.5.2"
+primer1_build_id = "0x5031D003"
+primer2_build_id = "0x50320002"
+primer_bitstreams_changed = false
+tiny_in_scope = false
+
+trigger_hardware_version = "0.7.30"
+trigger_result = "FAIL_SESSION_COMMIT_STAGE_WAIT"
+trigger_snapshot = "P1_STAGED_SECURE_0x03_P2_STAGED_SECURE_0x03_P2_9_LOW_EMERGENCY_ZEROIZE_PASS"
+root_cause = "PRIMER_GET_STATUS_REPORTS_ACTIVE_SESSION_ID_ZERO_WHILE_STAGED_BUT_SN32_REQUIRED_REQUESTED_ID_DURING_STAGE_WAIT"
+
+staged_validation = "STATE_STAGED_AND_SECURE_SESSION_STAGED"
+commit_validation = "EACH_PRIMER_COMMIT_SESSION_EXACT_STAGED_SESSION_ID"
+committed_blocked_validation = "STATE_AND_EXACT_ACTIVE_SESSION_ID"
+active_validation = "STATE_SECURE_ENABLE_AND_EXACT_ACTIVE_SESSION_ID"
+
+portable_static_gate = "PASS"
+python_protocol_tests = "PASS"
+portable_c_protocol_tests = "PASS"
+full_controller_tests = "PASS_REAL_STAGED_ACTIVE_ID_SPLIT_MODEL"
+deploy_crypto_tests = "PASS"
+mlkem_gate3 = "PASS_PINNED_REFERENCE"
+primer2_rtl_regression = "PASS_UNCHANGED"
+
+exact_target_armclang_build = "PENDING"
+exact_target_map = "PENDING"
+flash_verify = "PENDING"
+dual_spi_hardware_regression = "PENDING"
+session_activation_hardware = "PENDING"
+secure_telemetry_hardware = "PENDING"
+final_zeroize_and_ping = "PENDING"
+full_system_hardware_qualified = false
