@@ -74,6 +74,7 @@ static void full_handle_create_session(const trinity_pc_frame_t *req) {
     }
     if (!managed_transaction_begin(req)) return;
     memset(&material, 0, sizeof(material));
+    g_session_commit_readback_at_high = false;
     rc = full_crypto_create_session(req->payload[0], &req->payload[1],
                                     &material);
     mode = req->payload[0] == 1u ? TRINITY_MODE_KAT
@@ -81,6 +82,11 @@ static void full_handle_create_session(const trinity_pc_frame_t *req) {
     if (rc == TRINITY_OK)
         rc = trinity_controller_activate_session(&g_controller, &material,
                                                  mode, 20000u);
+    if (rc == TRINITY_SESSION_COMMIT_FAILED &&
+        g_session_commit_readback_at_high) {
+        g_controller.last_error_detail |=
+            TRINITY_SESSION_FAILURE_GPIO_HIGH;
+    }
     if (rc == TRINITY_OK) {
         trinity_write_be32(&result[0], material.session_id);
         trinity_write_be64(&result[4], g_controller.current_sequence);
