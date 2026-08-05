@@ -9,6 +9,7 @@
 typedef struct {
     uint8_t session_state;
     uint8_t secure_flags;
+    uint32_t staged_session_id;
     uint32_t session_id;
     uint16_t next_txid;
     bool retained_valid;
@@ -50,6 +51,7 @@ static void put_status(mock_endpoint_t *ep, uint8_t out[16]) {
     out[0] = ep->session_state;
     out[2] = (ep->retained_valid ? 0x02u : 0u);
     out[3] = ep->secure_flags;
+    /* Match the real Primer contract: GET_STATUS reports active_session_id. */
     trinity_write_be32(&out[4], ep->session_id);
     trinity_write_be16(&out[10], ep->retained_valid ? ep->retained_txid : 0u);
 }
