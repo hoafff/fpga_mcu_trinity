@@ -72,6 +72,7 @@ jobs:
           python sn32/tests/deploy/check_keil_size_profile.py
           python sn32/tests/deploy/check_dual_spi_gate_profile.py
           python sn32/tests/deploy/check_deploy_project.py
+          python sn32/tests/deploy/check_startup_recovery_contract.py
           python sn32/tests/s0/check_s0_project.py
           python ai_context/scripts/check_repository_layout.py
           python ai_context/scripts/check_project_memory_detail.py
