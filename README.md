@@ -33,18 +33,37 @@ Post-KeyGen zeroize and PING:                           PASS
 
 Evidence is retained under `sn32/hardware/mlkem_low_ram_a1/`.
 
-## Active source candidate: recovery demo v0.7.30
+## Active source candidate: staged-status fix v0.7.31
 
 ```text
-SN32 version/build = 0.7.30 / 0x0007001E
-PC host version    = 0.5.1
+SN32 version/build = 0.7.31 / 0x0007001F
+PC host version    = 0.5.2
 P1/P2 bitstreams   = unchanged
 Tiny 1P5           = not used by this demo profile
 ```
 
-Version 0.7.30 retains the v0.7.29 low-RAM ML-KEM-512 KeyGen, Encaps, Decaps,
-KDF and one-packet telemetry workflow. It addresses the hardware-observed
-`SESSION_COMMIT_FAILED` recovery problem by adding:
+Hardware v0.7.30 showed both Primers at:
+
+```text
+P1=STAGED/secure=0x03
+P2=STAGED/secure=0x03
+phase=STAGE_WAIT
+P2.9_readback=LOW
+emergency_zeroize=PASS
+```
+
+That result proved stage commands completed and recovery worked. P2.9 LOW is
+correct before commit. The failure was a controller/endpoint status-contract
+mismatch: Primer GET_STATUS reports `active_session_id`, which remains zero
+while only the staged bank exists, but SN32 required the requested ID during
+STAGE_WAIT.
+
+Version 0.7.31 validates STAGED using state plus `SECURE_SESSION_STAGED`. The
+exact 32-bit session ID remains enforced by each Primer's existing
+COMMIT_SESSION handler and is still checked by SN32 in COMMITTED_BLOCKED and
+ACTIVE states. P1/P2 RTL and bitstreams are unchanged.
+
+Version 0.7.31 also retains the v0.7.30 recovery features:
 
 ```text
 P2.9 GPIO readback at the secure-enable HIGH edge
@@ -55,9 +74,9 @@ PC auto-retirement of failed managed commands
 GUI/CLI decoded session-commit diagnostics
 ```
 
-Portable tests still compare the low-RAM ML-KEM path against the pinned
-`mlkem-native` reference and cover controller recovery, GUI workflow and Primer
-RTL regression.
+Portable CI passes the static deploy gate, Python protocol tests, portable C
+protocol tests, full controller regression with the real staged/active ID split,
+deploy crypto tests, pinned ML-KEM Gate 3 and Primer2 RTL regression.
 
 ## PC demo dashboard
 
@@ -68,17 +87,7 @@ python -m pip install -e pc_host
 trinity-demo
 ```
 
-If session activation fails, the GUI now reports information such as:
-
-```text
-phase=ACTIVE_WAIT
-P2.9_readback=HIGH or LOW
-P1=COMMITTED_BLOCKED/secure=...
-P2=COMMITTED_BLOCKED/secure=...
-emergency_zeroize=PASS or FAIL
-```
-
-CLI fallback:
+CLI diagnostic fallback:
 
 ```bat
 trinity-host --port COM3 session-diagnostic
@@ -96,7 +105,7 @@ SN32 P2.9 / board-visible J7 header pin
 Use one common 3.3 V logic ground. No ESP32, Tiny or second output may drive
 this net. P2.9 has one owner only in this profile.
 
-## Required before calling v0.7.30 demo-ready
+## Required before calling v0.7.31 demo-ready
 
 ```text
 ArmClang 6.24 exact-target rebuild: 0 errors, 0 warnings
@@ -108,6 +117,8 @@ one authenticated 24-byte telemetry packet returns byte-exact
 full zeroize restores READY_NO_KEYPAIR
 post-demo PING remains live
 ```
+
+Detailed contract: `sn32/docs/STAGED_STATUS_CONTRACT_V0_7_31.md`.
 
 The current source candidate does not establish Tiny integration, random
 entropy qualification, power-fail recovery or full-system hardware PASS.
