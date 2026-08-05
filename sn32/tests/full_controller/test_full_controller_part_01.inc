@@ -21,25 +21,31 @@
             return TRINITY_OK;
         case TRINITY_SPI_STAGE_SESSION:
             assert(payload_length == 28u);
-            ep->session_id = trinity_read_be32(payload);
+            ep->staged_session_id = trinity_read_be32(payload);
+            /* Real Primer GET_STATUS still exposes active_session_id=0 here. */
+            ep->session_id = 0u;
             ep->session_state = TRINITY_SESSION_STAGED;
             ep->secure_flags |= TRINITY_SECURE_SESSION_STAGED;
             return TRINITY_OK;
         case TRINITY_SPI_COMMIT_SESSION:
             assert(payload_length == 4u);
-            assert(trinity_read_be32(payload) == ep->session_id);
+            assert(trinity_read_be32(payload) == ep->staged_session_id);
+            ep->session_id = ep->staged_session_id;
+            ep->staged_session_id = 0u;
             ep->session_state = TRINITY_SESSION_COMMITTED_BLOCKED;
             set_retained(ep, txid, command, TRINITY_TXN_SUCCEEDED,
                          TRINITY_OK, NULL, 0u);
             return TRINITY_OK;
         case TRINITY_SPI_ABORT_SESSION:
             ep->session_state = TRINITY_SESSION_READY_NO_SESSION;
+            ep->staged_session_id = 0u;
             ep->session_id = 0u;
             ep->secure_flags &= (uint8_t)~(TRINITY_SECURE_SESSION_STAGED |
                                            TRINITY_SECURE_ENABLE);
             return TRINITY_OK;
         case TRINITY_SPI_ZEROIZE:
             ep->session_state = TRINITY_SESSION_READY_NO_SESSION;
+            ep->staged_session_id = 0u;
             ep->session_id = 0u;
             ep->secure_flags = TRINITY_SECURE_SELF_TEST_PASS;
             set_retained(ep, txid, command, TRINITY_TXN_ZEROIZED,
