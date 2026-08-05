@@ -6,6 +6,7 @@ trinity_error_code_t trinity_deploy_crypto_create_session(
 #if TRINITY_DEPLOY_ENABLE_MLKEM
     trinity_session_material_t derived;
     uint8_t effective_seed[32];
+    uint8_t encapsulated_secret[TRINITY_MLKEM_SHARED_SECRET_BYTES];
     trinity_error_code_t rc;
     if (crypto == NULL || seed == NULL || material == NULL)
         return TRINITY_INTERNAL_FAULT;
@@ -14,6 +15,7 @@ trinity_error_code_t trinity_deploy_crypto_create_session(
     if (mode == 0u && !seed_is_zero(seed)) return TRINITY_BAD_LENGTH;
 
     memset(&derived, 0, sizeof(derived));
+    memset(encapsulated_secret, 0, sizeof(encapsulated_secret));
     trinity_secure_zero(&crypto->workspace, sizeof(crypto->workspace));
     if (mode == 0u) {
         /* Deterministic demo policy derives from public identity and generation.
@@ -37,13 +39,18 @@ trinity_error_code_t trinity_deploy_crypto_create_session(
         embedded_public_key(crypto),
         crypto->workspace.session.encaps_coins);
     if (rc == TRINITY_OK) {
+        /* A2 deliberately reuses the bytes after ciphertext as two polynomial
+         * areas. Preserve K before decapsulation starts overwriting that area. */
+        memcpy(encapsulated_secret,
+               crypto->workspace.session.encapsulated_secret,
+               sizeof(encapsulated_secret));
         rc = trinity_mlkem512_decaps(
             crypto->workspace.session.decapsulated_secret,
             crypto->workspace.session.ciphertext,
             crypto->secret_key);
     }
     if (rc == TRINITY_OK && !trinity_constant_time_equal(
-            crypto->workspace.session.encapsulated_secret,
+            encapsulated_secret,
             crypto->workspace.session.decapsulated_secret,
             TRINITY_MLKEM_SHARED_SECRET_BYTES)) {
         rc = TRINITY_MLKEM_SHARED_SECRET_MISMATCH;
@@ -51,7 +58,7 @@ trinity_error_code_t trinity_deploy_crypto_create_session(
     if (rc == TRINITY_OK) {
         rc = trinity_kdf_derive_session(
             &derived,
-            crypto->workspace.session.encapsulated_secret,
+            encapsulated_secret,
             crypto->workspace.session.ciphertext);
     }
     if (rc == TRINITY_OK && derived.session_id == 0u)
@@ -65,6 +72,7 @@ trinity_error_code_t trinity_deploy_crypto_create_session(
         trinity_controller_secure_clear(material, sizeof(*material));
     }
     trinity_session_material_zeroize(&derived);
+    trinity_secure_zero(encapsulated_secret, sizeof(encapsulated_secret));
     trinity_secure_zero(&crypto->workspace, sizeof(crypto->workspace));
     return rc;
 #else
