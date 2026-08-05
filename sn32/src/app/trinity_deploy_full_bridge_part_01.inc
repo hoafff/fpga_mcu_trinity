@@ -20,14 +20,9 @@ static void full_controller_bind(void) {
         full_tiny_fault_active
     };
     g_session_commit_level = false;
+    g_session_commit_readback_at_high = false;
     g_tiny_fault_contained = false;
-    gpio_write(FPST_SN32F407_SESSION_COMMIT_PORT,
-               FPST_SN32F407_SESSION_COMMIT_PIN, false);
-    gpio_set_mode(FPST_SN32F407_SESSION_COMMIT_PORT,
-                  FPST_SN32F407_SESSION_COMMIT_PIN, true);
-    gpio_set_cfg(FPST_SN32F407_SESSION_COMMIT_PORT,
-                 FPST_SN32F407_SESSION_COMMIT_PIN,
-                 GPIO_NO_PULL_SCHMITT);
+    full_session_commit_low(NULL);
     trinity_controller_init(&g_controller, &ops);
 }
 
