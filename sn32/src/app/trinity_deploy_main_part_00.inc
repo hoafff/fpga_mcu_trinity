@@ -29,11 +29,18 @@
 #error "SN32 must not relay the direct P1-to-P2 UART payload"
 #endif
 #if TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT != 1
-#error "Deploy requires the P3.8 commit/secure-enable output"
+#error "Deploy requires the commit/secure-enable output"
 #endif
 #if TRINITY_DEPLOY_CORE_DEMO_WITHOUT_TINY != 1 || \
     TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT != 1
 #error "v0.7.29 requires the explicit no-Tiny core-demo profile"
+#endif
+#if TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT != 0
+#error "P2.9 cannot drive heartbeat and shared secure-enable simultaneously"
+#endif
+#if FPST_SN32F407_SESSION_COMMIT_PORT != 2u || \
+    FPST_SN32F407_SESSION_COMMIT_PIN != 9u
+#error "v0.7.29 no-Tiny demo requires SN32 P2.9 as shared secure-enable"
 #endif
 #if TRINITY_DEPLOY_ENABLE_DEMO_SECURE != 0
 #error "DEMO_SECURE remains disabled until an approved entropy qualification"
