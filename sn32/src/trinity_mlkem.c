@@ -65,23 +65,6 @@ void trinity_mlkem512_bind_low_ram_workspace(
         (trinity_mlkem512_lowram_keygen_workspace_t *)workspace->bytes;
 }
 
-static trinity_error_code_t trinity_upstream_result(int result,
-                                                     void *primary_output,
-                                                     size_t primary_length,
-                                                     void *secondary_output,
-                                                     size_t secondary_length) {
-    trinity_error_code_t error = trinity_mlkem_backend_error();
-    if (result != 0 && error == TRINITY_OK) {
-        error = TRINITY_INTERNAL_FAULT;
-        trinity_mlkem_backend_latch_error(error, (uint32_t)(unsigned int)(-result));
-    }
-    if (error != TRINITY_OK) {
-        trinity_secure_zero(primary_output, primary_length);
-        trinity_secure_zero(secondary_output, secondary_length);
-    }
-    return error;
-}
-
 static void trinity_lowram_sample_eta1(mlk_poly *output,
                                        const uint8_t seed[MLKEM_SYMBYTES],
                                        uint8_t nonce) {
