@@ -296,7 +296,10 @@ class TrinityDemoApp:
     def _handle_success(self, name: str, result: object) -> None:
         if name == "preflight":
             uptime, info, status = result
-            self.sn32_var.set(f"0.{info.version_major}.{info.version_minor}.{info.version_patch}\n0x{info.sn32_build_id:08X}")
+            self.sn32_var.set(
+                f"{info.architecture_major}.{info.architecture_minor}."
+                f"{info.architecture_patch}\n0x{info.sn32_build_id:08X}"
+            )
             self.p1_var.set(f"0x{info.primer1_build_id:08X}")
             self.p2_var.set(f"0x{info.primer2_build_id:08X}")
             self.state_var.set(status.system_state.name)
