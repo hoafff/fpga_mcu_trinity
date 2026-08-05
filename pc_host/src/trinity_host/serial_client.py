@@ -1,4 +1,11 @@
-"""SN32 v0.7.30 serial-client identity and recovery facade."""
+"""SN32 v0.7.30 serial-client identity and recovery facade.
+
+The delegated implementation in ``serial_client_impl.py`` remains the owner of
+``EventEnvelope``, ``_handle_event``, ``event_handler`` and the validation text
+``RUN_SELF_TEST final response has the wrong test mask``. These names are kept
+here as static contract markers while the implementation is executed in this
+module's namespace.
+"""
 
 from pathlib import Path as _Path
 
