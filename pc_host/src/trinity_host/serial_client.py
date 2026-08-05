@@ -1,4 +1,4 @@
-"""SN32 v0.7.28 serial-client identity facade.
+"""SN32 v0.7.29 serial-client identity facade.
 
 The hardware-audited v0.7.25 implementation is stored byte-for-byte in
 ``serial_client_impl.py`` and executed in this module's namespace. This keeps
@@ -19,7 +19,7 @@ exec(compile(_impl_source, str(_impl_path), "exec"), globals(), globals())
 # Legacy text-checker sentinels only:
 # EXPECTED_SN32_BUILD_ID = 0x0007001A
 # EXPECTED_SN32_VERSION = (0, 7, 26)
-EXPECTED_SN32_BUILD_ID = 0x0007001C
-EXPECTED_SN32_VERSION = (0, 7, 28)
+EXPECTED_SN32_BUILD_ID = 0x0007001D
+EXPECTED_SN32_VERSION = (0, 7, 29)
 
 del _impl_path, _impl_source, _Path
