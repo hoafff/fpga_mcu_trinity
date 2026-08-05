@@ -4,12 +4,15 @@
 
 Candidate identity:
 
-- architecture version: `0.7.27`
-- SN32 build ID: `0x0007001B`
-- PC host package: `0.4.2`
+- architecture version: `0.7.28`
+- SN32 build ID: `0x0007001C`
+- PC host package: `0.4.3`
 
 This gate qualifies only deterministic ML-KEM-512 KeyGen on the SN32F407F.
 It preserves the v0.7.26 GPIO dual-SPI transport, P1/P2 bitstreams and wiring.
+Version 0.7.28 additionally adds a bounded ten-second recovery window around
+startup mailbox drain and P1/P2 discovery because v0.7.27 hardware showed that
+all later explicit diagnostics could pass after an early startup timeout.
 It does not qualify Encaps, Decaps, session activation, secure telemetry, Tiny,
 or the full system.
 
@@ -24,6 +27,11 @@ show byte-exact public-key and secret-key equality against the pinned backend.
 The 1792-byte polynomial scratch area time-shares the existing crypto session
 workspace. The exact-target image must not contain the host-only fallback
 symbol `g_host_low_ram_storage`.
+
+Startup recovery may discard a retained transport failure only after the same
+boot completes a full P1+P2 probe within the bounded recovery window. If the
+window expires or a non-transport safety error occurs, the original first
+failure remains immutable.
 
 ## Gate A1.1 — exact-target build and map
 
@@ -53,22 +61,21 @@ Acceptance:
 - no `g_host_low_ram_storage` symbol;
 - AXF, HEX and MAP generated.
 
-Run from the repository root:
+Run from the repository root using the actual Keil MAP location:
 
 ```bat
-python sn32\tests\deploy\check_mlkem_lowram_map.py sn32\keil\Objects\trinity_sn32f407_deploy.map
+python sn32\tests\deploy\check_mlkem_lowram_map.py sn32\keil\Listings\deploy\trinity_sn32f407_deploy.map
 ```
-
-Use the actual MAP path emitted by Keil if it differs.
 
 Do not flash if this gate fails.
 
 ## Gate A1.2 — programming and identity
 
 Program and verify only SN32. Do not reprogram P1 or P2 and do not change
-wiring.
+wiring. P1 and P2 must already be configured and running before SN32 resets.
 
-After reset:
+After reset, allow up to 13 seconds for the two-second warm-up plus the bounded
+startup recovery window, then run:
 
 ```bat
 trinity-host --port COM3 ping
@@ -78,15 +85,15 @@ trinity-host --port COM3 system-info
 Required identity:
 
 ```text
-architecture_version=0.7.27
-sn32_build_id=0x0007001B
+architecture_version=0.7.28
+sn32_build_id=0x0007001C
 primer1_build_id=0x5031D003
 primer2_build_id=0x50320002
 ```
 
 ## Gate A1.3 — control-plane regression
 
-Power-cycle SN32, P1 and P2 together, then run:
+Run:
 
 ```bat
 trinity-host --port COM3 sn32-qualify --timeout 10 --poll 0.1 --liveness 10
@@ -100,7 +107,7 @@ result=PASS
 ```
 
 The final state must be `READY_NO_KEYPAIR`, with `target_ready_mask=0x07`, no
-fault flags and no first SPI failure.
+fault flags and no active first SPI failure.
 
 ## Gate A1.4 — isolated deterministic KeyGen
 
@@ -150,7 +157,7 @@ Stop immediately and retain the complete output if any of the following occurs:
 - KeyGen exceeds 120 seconds;
 - PING fails after KeyGen;
 - `HEARTBEAT_TIMEOUT`, `INTERNAL_FAULT` or `FAULT_LOCKED` appears;
-- target readiness changes from `0x07`;
+- target readiness changes from `0x07` after startup recovery completes;
 - the MCU resets unexpectedly;
 - MAP headroom is below 256 bytes.
 
