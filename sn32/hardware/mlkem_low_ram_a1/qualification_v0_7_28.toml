@@ -1,0 +1,61 @@
+schema_version = 1
+qualification = "SN32_MLKEM512_LOW_RAM_KEYGEN_A1"
+result = "PASS"
+date = "2026-08-05"
+
+sn32_version = "0.7.28"
+sn32_build_id = "0x0007001C"
+pc_host_version = "0.4.3"
+primer1_build_id = "0x5031D003"
+primer2_build_id = "0x50320002"
+
+startup_recovery = "PASS"
+startup_first_spi_failure = "NONE"
+startup_system_state = "SELF_TEST_REQUIRED"
+startup_target_ready_mask = "0x07"
+startup_fault_flags = "0x00"
+startup_last_error = "OK"
+
+control_plane_regression = "PASS"
+p1_get_info = "PASS_CRC_MATCH_IRQ_RELEASED"
+p1_get_status = "PASS_CRC_MATCH_IRQ_RELEASED"
+p2_get_info = "PASS_CRC_MATCH_IRQ_RELEASED"
+p2_get_status = "PASS_CRC_MATCH_IRQ_RELEASED"
+p1_kat_retained_lifecycle = "PASS"
+p2_kat_retained_lifecycle = "PASS"
+control_plane_final_state = "READY_NO_KEYPAIR"
+control_plane_final_fault_flags = "0x00"
+control_plane_final_last_error = "OK"
+control_plane_post_test_liveness = "PASS_10_ITERATIONS"
+control_plane_first_spi_failure_after = "NONE"
+
+keygen_mode = "DETERMINISTIC"
+keygen_timeout_seconds = 120
+keygen_result = "PASS"
+keygen_public_key_hash = "e906a88a8a119a7321543a3cbdf0d6e3fa809951fec835e0e581d37f7eb3e0aa"
+keygen_retained_host_txid = "0x0001"
+
+post_keygen_zeroize = "PASS_SCOPE_ALL"
+post_keygen_ping = "PASS"
+post_keygen_final_state = "READY_NO_KEYPAIR"
+post_keygen_target_ready_mask = "0x07"
+post_keygen_fault_flags = "0x00"
+post_keygen_last_error = "OK"
+post_keygen_active_host_txid = "0x0000"
+
+exact_target_identity_observed_on_hardware = true
+exact_target_build_log_captured_in_this_record = false
+exact_target_map_captured_in_this_record = false
+
+hardware_qualified = true
+hardware_qualified_scope = "SN32_V0_7_28_STARTUP_RECOVERY_SN32_P1_P2_CONTROL_PLANE_REGRESSION_AND_DETERMINISTIC_MLKEM512_LOW_RAM_KEYGEN_A1_WITH_ZEROIZE_AND_PC_UART_LIVENESS"
+full_system_hardware_qualified = false
+
+mlkem_encaps_qualified = false
+mlkem_decaps_qualified = false
+session_stage_commit_qualified = false
+secure_telemetry_qualified = false
+tiny_integration_qualified = false
+
+raw_evidence = "sn32/hardware/mlkem_low_ram_a1/evidence/v0_7_28_keygen_hardware_qualification_2026-08-05.txt"
+next_gate = "MLKEM512_LOW_RAM_ENCAPS_DECAPS_A2_THEN_SESSION_STAGE_COMMIT"
