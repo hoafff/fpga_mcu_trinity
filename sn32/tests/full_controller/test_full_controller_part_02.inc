@@ -9,10 +9,12 @@ static void mock_commit_high(void *context) {
     assert(!bus->commit_level);
     bus->commit_level = true;
     bus->commit_high_calls += 1u;
-    bus->p1.session_state = TRINITY_SESSION_ACTIVE;
-    bus->p2.session_state = TRINITY_SESSION_ACTIVE;
-    bus->p1.secure_flags |= TRINITY_SECURE_ENABLE;
-    bus->p2.secure_flags |= TRINITY_SECURE_ENABLE;
+    if (bus->activate_on_commit) {
+        bus->p1.session_state = TRINITY_SESSION_ACTIVE;
+        bus->p2.session_state = TRINITY_SESSION_ACTIVE;
+        bus->p1.secure_flags |= TRINITY_SECURE_ENABLE;
+        bus->p2.secure_flags |= TRINITY_SECURE_ENABLE;
+    }
 }
 
 int main(void) {
@@ -22,10 +24,12 @@ int main(void) {
     trinity_controller_session_material_t session;
     trinity_controller_auth_result_t result;
     uint8_t telemetry[32];
+    uint32_t expected_failure_detail;
     unsigned i;
 
     memset(&bus, 0, sizeof(bus));
-    bus.commit_level = true; /* Prove activation always re-arms a LOW->HIGH edge. */
+    bus.commit_level = true;
+    bus.activate_on_commit = true;
     bus.retained_not_ready_reads = 3u;
     bus.p1.session_state = TRINITY_SESSION_SELF_TEST_REQUIRED;
     bus.p2.session_state = TRINITY_SESSION_SELF_TEST_REQUIRED;
@@ -89,7 +93,7 @@ int main(void) {
         1000u, &result) == TRINITY_OK);
     assert(result.valid && result.sequence == 1u);
     assert(memcmp(result.plaintext, &telemetry[8], 24u) == 0);
-    bus.auth_pending = true; /* P2 must protect an unacknowledged result. */
+    bus.auth_pending = true;
     assert(trinity_controller_send_telemetry(&controller, telemetry,
         1000u, &result) == TRINITY_RESULT_PENDING);
     bus.auth_pending = false;
@@ -110,6 +114,31 @@ int main(void) {
     assert(!bus.commit_level);
     assert(bus.commit_low_calls >= 2u);
 
+    /* Re-enter READY_NO_SESSION and prove a failed enable edge keeps the exact
+     * pre-zeroize endpoint snapshot in last_error_detail. */
+    bus.activate_on_commit = false;
+    bus.p1.session_state = TRINITY_SESSION_READY_NO_SESSION;
+    bus.p2.session_state = TRINITY_SESSION_READY_NO_SESSION;
+    bus.p1.secure_flags = TRINITY_SECURE_SELF_TEST_PASS;
+    bus.p2.secure_flags = TRINITY_SECURE_SELF_TEST_PASS;
+    controller.p1.session_state = TRINITY_SESSION_READY_NO_SESSION;
+    controller.p2.session_state = TRINITY_SESSION_READY_NO_SESSION;
+    controller.p1.secure_flags = TRINITY_SECURE_SELF_TEST_PASS;
+    controller.p2.secure_flags = TRINITY_SECURE_SELF_TEST_PASS;
+    controller.state = TRINITY_SYSTEM_READY_NO_SESSION;
+    session.session_id = 0x55667788u;
+    assert(trinity_controller_activate_session(&controller, &session,
+        TRINITY_MODE_KAT, 1000u) == TRINITY_SESSION_COMMIT_FAILED);
+    expected_failure_detail = TRINITY_SESSION_FAILURE_DETAIL_PACK(
+        TRINITY_SESSION_FAILURE_PHASE_ACTIVE_WAIT,
+        TRINITY_SESSION_COMMITTED_BLOCKED,
+        TRINITY_SESSION_COMMITTED_BLOCKED,
+        TRINITY_SECURE_SELF_TEST_PASS | TRINITY_SECURE_SESSION_STAGED,
+        TRINITY_SECURE_SELF_TEST_PASS | TRINITY_SECURE_SESSION_STAGED);
+    assert(controller.last_error == TRINITY_SESSION_COMMIT_FAILED);
+    assert(controller.last_error_detail == expected_failure_detail);
+    assert(controller.state == TRINITY_SYSTEM_FAULT_LOCKED);
+
     bus.tiny_fault = true;
     assert(trinity_controller_probe_all(&controller) == TRINITY_FAULT_LOCKED);
     assert((trinity_controller_fault_mask(&controller) & TRINITY_FAULT_TINY1P5) != 0u);
@@ -117,7 +146,8 @@ int main(void) {
     puts("PASS: delayed retained-result polling does not latch a false controller error");
     puts("PASS: a complete refresh clears the active transport fault");
     puts("PASS: dual-endpoint probe, retained self-test, staged/committed activation");
-    puts("PASS: repeatable Tiny LOW>=2ms to HIGH commit edge and zeroize deassertion");
+    puts("PASS: repeatable LOW>=2ms to HIGH commit edge and zeroize deassertion");
+    puts("PASS: failed activation retains pre-zeroize P1/P2 state and secure flags");
     puts("PASS: direct P1->P2 telemetry authentication, ACK and pending-result protection");
     puts("PASS: zeroize clears local session/result state and Tiny fault is fail-closed");
     return 0;
