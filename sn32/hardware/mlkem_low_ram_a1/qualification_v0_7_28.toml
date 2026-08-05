@@ -3,6 +3,13 @@ qualification = "SN32_MLKEM512_LOW_RAM_KEYGEN_A1"
 result = "PASS"
 date = "2026-08-05"
 
+source_candidate_commit = "0c766733e76daa84d1e04937bf98fc6f13549e4b"
+raw_evidence_commit = "f5088cafdd86aae7eeeb180eb18770a0ec0287c0"
+qualification_record_initial_commit = "8c2f3420024b8fb407d8f1934700f8628d0548e4"
+target_status_commit = "1c56f88c849cb6fe49cd168bb00b734bd25b8276"
+implementation_status_commit = "34ce56738f94ef04c56035aad6ceb6f009645345"
+readme_status_commit = "203ffe6b5835f4750601a0f0e4eac3c61e1986b8"
+
 sn32_version = "0.7.28"
 sn32_build_id = "0x0007001C"
 pc_host_version = "0.4.3"
