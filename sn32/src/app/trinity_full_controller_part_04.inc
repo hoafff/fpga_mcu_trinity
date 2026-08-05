@@ -35,6 +35,7 @@ trinity_error_code_t trinity_controller_activate_session(
     trinity_mode_t mode,
     uint32_t timeout_ms) {
     trinity_error_code_t rc;
+    uint32_t failure_detail = 0u;
     if (controller == NULL || material == NULL || material->session_id == 0u)
         return TRINITY_BAD_SESSION;
     if (!controller->p1.ready || !controller->p2.ready)
@@ -60,7 +61,17 @@ trinity_error_code_t trinity_controller_activate_session(
     rc = controller_wait_session_state(controller, TRINITY_SESSION_STAGED,
                                        material->session_id,
                                        CONTROLLER_SESSION_STAGE_TIMEOUT_MS);
-    if (rc != TRINITY_OK) goto fail_abort;
+    if (rc != TRINITY_OK) {
+        if (rc == TRINITY_SESSION_COMMIT_FAILED) {
+            failure_detail = TRINITY_SESSION_FAILURE_DETAIL_PACK(
+                TRINITY_SESSION_FAILURE_PHASE_STAGE_WAIT,
+                controller->p1.session_state,
+                controller->p2.session_state,
+                controller->p1.secure_flags,
+                controller->p2.secure_flags);
+        }
+        goto fail_abort;
+    }
 
     rc = controller_commit_one(controller, TRINITY_TARGET_PRIMER1,
                                material->session_id, timeout_ms);
@@ -73,7 +84,17 @@ trinity_error_code_t trinity_controller_activate_session(
                                        TRINITY_SESSION_COMMITTED_BLOCKED,
                                        material->session_id,
                                        CONTROLLER_SESSION_STAGE_TIMEOUT_MS);
-    if (rc != TRINITY_OK) goto fail_abort;
+    if (rc != TRINITY_OK) {
+        if (rc == TRINITY_SESSION_COMMIT_FAILED) {
+            failure_detail = TRINITY_SESSION_FAILURE_DETAIL_PACK(
+                TRINITY_SESSION_FAILURE_PHASE_COMMIT_WAIT,
+                controller->p1.session_state,
+                controller->p2.session_state,
+                controller->p1.secure_flags,
+                controller->p2.secure_flags);
+        }
+        goto fail_abort;
+    }
 
     controller->ops.session_commit_high(controller->ops.context);
     controller->commit_issued = true;
@@ -82,10 +103,26 @@ trinity_error_code_t trinity_controller_activate_session(
     rc = controller_wait_session_state(controller, TRINITY_SESSION_ACTIVE,
                                        material->session_id,
                                        CONTROLLER_SESSION_ACTIVE_TIMEOUT_MS);
-    if (rc != TRINITY_OK) goto fail_zeroize;
+    if (rc != TRINITY_OK) {
+        if (rc == TRINITY_SESSION_COMMIT_FAILED) {
+            failure_detail = TRINITY_SESSION_FAILURE_DETAIL_PACK(
+                TRINITY_SESSION_FAILURE_PHASE_ACTIVE_WAIT,
+                controller->p1.session_state,
+                controller->p2.session_state,
+                controller->p1.secure_flags,
+                controller->p2.secure_flags);
+        }
+        goto fail_zeroize;
+    }
     if ((controller->p1.secure_flags & TRINITY_SECURE_ENABLE) == 0u ||
         (controller->p2.secure_flags & TRINITY_SECURE_ENABLE) == 0u) {
         rc = TRINITY_SESSION_COMMIT_FAILED;
+        failure_detail = TRINITY_SESSION_FAILURE_DETAIL_PACK(
+            TRINITY_SESSION_FAILURE_PHASE_ACTIVE_WAIT,
+            controller->p1.session_state,
+            controller->p2.session_state,
+            controller->p1.secure_flags,
+            controller->p2.secure_flags);
         goto fail_zeroize;
     }
 
@@ -110,7 +147,8 @@ fail_zeroize:
     (void)trinity_controller_zeroize(controller, TRINITY_ZEROIZE_ALL,
                                      timeout_ms);
     controller_latch_error(controller, rc, TRINITY_SOURCE_SN32,
-                           material->session_id);
+                           failure_detail != 0u
+                               ? failure_detail : material->session_id);
     return rc;
 }
 
