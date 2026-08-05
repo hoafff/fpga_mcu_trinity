@@ -31,71 +31,61 @@ Deterministic ML-KEM-512 low-RAM KeyGen A1 on SN32:     PASS
 Post-KeyGen zeroize and PING:                           PASS
 ```
 
-Evidence is retained under:
+Evidence is retained under `sn32/hardware/mlkem_low_ram_a1/`.
+
+## Active source candidate: recovery demo v0.7.30
 
 ```text
-sn32/hardware/mlkem_low_ram_a1/
-```
-
-## Active source candidate: core demo v0.7.29
-
-```text
-SN32 version/build = 0.7.29 / 0x0007001D
-PC host version    = 0.5.0
+SN32 version/build = 0.7.30 / 0x0007001E
+PC host version    = 0.5.1
 P1/P2 bitstreams   = unchanged
 Tiny 1P5           = not used by this demo profile
 ```
 
-The candidate adds a serialized/recomputed low-RAM ML-KEM-512 A2 path for
-Encaps and Decaps while retaining the existing phase-shared 1792-byte crypto
-workspace. Portable tests compare it against the exact pinned mlkem-native
-reference and currently pass for:
+Version 0.7.30 retains the v0.7.29 low-RAM ML-KEM-512 KeyGen, Encaps, Decaps,
+KDF and one-packet telemetry workflow. It addresses the hardware-observed
+`SESSION_COMMIT_FAILED` recovery problem by adding:
 
 ```text
-KeyGen public key and secret key: byte-exact
-Encaps ciphertext and shared secret: byte-exact
-valid Decaps shared secret equality
-modified-ciphertext implicit rejection: byte-exact
-KDF vector
-one-packet host demo workflow and cleanup
-Primer #2 RTL regression
+P2.9 GPIO readback at the secure-enable HIGH edge
+pre-zeroize P1/P2 session-state and secure-flag snapshot
+failure phase: STAGE_WAIT / COMMIT_WAIT / ACTIVE_WAIT
+emergency ZEROIZE_ALL that preempts a retained failed host transaction
+PC auto-retirement of failed managed commands
+GUI/CLI decoded session-commit diagnostics
 ```
 
-The minimum real demo sequence is:
-
-```text
-ML-KEM KeyGen -> Encaps/Decaps -> KDF
--> stage/commit one session to P1/P2
--> P1 Ascon encrypt + direct UART transmit
--> P2 authenticate/decrypt
--> SN32 read/ACK authenticated plaintext
--> PC byte-exact verification
--> full zeroize and PING
-```
+Portable tests still compare the low-RAM ML-KEM path against the pinned
+`mlkem-native` reference and cover controller recovery, GUI workflow and Primer
+RTL regression.
 
 ## PC demo dashboard
 
-Install the editable host package:
+Install and launch:
 
 ```bat
 python -m pip install -e pc_host
-```
-
-Launch the GUI:
-
-```bat
 trinity-demo
 ```
 
-The Tkinter dashboard provides serial-port selection, quick preflight, one-click
-core demo, progress display, SN32/P1/P2 identities, session and sequence status,
-authenticated plaintext display, emergency zeroize and log export. Serial I/O
-runs in a worker thread so the UI remains responsive during the slow 12 MHz
-Cortex-M0 cryptographic phases.
+If session activation fails, the GUI now reports information such as:
+
+```text
+phase=ACTIVE_WAIT
+P2.9_readback=HIGH or LOW
+P1=COMMITTED_BLOCKED/secure=...
+P2=COMMITTED_BLOCKED/secure=...
+emergency_zeroize=PASS or FAIL
+```
+
+CLI fallback:
+
+```bat
+trinity-host --port COM3 session-diagnostic
+trinity-host --port COM3 zeroize --scope all --timeout 30
+```
 
 ## Temporary wiring without Tiny
-
-Keep the qualified SPI and direct P1-to-P2 UART wiring unchanged. Add:
 
 ```text
 SN32 P2.9 / board-visible J7 header pin
@@ -104,18 +94,14 @@ SN32 P2.9 / board-visible J7 header pin
 ```
 
 Use one common 3.3 V logic ground. No ESP32, Tiny or second output may drive
-this shared net. In the no-Tiny profile, firmware disables the normal P2.9 MCU
-heartbeat GPIO and gives P2.9 one owner only: direct shared secure-enable.
-Internal SysTick/progress leases and fail-closed timeout checks remain active.
+this net. P2.9 has one owner only in this profile.
 
-## Required before calling the candidate demo-ready
-
-Version 0.7.29 is a source candidate until all of the following pass:
+## Required before calling v0.7.30 demo-ready
 
 ```text
 ArmClang 6.24 exact-target rebuild: 0 errors, 0 warnings
-IRAM/MAP gate within the 8 KB SN32 limit
-flash and verify SN32
+MAP gate within the 8 KB SN32 limit
+flash and verify only SN32
 clean startup and dual-SPI qualification
 CREATE_SESSION reaches ACTIVE
 one authenticated 24-byte telemetry packet returns byte-exact
@@ -123,21 +109,6 @@ full zeroize restores READY_NO_KEYPAIR
 post-demo PING remains live
 ```
 
-Procedure:
-
-```text
-sn32/docs/CORE_DEMO_V0_7_29_HARDWARE_GATE.md
-```
-
-## Non-claim boundary
-
-The current source and future core-demo PASS do not establish:
-
-```text
-Tiny supervisor integration or fault-containment PASS
-random/entropy-qualified ML-KEM PASS
-power-fail recovery PASS
-full-system hardware qualification PASS
-```
-
-See `IMPLEMENTATION_STATUS.md` for the exact evidence and current boundary.
+The current source candidate does not establish Tiny integration, random
+entropy qualification, power-fail recovery or full-system hardware PASS.
+See `IMPLEMENTATION_STATUS.md` for the exact boundary.
