@@ -29,13 +29,17 @@
 #error "SN32 must not relay the direct P1-to-P2 UART payload"
 #endif
 #if TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT != 1
-#error "Full deploy requires the SN32-to-Tiny SESSION_COMMIT output"
+#error "Deploy requires the P3.8 commit/secure-enable output"
+#endif
+#if TRINITY_DEPLOY_CORE_DEMO_WITHOUT_TINY != 1 || \
+    TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT != 1
+#error "v0.7.29 requires the explicit no-Tiny core-demo profile"
 #endif
 #if TRINITY_DEPLOY_ENABLE_DEMO_SECURE != 0
 #error "DEMO_SECURE remains disabled until an approved entropy qualification"
 #endif
 #if TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND != 1
-#error "v0.7.28 deploy requires the deterministic GPIO SPI backend"
+#error "v0.7.29 deploy requires the deterministic GPIO SPI backend"
 #endif
 #if TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES < \
     (FPST_SN32F407_HCLK_HZ / (2u * TRINITY_DEPLOY_SPI_HZ))
@@ -46,7 +50,7 @@
 #if 0
 #define DEPLOY_BUILD_ID UINT32_C(0x0007001A)
 #endif
-#define DEPLOY_BUILD_ID UINT32_C(0x0007001C)
+#define DEPLOY_BUILD_ID UINT32_C(0x0007001D)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
