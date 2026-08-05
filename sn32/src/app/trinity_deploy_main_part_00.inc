@@ -35,7 +35,7 @@
 #error "DEMO_SECURE remains disabled until an approved entropy qualification"
 #endif
 #if TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND != 1
-#error "v0.7.27 deploy requires the deterministic GPIO SPI backend"
+#error "v0.7.28 deploy requires the deterministic GPIO SPI backend"
 #endif
 #if TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES < \
     (FPST_SN32F407_HCLK_HZ / (2u * TRINITY_DEPLOY_SPI_HZ))
@@ -46,7 +46,7 @@
 #if 0
 #define DEPLOY_BUILD_ID UINT32_C(0x0007001A)
 #endif
-#define DEPLOY_BUILD_ID UINT32_C(0x0007001B)
+#define DEPLOY_BUILD_ID UINT32_C(0x0007001C)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
