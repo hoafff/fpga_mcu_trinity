@@ -59,7 +59,9 @@ static void wait_ms(uint32_t duration) {
 void SysTick_Handler(void) {
     const uint32_t now = ++g_ms;
     bool lease_alive = false;
+#if TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT
     bool foreground_alive;
+#endif
 
     if (g_crypto_lease_active) {
         lease_alive = (int32_t)(g_crypto_lease_deadline_ms - now) > 0;
@@ -73,6 +75,7 @@ void SysTick_Handler(void) {
         }
     }
 
+#if TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT
     if ((uint32_t)(now - g_heartbeat_ms) >= HEARTBEAT_MS) {
         g_heartbeat_ms = now;
         foreground_alive =
@@ -84,6 +87,7 @@ void SysTick_Handler(void) {
                    FPST_SN32F407_MCU_HEARTBEAT_PIN,
                    g_heartbeat_level);
     }
+#endif
     if ((now % GUARD_MS) == 0u) {
         const uint32_t faults = guard_check();
         if (faults != FPST_P010_VIOLATION_NONE) {
