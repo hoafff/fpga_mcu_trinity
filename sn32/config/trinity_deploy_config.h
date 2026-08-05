@@ -4,11 +4,11 @@
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
 /* Inactive compatibility sentinel for the legacy text-only dual-SPI checker.
- * The compiled image uses the active v0.7.27 definition below. */
+ * The compiled image uses the active v0.7.28 definition below. */
 #if 0
 #define TRINITY_DEPLOY_VERSION_PATCH 26u
 #endif
-#define TRINITY_DEPLOY_VERSION_PATCH 27u
+#define TRINITY_DEPLOY_VERSION_PATCH 28u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -30,9 +30,11 @@
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
 /*
- * v0.7.27 preserves the hardware-qualified GPIO-driven mode-0 SPI backend and
- * existing DB_SPI wiring from v0.7.26. The only functional candidate change is
- * the phase-shared low-RAM ML-KEM-512 key-generation path.
+ * v0.7.28 preserves the hardware-qualified GPIO-driven mode-0 SPI backend and
+ * existing DB_SPI wiring from v0.7.26. It retains the phase-shared low-RAM
+ * ML-KEM-512 KeyGen candidate from v0.7.27 and adds only a bounded startup
+ * drain/probe recovery window around the already-idempotent GET_INFO/GET_STATUS
+ * discovery path.
  *
  * The half-period loop is deliberately conservative: loop overhead can only
  * make SCK slower than the 100 kHz ceiling. Both Primer endpoints accept gaps
@@ -48,6 +50,12 @@
 #define TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS        5u
 #define TRINITY_DEPLOY_SPI_READ_REISSUE_MAX          2u
 #define TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS    20u
+/* Hardware v0.7.27 showed that an endpoint can remain temporarily unavailable
+ * beyond the three short per-request reissues while later explicit diagnostics
+ * pass without changing wiring. Retry the complete startup drain/probe sequence
+ * for a finite window, servicing PC UART between attempts. */
+#define TRINITY_DEPLOY_SPI_STARTUP_RECOVERY_MS    10000u
+#define TRINITY_DEPLOY_SPI_STARTUP_RECOVERY_BACKOFF_MS 250u
 /* Allow the Primer mailbox/IRQ synchronizers to settle after a complete
  * response before issuing the next command to either endpoint. */
 #define TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS        1u
