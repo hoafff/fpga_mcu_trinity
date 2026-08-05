@@ -5,13 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "trinity-host"
 # Legacy text-checker sentinel: version = "0.4.1"
-version = "0.4.3"
-description = "FPGA MCU Trinity PC protocol and SN32 secure telemetry qualification CLI"
+version = "0.5.0"
+description = "FPGA MCU Trinity PC protocol, qualification CLI and secure telemetry demo GUI"
 requires-python = ">=3.11"
 dependencies = ["pyserial>=3.5"]
 
 [project.scripts]
 trinity-host = "trinity_host.entrypoint:main"
+trinity-demo = "trinity_host.demo_gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
