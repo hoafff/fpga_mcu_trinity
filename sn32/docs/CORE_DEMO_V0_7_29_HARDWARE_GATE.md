@@ -31,7 +31,7 @@ Keep all hardware-qualified SPI and P1-to-P2 UART wiring unchanged. Add the
 single shared control net below:
 
 ```text
-SN32 P3.8 / PAT17
+SN32 P2.9 / board-visible J7 header pin
     +--> Primer #1 secure_enable_i / FPGA T12
     +--> Primer #2 secure_enable_i / FPGA T12
 ```
@@ -39,14 +39,19 @@ SN32 P3.8 / PAT17
 Requirements:
 
 - common 3.3 V ground among SN32, P1 and P2;
-- P3.8 LOW during reset/startup;
+- P2.9 LOW during reset/startup;
 - one SN32 output drives both Primer inputs;
 - no ESP32, Tiny or second output may drive that net;
 - verify continuity and absence of contention before power-on.
 
-The v0.7.29 firmware preserves the existing LOW for at least 2 ms then HIGH
-commit edge. In this demo profile that output acts directly as shared
-`secure_enable`; it is not a Tiny session-commit qualification.
+P2.9 is the normal MCU-heartbeat pin in the full Tiny profile. In the explicit
+no-Tiny v0.7.29 demo profile, firmware disables periodic heartbeat toggling and
+gives P2.9 one owner only: direct shared secure-enable. SysTick, progress leases,
+UART liveness and the internal fail-closed heartbeat timeout remain active.
+
+The firmware drives P2.9 LOW for at least 2 ms and then HIGH at commit. In this
+demo profile that edge acts directly as shared `secure_enable`; it is not a Tiny
+session-commit qualification.
 
 ## Source gates
 
@@ -140,14 +145,13 @@ The dashboard performs the core sequence in a worker thread and displays:
 - SN32/P1/P2 identities;
 - system/session state;
 - progress and event frames;
-- public-key hash;
 - session ID and sequence;
 - authenticated 24-byte plaintext;
 - final zeroize and PING result;
 - exportable text log.
 
-The yellow scope banner must remain visible: Tiny is omitted and P3.8 is the
-direct demo secure-enable source.
+The yellow scope banner must remain visible: Tiny is omitted, P2.9 is the direct
+demo secure-enable source, and P2.9 heartbeat output is disabled.
 
 ## CLI fallback hardware sequence
 
