@@ -26,6 +26,7 @@ jobs:
         run: |
           python sn32/tests/deploy/check_deploy_project.py
           python sn32/tests/deploy/check_startup_recovery_contract.py
+          python sn32/tests/deploy/check_core_demo_contract.py
       - name: Python protocol tests
         env:
           PYTHONPATH: pc_host/src
