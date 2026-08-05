@@ -6,6 +6,7 @@ date = "2026-08-05"
 source_candidate_commit = "0aff23231150b0d88222769b01e49810a8681d69"
 source_status_commit = "88acbbb378a46fcf422a5d19bdbde79cd72a0642"
 readme_candidate_commit = "2300e507d37deef318abd2332327d1fd534b5a6e"
+p29_pin_fix_commit = "PENDING_MAIN_HEAD"
 
 sn32_version = "0.7.29"
 sn32_build_id = "0x0007001D"
@@ -37,8 +38,10 @@ one_packet_secure_telemetry_hardware = "PENDING"
 post_demo_zeroize_and_liveness = "PENDING"
 
 core_demo_without_tiny = true
-direct_secure_enable_source = "SN32_P3_8_PAT17"
+direct_secure_enable_source = "SN32_P2_9_J7"
 direct_secure_enable_targets = "P1_T12_AND_P2_T12"
+mcu_heartbeat_output_on_p2_9 = false
+internal_progress_lease_and_timeout_enabled = true
 tiny_integration_qualified = false
 full_system_hardware_qualified = false
 
