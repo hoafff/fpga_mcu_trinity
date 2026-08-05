@@ -41,7 +41,7 @@ class FullFlowFakeClient:
             1,
             0,
             7,
-            28,
+            29,
             int(
                 SystemCapability.KAT
                 | SystemCapability.MLKEM512
@@ -49,7 +49,7 @@ class FullFlowFakeClient:
                 | SystemCapability.PAYLOAD_UART
                 | SystemCapability.TRANSACTION_RECONCILIATION
             ),
-            0x0007001C,
+            0x0007001D,
             0x5031D003,
             0x50320002,
         )
