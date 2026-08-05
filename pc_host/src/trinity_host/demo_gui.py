@@ -18,8 +18,7 @@ except ImportError:  # pragma: no cover
     list_ports = None
 
 from .demo_core import CoreDemoResult, run_core_demo
-from .full_flow import DEFAULT_PLAINTEXTS, parse_plaintext_hex, zeroize
-from .protocol import ZeroizeScope
+from .full_flow import DEFAULT_PLAINTEXTS, emergency_zeroize, parse_plaintext_hex
 from .serial_client import TrinitySerialClient
 
 
@@ -83,8 +82,8 @@ class TrinityDemoApp:
             text=(
                 "PHẠM VI DEMO: Tiny 1P5 tạm thời không sử dụng. "
                 "SN32 P2.9 phải nối trực tiếp tới SECURE_ENABLE/T12 của cả P1 và P2. "
-                "P2.9 không còn phát heartbeat trong profile này. "
-                "Không tuyên bố Tiny safety hoặc full-system PASS."
+                "Nếu commit lỗi, GUI hiển thị readback P2.9 và trạng thái riêng của P1/P2, "
+                "sau đó tự emergency-zeroize."
             ),
             wraplength=980,
             justify=tk.LEFT,
@@ -260,7 +259,7 @@ class TrinityDemoApp:
     def start_zeroize(self) -> None:
         def work():
             with self._open_client() as client:
-                result = zeroize(client, scope=ZeroizeScope.ALL, timeout=30.0)
+                result = emergency_zeroize(client, timeout=30.0)
                 status = client.get_system_status()
                 uptime = client.ping()
                 return result, status, uptime
@@ -309,7 +308,7 @@ class TrinityDemoApp:
             self._log(f"PING PASS, uptime_ms={uptime}")
         elif name == "demo":
             demo = result
-            self.sn32_var.set(f"0.7.29\n0x{demo.info.sn32_build_id:08X}")
+            self.sn32_var.set(f"0.7.30\n0x{demo.info.sn32_build_id:08X}")
             self.p1_var.set(f"0x{demo.info.primer1_build_id:08X}")
             self.p2_var.set(f"0x{demo.info.primer2_build_id:08X}")
             self.state_var.set(demo.status_final.system_state.name)
@@ -328,7 +327,7 @@ class TrinityDemoApp:
             self.session_var.set(f"0x{status.session_id:08X}")
             self.sequence_var.set(str(status.current_sequence))
             self.result_var.set("ZEROIZE PASS")
-            self._log(f"ZEROIZE PASS, final uptime_ms={uptime}")
+            self._log(f"EMERGENCY ZEROIZE PASS, final uptime_ms={uptime}")
 
     def _log(self, message: str) -> None:
         line = f"[{datetime.now().strftime('%H:%M:%S')}] {message}"
