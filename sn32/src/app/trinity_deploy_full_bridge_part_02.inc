@@ -11,7 +11,7 @@
     } else if (g_controller.last_error == rc) {
         g_host_txn.result_source = (uint8_t)g_controller.last_error_source;
         set_error(rc, g_controller.last_error_source,
-                  g_host_txn.target_txid);
+                  g_controller.last_error_detail);
     } else if (g_error.code == rc) {
         g_host_txn.result_source = (uint8_t)g_error.source;
     } else {
@@ -135,16 +135,47 @@ static void full_handle_close_session(const trinity_pc_frame_t *req) {
 }
 
 static void full_handle_zeroize(const trinity_pc_frame_t *req) {
+    const bool emergency_all =
+        request_length_is(req, 1u) &&
+        req->payload[0] == TRINITY_ZEROIZE_ALL;
     trinity_error_code_t rc;
     if (!request_length_is(req, 1u)) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_HOST_PROTOCOL, 0u);
         return;
     }
+
+    /*
+     * A full zeroize is the fail-safe escape hatch. A previously completed
+     * failed managed command must never block it with RESULT_PENDING. The old
+     * retained host result is discarded locally before the zeroize transaction
+     * is admitted. No running command can be preempted here because PC commands
+     * execute synchronously; progress() only drains UART bytes.
+     */
+    if (emergency_all && g_host_txn.valid) {
+        memset(&g_host_txn, 0, sizeof(g_host_txn));
+        g_active_host_txid = 0u;
+    }
     if (!managed_transaction_begin(req)) return;
+
     rc = trinity_controller_zeroize(&g_controller, req->payload[0], 20000u);
     if (req->payload[0] == TRINITY_ZEROIZE_ALL)
         trinity_deploy_crypto_zeroize(&g_crypto);
+
+    if (rc == TRINITY_OK && emergency_all) {
+        g_fault = false;
+        g_tiny_fault_contained = false;
+        g_error.code = TRINITY_OK;
+        g_error.source = TRINITY_SOURCE_SN32;
+        g_error.detail = 0u;
+        g_controller.last_error = TRINITY_OK;
+        g_controller.last_error_source = TRINITY_SOURCE_SN32;
+        g_controller.last_error_detail = 0u;
+        g_controller.state = TRINITY_SYSTEM_READY_NO_SESSION;
+        g_trinity_deploy_last_error = TRINITY_OK;
+        g_trinity_deploy_marker = DEPLOY_MARKER_OK;
+    }
+
     managed_transaction_finish(rc, NULL, 0u);
     managed_transaction_respond(req);
 }
