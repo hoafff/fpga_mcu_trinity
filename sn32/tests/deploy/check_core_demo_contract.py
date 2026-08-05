@@ -9,6 +9,7 @@ CONFIG = ROOT / "sn32/config/trinity_deploy_config.h"
 IDENTITY = ROOT / "sn32/src/app/trinity_deploy_main_part_00.inc"
 MAIN04 = ROOT / "sn32/src/app/trinity_deploy_main_part_04.inc"
 CONTROLLER_H = ROOT / "sn32/include/trinity_full_controller.h"
+CONTROLLER02 = ROOT / "sn32/src/app/trinity_full_controller_part_02.inc"
 CONTROLLER04 = ROOT / "sn32/src/app/trinity_full_controller_part_04.inc"
 BRIDGE00 = ROOT / "sn32/src/app/trinity_deploy_full_bridge_part_00.inc"
 BRIDGE02 = ROOT / "sn32/src/app/trinity_deploy_full_bridge_part_02.inc"
@@ -48,6 +49,7 @@ def main() -> int:
     identity = read(IDENTITY)
     main04 = read(MAIN04)
     controller_h = read(CONTROLLER_H)
+    controller02 = read(CONTROLLER02)
     controller04 = read(CONTROLLER04)
     bridge00 = read(BRIDGE00)
     bridge02 = read(BRIDGE02)
@@ -61,12 +63,12 @@ def main() -> int:
     gui = read(GUI)
     package = read(PACKAGE)
 
-    require(re.search(r"^#define\s+TRINITY_DEPLOY_VERSION_PATCH\s+30u$",
+    require(re.search(r"^#define\s+TRINITY_DEPLOY_VERSION_PATCH\s+31u$",
                       config, re.MULTILINE) is not None,
-            "SN32 candidate is not v0.7.30")
-    require(re.search(r"^#define\s+DEPLOY_BUILD_ID\s+UINT32_C\(0x0007001E\)$",
+            "SN32 candidate is not v0.7.31")
+    require(re.search(r"^#define\s+DEPLOY_BUILD_ID\s+UINT32_C\(0x0007001F\)$",
                       identity, re.MULTILINE) is not None,
-            "SN32 build ID is not 0x0007001E")
+            "SN32 build ID is not 0x0007001F")
     tokens(config, (
         "TRINITY_DEPLOY_CORE_DEMO_WITHOUT_TINY       1",
         "TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT  1",
@@ -77,7 +79,7 @@ def main() -> int:
     ), "demo config")
     tokens(identity, (
         "P2.9 cannot drive heartbeat and shared secure-enable simultaneously",
-        "v0.7.30 no-Tiny demo requires SN32 P2.9 as shared secure-enable",
+        "v0.7.31 no-Tiny demo requires SN32 P2.9 as shared secure-enable",
     ), "compile-time pin ownership")
     tokens(main04, (
         "#if TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT",
@@ -115,6 +117,13 @@ def main() -> int:
         "TRINITY_SESSION_FAILURE_GPIO_HIGH",
         "TRINITY_SESSION_FAILURE_DETAIL_PACK",
     ), "session diagnostic format")
+    tokens(controller02, (
+        "controller_session_state_matches",
+        "expected_state == TRINITY_SESSION_STAGED",
+        "TRINITY_SECURE_SESSION_STAGED",
+        "GET_STATUS exposes active_session_id",
+        "COMMIT_SESSION",
+    ), "staged status contract")
     tokens(controller04, (
         "failure_detail",
         "TRINITY_SESSION_FAILURE_PHASE_STAGE_WAIT",
@@ -138,8 +147,8 @@ def main() -> int:
     ), "session readback attachment")
 
     tokens(serial, (
-        "EXPECTED_SN32_BUILD_ID = 0x0007001E",
-        "EXPECTED_SN32_VERSION = (0, 7, 30)",
+        "EXPECTED_SN32_BUILD_ID = 0x0007001F",
+        "EXPECTED_SN32_VERSION = (0, 7, 31)",
         "class LastErrorSnapshot",
         "class SessionCommitDiagnostic",
         "P2.9_readback",
@@ -170,16 +179,16 @@ def main() -> int:
         "threading.Thread",
         "Xuất log",
     ), "demo GUI")
-    require(re.search(r'^version = "0\.5\.1"$', package, re.MULTILINE) is not None,
-            "host package is not 0.5.1")
+    require(re.search(r'^version = "0\.5\.2"$', package, re.MULTILINE) is not None,
+            "host package is not 0.5.2")
     require('trinity-demo = "trinity_host.demo_gui:main"' in package,
             "trinity-demo entry point is missing")
 
-    print("PASS: v0.7.30 retains the low-RAM ML-KEM core-demo datapath")
-    print("PASS: P2.9 is reasserted and sampled at the activation edge")
-    print("PASS: pre-zeroize P1/P2 session states and secure flags are retained")
-    print("PASS: full zeroize can preempt a terminal retained host failure")
-    print("PASS: PC host v0.5.1 reports diagnostics and performs emergency cleanup")
+    print("PASS: v0.7.31 retains the low-RAM ML-KEM core-demo datapath")
+    print("PASS: STAGED validation follows the Primer active-session status contract")
+    print("PASS: exact session IDs remain enforced by COMMIT_SESSION and active states")
+    print("PASS: v0.7.30 recovery diagnostics and emergency zeroize remain wired")
+    print("PASS: PC host v0.5.2 expects the corrected SN32 identity")
     print("NOTE: source PASS is not ArmClang fit or hardware core-demo PASS")
     return 0
 
