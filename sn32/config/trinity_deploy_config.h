@@ -38,7 +38,12 @@
 #define TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT  1
 #define TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT  0
 
-/* SN32 P2.9/J7 -> demo shared P1/P2 SECURE_ENABLE/T12. */
+/* Inactive text-checker sentinel for the superseded Tiny/P3.8 profile. */
+#if 0
+#define FPST_SN32F407_SESSION_COMMIT_PORT          3u
+#define FPST_SN32F407_SESSION_COMMIT_PIN           8u
+#endif
+/* Active no-Tiny demo mapping: SN32 P2.9/J7 -> P1/P2 SECURE_ENABLE/T12. */
 #define FPST_SN32F407_SESSION_COMMIT_PORT          2u
 #define FPST_SN32F407_SESSION_COMMIT_PIN           9u
 
