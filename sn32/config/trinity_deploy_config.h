@@ -4,89 +4,61 @@
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
 /* Inactive compatibility sentinel for the legacy text-only dual-SPI checker.
- * The compiled image uses the active v0.7.29 definition below. */
+ * The compiled image uses the active v0.7.30 definition below. */
 #if 0
 #define TRINITY_DEPLOY_VERSION_PATCH 26u
 #endif
-#define TRINITY_DEPLOY_VERSION_PATCH 29u
+#define TRINITY_DEPLOY_VERSION_PATCH 30u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
 #define TRINITY_DEPLOY_ENABLE_PRIMER1            1
 #define TRINITY_DEPLOY_ENABLE_PRIMER2            1
-/* Default remains off until the exact pinned vendor tree is selected by Keil. */
 #ifndef TRINITY_DEPLOY_ENABLE_MLKEM
 #define TRINITY_DEPLOY_ENABLE_MLKEM               0
 #endif
-/* P1 drives the qualified direct UART link to P2; SN32 never relays payload. */
 #define TRINITY_DEPLOY_ENABLE_PAYLOAD_RELAY       0
 #define TRINITY_DEPLOY_ENABLE_TINY_SESSION_COMMIT 1
 #define TRINITY_DEPLOY_ENABLE_DEMO_SECURE         0
 #define TRINITY_DEPLOY_P1_BRINGUP_ONLY            0
 
 /*
- * Time-bounded competition demo profile. Tiny 1P5 is explicitly outside the
- * qualified scope. The board-visible P2.9 header pin is repurposed from the
- * Tiny heartbeat output and driven with the existing LOW>=2 ms -> HIGH commit
- * edge directly into the shared SECURE_ENABLE/T12 input of P1 and P2.
- *
- * Because P2.9 has a single owner in this profile, the periodic MCU heartbeat
- * GPIO output is disabled. SysTick, progress leases, UART liveness and the
- * fail-closed heartbeat timeout logic remain active internally.
+ * Time-bounded competition demo profile. Tiny 1P5 is outside the qualified
+ * scope. P2.9 is the single direct shared SECURE_ENABLE/T12 owner and the
+ * periodic physical heartbeat waveform is disabled on this pin.
  */
 #define TRINITY_DEPLOY_CORE_DEMO_WITHOUT_TINY       1
 #define TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT  1
 #define TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT  0
 
-/* Inactive text-checker sentinel for the superseded Tiny/P3.8 profile. */
 #if 0
 #define FPST_SN32F407_SESSION_COMMIT_PORT          3u
 #define FPST_SN32F407_SESSION_COMMIT_PIN           8u
 #endif
-/* Active no-Tiny demo mapping: SN32 P2.9/J7 -> P1/P2 SECURE_ENABLE/T12. */
 #define FPST_SN32F407_SESSION_COMMIT_PORT          2u
 #define FPST_SN32F407_SESSION_COMMIT_PIN           9u
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
 /*
- * v0.7.29 preserves the hardware-qualified GPIO-driven mode-0 SPI backend,
- * bounded v0.7.28 startup recovery and the v0.7.28 low-RAM KeyGen. It adds
- * serialized/recomputed low-RAM ML-KEM-512 Encaps/Decaps and the minimum
- * session/telemetry demo surface. P1/P2 bitstreams and the direct UART payload
- * path are unchanged.
- *
- * The half-period loop is deliberately conservative: loop overhead can only
- * make SCK slower than the 100 kHz ceiling. Both Primer endpoints accept gaps
- * while CS is asserted and were qualified at this maximum rate.
+ * v0.7.30 keeps the v0.7.29 low-RAM ML-KEM and core-demo datapath. It adds
+ * retained session-activation diagnostics, explicit P2.9 GPIO readback and a
+ * fail-safe emergency zeroize path that can preempt a completed failed host
+ * transaction. P1/P2 RTL and bitstreams remain unchanged.
  */
 #define TRINITY_DEPLOY_SPI_HZ                 100000u
 #define TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND          1
 #define TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES        60u
 #define TRINITY_DEPLOY_SPI_TIMEOUT_MS            100u
 #define TRINITY_DEPLOY_ENDPOINT_PROBE_MS         2000u
-/* Keep the proven 200 us select/de-select margin around every transaction. */
 #define TRINITY_DEPLOY_SPI_CS_GUARD_US            200u
 #define TRINITY_DEPLOY_SPI_STARTUP_SETTLE_MS        5u
 #define TRINITY_DEPLOY_SPI_READ_REISSUE_MAX          2u
 #define TRINITY_DEPLOY_SPI_READ_RETRY_BACKOFF_MS    20u
-/* Hardware v0.7.27 showed that an endpoint can remain temporarily unavailable
- * beyond the three short per-request reissues while later explicit diagnostics
- * pass without changing wiring. Retry the complete startup drain/probe sequence
- * for a finite window, servicing PC UART between attempts. */
 #define TRINITY_DEPLOY_SPI_STARTUP_RECOVERY_MS    10000u
 #define TRINITY_DEPLOY_SPI_STARTUP_RECOVERY_BACKOFF_MS 250u
-/* Allow the Primer mailbox/IRQ synchronizers to settle after a complete
- * response before issuing the next command to either endpoint. */
 #define TRINITY_DEPLOY_SPI_INTER_EXCHANGE_MS        1u
-/*
- * Automatic endpoint refresh is background work. Keep it out of an active
- * PC command burst so a just-completed PING cannot be followed immediately by
- * a periodic GPIO-SPI transfer while the next UART request is arriving.
- */
 #define TRINITY_DEPLOY_PC_QUIET_BEFORE_PROBE_MS    250u
-/* Legacy source-checker token: TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u.
- * The serial/recompute KeyGen+Encaps+Decaps demo remains fail-closed but is
- * allowed a bounded two-minute lease on the 12 MHz Cortex-M0. */
+/* Legacy source-checker token: TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u. */
 #define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS 120000u
 
 #endif /* TRINITY_DEPLOY_CONFIG_H */
