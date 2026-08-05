@@ -88,23 +88,25 @@ trinity-demo
 ```
 
 The Tkinter dashboard provides serial-port selection, quick preflight, one-click
-core demo, progress/event display, SN32/P1/P2 identities, session and sequence
-status, authenticated plaintext display, emergency zeroize and log export.
-Serial I/O runs in a worker thread so the UI remains responsive during the
-slow 12 MHz Cortex-M0 cryptographic phases.
+core demo, progress display, SN32/P1/P2 identities, session and sequence status,
+authenticated plaintext display, emergency zeroize and log export. Serial I/O
+runs in a worker thread so the UI remains responsive during the slow 12 MHz
+Cortex-M0 cryptographic phases.
 
 ## Temporary wiring without Tiny
 
 Keep the qualified SPI and direct P1-to-P2 UART wiring unchanged. Add:
 
 ```text
-SN32 P3.8 / PAT17
+SN32 P2.9 / board-visible J7 header pin
     +--> Primer #1 secure_enable_i / FPGA T12
     +--> Primer #2 secure_enable_i / FPGA T12
 ```
 
 Use one common 3.3 V logic ground. No ESP32, Tiny or second output may drive
-this shared net. The GUI displays this scope boundary prominently.
+this shared net. In the no-Tiny profile, firmware disables the normal P2.9 MCU
+heartbeat GPIO and gives P2.9 one owner only: direct shared secure-enable.
+Internal SysTick/progress leases and fail-closed timeout checks remain active.
 
 ## Required before calling the candidate demo-ready
 
