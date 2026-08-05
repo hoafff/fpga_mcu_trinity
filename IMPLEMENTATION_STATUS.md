@@ -82,14 +82,16 @@ The qualified SPI and direct P1-to-P2 UART wiring remains unchanged. For the
 v0.7.29 competition demo, connect:
 
 ```text
-SN32 P3.8 / PAT17
+SN32 P2.9 / board-visible J7 header pin
     +--> Primer #1 secure_enable_i / FPGA T12
     +--> Primer #2 secure_enable_i / FPGA T12
 ```
 
-P3.8 supplies the existing LOW-at-staging then HIGH-at-commit edge directly to
-both Primer inputs. No Tiny or second output may drive this net. This wiring is
-a temporary demo profile and does not qualify Tiny safety behavior.
+P2.9 is normally the MCU heartbeat output in the complete Tiny architecture.
+For this no-Tiny candidate, the periodic GPIO heartbeat is compile-time disabled
+and P2.9 has one output owner only: LOW-at-staging then HIGH-at-commit direct
+shared secure-enable. Internal SysTick/progress leases and fail-closed timeout
+checks remain active. No Tiny, ESP32 or second output may drive this net.
 
 ## Required exact-target and hardware gate
 
