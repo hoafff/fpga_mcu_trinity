@@ -41,17 +41,17 @@ def main() -> int:
     evidence = read(EVIDENCE)
     evidence_words = " ".join(evidence.split())
 
-    require(re.search(r"^#define\s+TRINITY_DEPLOY_VERSION_PATCH\s+30u$",
+    require(re.search(r"^#define\s+TRINITY_DEPLOY_VERSION_PATCH\s+31u$",
                       config, re.MULTILINE) is not None,
-            "active deploy identity is not v0.7.30")
-    require(re.search(r"^#define\s+DEPLOY_BUILD_ID\s+UINT32_C\(0x0007001E\)$",
+            "active deploy identity is not v0.7.31")
+    require(re.search(r"^#define\s+DEPLOY_BUILD_ID\s+UINT32_C\(0x0007001F\)$",
                       identity, re.MULTILINE) is not None,
-            "active deploy build ID is not 0x0007001E")
-    require("EXPECTED_SN32_BUILD_ID = 0x0007001E" in host and
-            "EXPECTED_SN32_VERSION = (0, 7, 30)" in host,
-            "host identity is not v0.7.30 / 0x0007001E")
-    require(re.search(r'^version = "0\.5\.1"$', package, re.MULTILINE) is not None,
-            "host package is not 0.5.1")
+            "active deploy build ID is not 0x0007001F")
+    require("EXPECTED_SN32_BUILD_ID = 0x0007001F" in host and
+            "EXPECTED_SN32_VERSION = (0, 7, 31)" in host,
+            "host identity is not v0.7.31 / 0x0007001F")
+    require(re.search(r'^version = "0\.5\.2"$', package, re.MULTILINE) is not None,
+            "host package is not 0.5.2")
 
     for token in (
         "TRINITY_DEPLOY_SPI_STARTUP_RECOVERY_MS    10000u",
@@ -98,7 +98,7 @@ def main() -> int:
     ):
         require_token(evidence_words, token, "hardware evidence")
 
-    print("PASS: v0.7.30 retains the v0.7.28 startup recovery contract")
+    print("PASS: v0.7.31 retains the v0.7.28 startup recovery contract")
     print("PASS: complete drain/probe retries are bounded to 10 seconds")
     print("PASS: transient evidence clears only after full P1+P2 recovery")
     print("PASS: persistent and non-transport failures remain fail-closed")
