@@ -71,6 +71,28 @@ static trinity_error_code_t controller_execute_retained(
                ? result->result_code : TRINITY_INTERNAL_FAULT;
 }
 
+static bool controller_session_state_matches(
+    const trinity_controller_endpoint_t *endpoint,
+    uint8_t expected_state,
+    uint32_t expected_session_id) {
+    if (endpoint == NULL || endpoint->session_state != expected_state)
+        return false;
+
+    /*
+     * Primer GET_STATUS exposes active_session_id in bytes 4..7. During
+     * SESSION_STAGED the active bank is intentionally still empty, so that
+     * field is zero even though the staged bank contains the new session ID.
+     * Validate STAGED using the state plus SECURE_SESSION_STAGED. The exact
+     * session ID is then enforced independently by each Primer when it accepts
+     * COMMIT_SESSION. COMMITTED_BLOCKED and ACTIVE report active_session_id and
+     * therefore retain the strict ID comparison here.
+     */
+    if (expected_state == TRINITY_SESSION_STAGED)
+        return (endpoint->secure_flags & TRINITY_SECURE_SESSION_STAGED) != 0u;
+
+    return endpoint->session_id == expected_session_id;
+}
+
 static trinity_error_code_t controller_wait_session_state(
     trinity_controller_t *controller,
     uint8_t expected_state,
@@ -81,10 +103,10 @@ static trinity_error_code_t controller_wait_session_state(
     do {
         rc = trinity_controller_refresh_status(controller);
         if (rc != TRINITY_OK) return rc;
-        if (controller->p1.session_state == expected_state &&
-            controller->p2.session_state == expected_state &&
-            controller->p1.session_id == expected_session_id &&
-            controller->p2.session_id == expected_session_id)
+        if (controller_session_state_matches(&controller->p1, expected_state,
+                                             expected_session_id) &&
+            controller_session_state_matches(&controller->p2, expected_state,
+                                             expected_session_id))
             return TRINITY_OK;
         controller_progress(controller);
     } while (!controller_expired(controller, started, timeout_ms));
