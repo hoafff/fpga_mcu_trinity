@@ -1,6 +1,7 @@
 /* Full dual-Primer controller binding for the SN32F407 deploy target. */
 
 static bool g_session_commit_level;
+static bool g_session_commit_readback_at_high;
 static bool g_tiny_fault_contained;
 
 static endpoint_t *full_endpoint(uint8_t target_id) {
@@ -58,15 +59,28 @@ static bool full_tiny_fault_active(void *context) {
 static void full_session_commit_low(void *context) {
     (void)context;
     g_session_commit_level = false;
+    gpio_set_mode(FPST_SN32F407_SESSION_COMMIT_PORT,
+                  FPST_SN32F407_SESSION_COMMIT_PIN, true);
+    gpio_set_cfg(FPST_SN32F407_SESSION_COMMIT_PORT,
+                 FPST_SN32F407_SESSION_COMMIT_PIN,
+                 GPIO_NO_PULL_SCHMITT);
     gpio_write(FPST_SN32F407_SESSION_COMMIT_PORT,
                FPST_SN32F407_SESSION_COMMIT_PIN, false);
 }
 
 static void full_session_commit_high(void *context) {
     (void)context;
-    g_session_commit_level = true;
+    gpio_set_mode(FPST_SN32F407_SESSION_COMMIT_PORT,
+                  FPST_SN32F407_SESSION_COMMIT_PIN, true);
+    gpio_set_cfg(FPST_SN32F407_SESSION_COMMIT_PORT,
+                 FPST_SN32F407_SESSION_COMMIT_PIN,
+                 GPIO_NO_PULL_SCHMITT);
     gpio_write(FPST_SN32F407_SESSION_COMMIT_PORT,
                FPST_SN32F407_SESSION_COMMIT_PIN, true);
+    g_session_commit_level = true;
+    g_session_commit_readback_at_high =
+        gpio_read(FPST_SN32F407_SESSION_COMMIT_PORT,
+                  FPST_SN32F407_SESSION_COMMIT_PIN);
 }
 
 static void full_contain_tiny_fault(void) {
