@@ -3,7 +3,7 @@
 **Status:** `CONFIRMED`  
 **Physical qualification:** `PHYSICAL-PENDING`  
 **Version:** `v0.1`  
-**Date:** `2026-08-01`
+**Date:** `2026-08-05`
 
 This document authorizes RTL top ports, SN32 pinmux and CST entries. It does not
 claim continuity, voltage, programming, timing or hardware PASS.
@@ -50,7 +50,7 @@ spi_sck_i          P16
 spi_mosi_i         P15
 spi_miso_o         T15
 spi_cs_ni          R14
-irq_no             T14
+irq_no              T14
 uart_tx_o          R13
 fault_o            T13
 fatal_latched_i    R12
@@ -68,7 +68,7 @@ spi_sck_i          P16
 spi_mosi_i         P15
 spi_miso_o         T15
 spi_cs_ni          R14
-irq_no             T14
+irq_no              T14
 uart_rx_i          R13
 fault_o            T13
 fatal_latched_i    R12
@@ -77,7 +77,9 @@ zeroize_ni         R11
 heartbeat_o        T11
 ```
 
-## Heartbeat and crypto fault to Tiny
+## Complete architecture with Tiny
+
+Heartbeat and crypto-fault inputs:
 
 ```text
 SN32 P2.9      -> Tiny J1-1  / pin 2 / hb_mcu_i
@@ -86,9 +88,7 @@ P2 J2-18 / T11 -> Tiny J1-3  / pin 5 / hb_crypto_i
 P2 J2-12 / T13 -> Tiny J1-11 / pin 15 / crypto_fault_i
 ```
 
-P1 `fault_o` and P2 `fault_o` are not tied together.
-
-## Tiny outputs to both Primers
+Tiny outputs to both Primers:
 
 ```text
 Tiny J1-7  / pin 10 / secure_enable_o -> P1/P2 J2-15 / T12
@@ -104,17 +104,44 @@ zeroize_no      active-low
 fault_latched_o active-high
 ```
 
-## SESSION_COMMIT
+SESSION_COMMIT in the complete Tiny architecture:
 
 ```text
 SN32 P3.8 / PAT17 / session_commit_toggle_o
 -> Tiny J1-6 / pin 9 / session_commit_toggle_i
 ```
 
-SN32 P3.8 has no alternate LED0 owner. Tiny uses a two-flop synchronizer and
+SN32 P3.8 has no alternate LED0 owner in the logical architecture, but the EVK
+physical route remains evidence-sensitive. Tiny uses a two-flop synchronizer and
 toggle detection. After Tiny reset, the observed level establishes the baseline
 and is not a commit event. SN32 toggles only after both Primers report
 `COMMITTED_BLOCKED`.
+
+## Time-bounded no-Tiny core-demo override
+
+This override applies only to SN32 v0.7.29 core-demo source candidate and must
+not be combined with the Tiny wiring above.
+
+```text
+SN32 P2.9 / board-visible J7 header pin
+    +--> P1 J2-15 / T12 / secure_enable_i
+    +--> P2 J2-15 / T12 / secure_enable_i
+```
+
+Rules:
+
+```text
+Tiny is not connected.
+P2.9 MCU heartbeat GPIO output is compile-time disabled.
+P2.9 has one owner only: direct shared secure-enable.
+P2.9 stays LOW through reset/staging and rises at session commit.
+No ESP32, Tiny or second output may drive the shared T12 net.
+Common 3.3 V logic ground is mandatory.
+```
+
+SysTick, cooperative progress leases, UART liveness and the internal fail-closed
+heartbeat timeout remain enabled; only the physical P2.9 heartbeat waveform is
+removed in this no-Tiny profile.
 
 ## Tiny logical CST
 
