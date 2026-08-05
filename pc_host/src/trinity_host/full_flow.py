@@ -16,6 +16,9 @@ from .protocol import (
 )
 from .serial_client import (
     HostProtocolError,
+    LastErrorSnapshot,
+    RemoteError,
+    SessionCommitDiagnostic,
     Sn32QualificationResult,
     SystemInfo,
     TrinitySerialClient,
@@ -109,6 +112,16 @@ def _require_seed(seed: bytes) -> bytes:
     return seed
 
 
+def _retire_active_host_transaction(client: TrinitySerialClient) -> int:
+    """Best-effort retirement of a terminal failed managed transaction."""
+    status = client.get_system_status()
+    if status.active_host_txid == 0:
+        return 0
+    host_txid = status.active_host_txid
+    client.retire_transaction_result(host_txid)
+    return host_txid
+
+
 def _retained_request(
     client: TrinitySerialClient,
     command: HostCommand,
@@ -116,7 +129,18 @@ def _retained_request(
     *,
     timeout: float,
 ) -> tuple[int, bytes]:
-    response = client.request(command, payload, timeout=timeout)
+    try:
+        response = client.request(command, payload, timeout=timeout)
+    except RemoteError:
+        # Managed-command error responses are terminal and retained by SN32.
+        # Retire that result immediately so the next safety command cannot be
+        # rejected with RESULT_PENDING. GET_LAST_ERROR remains available.
+        try:
+            _retire_active_host_transaction(client)
+        except Exception:
+            pass
+        raise
+
     host_txid = response.transaction_id
     retained = client.get_transaction_result(host_txid)
     try:
@@ -286,6 +310,27 @@ def zeroize(
     return host_txid
 
 
+def emergency_zeroize(
+    client: TrinitySerialClient,
+    *,
+    timeout: float = 30.0,
+) -> int:
+    """Retire any failed retained command, then request full zeroization."""
+    try:
+        _retire_active_host_transaction(client)
+    except Exception:
+        # v0.7.30 firmware independently preempts a retained failed command.
+        pass
+    return zeroize(client, scope=ZeroizeScope.ALL, timeout=timeout)
+
+
+def read_session_commit_diagnostic(
+    client: TrinitySerialClient,
+) -> tuple[LastErrorSnapshot, SessionCommitDiagnostic | None]:
+    snapshot = client.get_last_error()
+    return snapshot, SessionCommitDiagnostic.from_last_error(snapshot)
+
+
 def _validate_full_preflight(info: SystemInfo, status: SystemStatus) -> None:
     missing = _REQUIRED_CAPABILITIES & ~info.capabilities
     if missing:
@@ -392,7 +437,7 @@ def run_secure_telemetry_qualification(
                 "READ_LAST_RESULT differs from the final telemetry result"
             )
     finally:
-        zeroize(client, scope=ZeroizeScope.ALL, timeout=timeout)
+        emergency_zeroize(client, timeout=timeout)
 
     status_final = client.get_system_status()
     if status_final.system_state != SystemState.READY_NO_KEYPAIR:
