@@ -108,4 +108,4 @@ def _get_last_error(self: TrinitySerialClient) -> LastErrorSnapshot:
 
 TrinitySerialClient.get_last_error = _get_last_error
 
-del _impl_path, _impl_source, _Path, _dataclass, _struct
+del _impl_path, _impl_source, _Path, _dataclass
