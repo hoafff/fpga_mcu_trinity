@@ -23,7 +23,9 @@ jobs:
           python ai_context/scripts/check_protocol_registry.py
           python ai_context/scripts/check_candidate_hashes.py
       - name: SN32 full deploy static gate
-        run: python sn32/tests/deploy/check_deploy_project.py
+        run: |
+          python sn32/tests/deploy/check_deploy_project.py
+          python sn32/tests/deploy/check_startup_recovery_contract.py
       - name: Python protocol tests
         env:
           PYTHONPATH: pc_host/src
