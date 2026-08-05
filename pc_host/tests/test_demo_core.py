@@ -40,7 +40,7 @@ class CoreDemoFakeClient:
             1,
             0,
             7,
-            30,
+            31,
             int(
                 SystemCapability.KAT
                 | SystemCapability.MLKEM512
@@ -48,7 +48,7 @@ class CoreDemoFakeClient:
                 | SystemCapability.PAYLOAD_UART
                 | SystemCapability.TRANSACTION_RECONCILIATION
             ),
-            0x0007001E,
+            0x0007001F,
             0x5031D003,
             0x50320002,
         )
@@ -176,7 +176,7 @@ class CoreDemoTests(unittest.TestCase):
             on_progress=lambda text, percent: progress.append((text, percent)),
         )
 
-        self.assertEqual(result.info.sn32_build_id, 0x0007001E)
+        self.assertEqual(result.info.sn32_build_id, 0x0007001F)
         self.assertEqual(result.session.session_id, client.session_id)
         self.assertEqual(result.telemetry.sequence, 1)
         self.assertEqual(result.telemetry.plaintext, DEFAULT_PLAINTEXTS[0])
