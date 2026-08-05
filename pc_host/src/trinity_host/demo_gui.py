@@ -5,35 +5,34 @@ from pathlib import Path
 import queue
 import threading
 import traceback
-from typing import Callable
 
 try:
     import tkinter as tk
     from tkinter import filedialog, messagebox, ttk
-except ImportError as exc:  # pragma: no cover - platform packaging issue
+except ImportError as exc:  # pragma: no cover
     raise RuntimeError("Tkinter is required for the Trinity demo GUI") from exc
 
 try:
     from serial.tools import list_ports  # type: ignore
-except ImportError:  # pragma: no cover - pyserial installation issue
+except ImportError:  # pragma: no cover
     list_ports = None
 
 from .demo_core import CoreDemoResult, run_core_demo
 from .full_flow import DEFAULT_PLAINTEXTS, parse_plaintext_hex, zeroize
-from .protocol import EventEnvelope, SystemState, ZeroizeScope
+from .protocol import ZeroizeScope
 from .serial_client import TrinitySerialClient
 
 
 class TrinityDemoApp:
-    """Operator-focused GUI for the time-bounded SN32/P1/P2 core demo."""
+    """Operator dashboard for the SN32/P1/P2 no-Tiny core demo."""
 
     POLL_MS = 75
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Trinity — FPGA/PQC Secure Telemetry Demo")
-        self.root.geometry("1100x760")
-        self.root.minsize(980, 680)
+        self.root.geometry("1040x720")
+        self.root.minsize(920, 640)
 
         self._queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self._worker: threading.Thread | None = None
@@ -43,8 +42,7 @@ class TrinityDemoApp:
         self.plaintext_var = tk.StringVar(value=DEFAULT_PLAINTEXTS[0].hex().upper())
         self.progress_var = tk.DoubleVar(value=0.0)
         self.progress_text_var = tk.StringVar(value="Sẵn sàng")
-        self.overall_var = tk.StringVar(value="CHƯA CHẠY")
-
+        self.result_var = tk.StringVar(value="CHƯA CHẠY")
         self.sn32_var = tk.StringVar(value="—")
         self.p1_var = tk.StringVar(value="—")
         self.p2_var = tk.StringVar(value="—")
@@ -52,51 +50,43 @@ class TrinityDemoApp:
         self.session_var = tk.StringVar(value="—")
         self.sequence_var = tk.StringVar(value="—")
 
-        self._configure_style()
         self._build_ui()
         self.refresh_ports()
         self.root.after(self.POLL_MS, self._drain_queue)
-
-    def _configure_style(self) -> None:
-        style = ttk.Style(self.root)
-        if "vista" in style.theme_names():
-            style.theme_use("vista")
-        style.configure("Header.TLabel", font=("Segoe UI", 19, "bold"))
-        style.configure("Subheader.TLabel", font=("Segoe UI", 10))
-        style.configure("CardTitle.TLabel", font=("Segoe UI", 9, "bold"))
-        style.configure("CardValue.TLabel", font=("Consolas", 12, "bold"))
-        style.configure("Pass.TLabel", font=("Segoe UI", 14, "bold"), foreground="#137333")
-        style.configure("Fail.TLabel", font=("Segoe UI", 14, "bold"), foreground="#B3261E")
-        style.configure("Pending.TLabel", font=("Segoe UI", 14, "bold"), foreground="#5F6368")
-        style.configure("Primary.TButton", font=("Segoe UI", 10, "bold"), padding=(14, 8))
-        style.configure("TButton", padding=(10, 6))
 
     def _build_ui(self) -> None:
         outer = ttk.Frame(self.root, padding=16)
         outer.pack(fill=tk.BOTH, expand=True)
 
-        header = ttk.Frame(outer)
-        header.pack(fill=tk.X)
-        ttk.Label(header, text="FPGA–PQC Secure Telemetry", style="Header.TLabel").pack(anchor=tk.W)
         ttk.Label(
-            header,
+            outer,
+            text="FPGA–PQC Secure Telemetry",
+            font=("Segoe UI", 19, "bold"),
+        ).pack(anchor=tk.W)
+        ttk.Label(
+            outer,
             text="Core demo: PC ↔ SN32 ↔ Primer #1 → UART → Primer #2",
-            style="Subheader.TLabel",
-        ).pack(anchor=tk.W, pady=(2, 0))
+        ).pack(anchor=tk.W, pady=(2, 10))
 
-        scope = tk.Frame(outer, bg="#FFF3CD", highlightbackground="#E0B84C", highlightthickness=1)
-        scope.pack(fill=tk.X, pady=(12, 10))
+        warning = tk.Frame(
+            outer,
+            bg="#FFF3CD",
+            highlightbackground="#D4A72C",
+            highlightthickness=1,
+        )
+        warning.pack(fill=tk.X, pady=(0, 10))
         tk.Label(
-            scope,
+            warning,
             bg="#FFF3CD",
             fg="#5F4500",
             font=("Segoe UI", 9, "bold"),
             text=(
                 "PHẠM VI DEMO: Tiny 1P5 tạm thời không sử dụng. "
-                "SN32 P3.8 phải nối trực tiếp tới SECURE_ENABLE/T12 của cả P1 và P2. "
-                "Không tuyên bố full-system hoặc Tiny safety PASS."
+                "SN32 P2.9 phải nối trực tiếp tới SECURE_ENABLE/T12 của cả P1 và P2. "
+                "P2.9 không còn phát heartbeat trong profile này. "
+                "Không tuyên bố Tiny safety hoặc full-system PASS."
             ),
-            wraplength=1030,
+            wraplength=980,
             justify=tk.LEFT,
             padx=10,
             pady=8,
@@ -105,65 +95,82 @@ class TrinityDemoApp:
         connection = ttk.LabelFrame(outer, text="Kết nối", padding=10)
         connection.pack(fill=tk.X)
         ttk.Label(connection, text="Cổng UART:").grid(row=0, column=0, sticky=tk.W)
-        self.port_combo = ttk.Combobox(connection, textvariable=self.port_var, width=18)
-        self.port_combo.grid(row=0, column=1, padx=(8, 8), sticky=tk.W)
-        self.refresh_button = ttk.Button(connection, text="Làm mới", command=self.refresh_ports)
-        self.refresh_button.grid(row=0, column=2, padx=(0, 14))
+        self.port_combo = ttk.Combobox(
+            connection,
+            textvariable=self.port_var,
+            width=18,
+            state="normal",
+        )
+        self.port_combo.grid(row=0, column=1, padx=8, sticky=tk.W)
+        ttk.Button(connection, text="Làm mới", command=self.refresh_ports).grid(
+            row=0, column=2, padx=(0, 8)
+        )
         self.preflight_button = ttk.Button(
-            connection, text="Kiểm tra nhanh", command=self.start_preflight
+            connection,
+            text="Kiểm tra nhanh",
+            command=self.start_preflight,
         )
-        self.preflight_button.grid(row=0, column=3, padx=(0, 8))
-        ttk.Label(connection, text="Kết quả:").grid(row=0, column=4, padx=(16, 6))
-        self.overall_label = ttk.Label(
-            connection, textvariable=self.overall_var, style="Pending.TLabel"
+        self.preflight_button.grid(row=0, column=3, padx=(0, 12))
+        ttk.Label(connection, text="Kết quả:").grid(row=0, column=4, sticky=tk.E)
+        self.result_label = ttk.Label(
+            connection,
+            textvariable=self.result_var,
+            font=("Segoe UI", 12, "bold"),
         )
-        self.overall_label.grid(row=0, column=5, sticky=tk.W)
-        connection.columnconfigure(6, weight=1)
+        self.result_label.grid(row=0, column=5, padx=(8, 0), sticky=tk.W)
 
         cards = ttk.Frame(outer)
         cards.pack(fill=tk.X, pady=10)
-        card_specs = (
-            ("SN32", self.sn32_var),
-            ("Primer #1", self.p1_var),
-            ("Primer #2", self.p2_var),
-            ("System state", self.state_var),
-            ("Session ID", self.session_var),
-            ("Sequence", self.sequence_var),
-        )
-        for column, (title, variable) in enumerate(card_specs):
-            card = ttk.LabelFrame(cards, padding=(10, 8))
-            card.grid(row=0, column=column, padx=(0 if column == 0 else 5, 5), sticky="nsew")
-            ttk.Label(card, text=title, style="CardTitle.TLabel").pack(anchor=tk.W)
-            ttk.Label(card, textvariable=variable, style="CardValue.TLabel").pack(anchor=tk.W, pady=(5, 0))
+        for column, (title, variable) in enumerate(
+            (
+                ("SN32", self.sn32_var),
+                ("Primer #1", self.p1_var),
+                ("Primer #2", self.p2_var),
+                ("System state", self.state_var),
+                ("Session ID", self.session_var),
+                ("Sequence", self.sequence_var),
+            )
+        ):
+            card = ttk.LabelFrame(cards, text=title, padding=(8, 6))
+            card.grid(row=0, column=column, padx=3, sticky=tk.EW)
+            ttk.Label(card, textvariable=variable, font=("Consolas", 10, "bold")).pack()
             cards.columnconfigure(column, weight=1)
 
-        demo = ttk.LabelFrame(outer, text="Demo một gói telemetry đã xác thực", padding=10)
-        demo.pack(fill=tk.X)
-        ttk.Label(demo, text="Plaintext 24 byte (hex):").grid(row=0, column=0, sticky=tk.W)
-        self.plaintext_entry = ttk.Entry(demo, textvariable=self.plaintext_var, font=("Consolas", 10))
-        self.plaintext_entry.grid(row=0, column=1, padx=(8, 8), sticky="ew")
-        ttk.Button(
-            demo,
-            text="Mẫu mặc định",
-            command=lambda: self.plaintext_var.set(DEFAULT_PLAINTEXTS[0].hex().upper()),
-        ).grid(row=0, column=2, padx=(0, 8))
-        self.run_button = ttk.Button(
-            demo, text="CHẠY CORE DEMO", style="Primary.TButton", command=self.start_demo
-        )
-        self.run_button.grid(row=0, column=3, padx=(4, 0))
-        demo.columnconfigure(1, weight=1)
+        payload = ttk.LabelFrame(outer, text="Payload demo", padding=10)
+        payload.pack(fill=tk.X)
+        ttk.Label(payload, text="Plaintext 24 byte (48 hex):").pack(anchor=tk.W)
+        ttk.Entry(
+            payload,
+            textvariable=self.plaintext_var,
+            font=("Consolas", 10),
+        ).pack(fill=tk.X, pady=(4, 0))
 
-        progress = ttk.Frame(outer)
-        progress.pack(fill=tk.X, pady=(10, 8))
-        self.progress_bar = ttk.Progressbar(
-            progress, variable=self.progress_var, maximum=100.0, mode="determinate"
+        controls = ttk.Frame(outer)
+        controls.pack(fill=tk.X, pady=10)
+        self.demo_button = ttk.Button(
+            controls,
+            text="CHẠY CORE DEMO",
+            command=self.start_demo,
         )
-        self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Label(progress, textvariable=self.progress_text_var, width=48).pack(
-            side=tk.LEFT, padx=(10, 0)
+        self.demo_button.pack(side=tk.LEFT)
+        self.zeroize_button = ttk.Button(
+            controls,
+            text="ZEROIZE KHẨN CẤP",
+            command=self.start_zeroize,
+        )
+        self.zeroize_button.pack(side=tk.LEFT, padx=8)
+        ttk.Button(controls, text="Xuất log", command=self.export_log).pack(side=tk.RIGHT)
+
+        ttk.Progressbar(
+            outer,
+            variable=self.progress_var,
+            maximum=100,
+        ).pack(fill=tk.X)
+        ttk.Label(outer, textvariable=self.progress_text_var).pack(
+            anchor=tk.W, pady=(3, 8)
         )
 
-        log_frame = ttk.LabelFrame(outer, text="Nhật ký demo", padding=8)
+        log_frame = ttk.LabelFrame(outer, text="Nhật ký", padding=6)
         log_frame.pack(fill=tk.BOTH, expand=True)
         self.log_text = tk.Text(
             log_frame,
@@ -171,227 +178,176 @@ class TrinityDemoApp:
             wrap=tk.WORD,
             font=("Consolas", 9),
             state=tk.DISABLED,
-            bg="#111827",
-            fg="#E5E7EB",
-            insertbackground="#E5E7EB",
-            relief=tk.FLAT,
         )
-        scroll = ttk.Scrollbar(log_frame, command=self.log_text.yview)
-        self.log_text.configure(yscrollcommand=scroll.set)
+        scrollbar = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
+        self.log_text.configure(yscrollcommand=scrollbar.set)
         self.log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-        footer = ttk.Frame(outer)
-        footer.pack(fill=tk.X, pady=(8, 0))
-        self.zeroize_button = ttk.Button(
-            footer, text="Zeroize khẩn cấp", command=self.start_zeroize
-        )
-        self.zeroize_button.pack(side=tk.LEFT)
-        ttk.Button(footer, text="Xóa log", command=self.clear_log).pack(side=tk.LEFT, padx=8)
-        ttk.Button(footer, text="Xuất log…", command=self.export_log).pack(side=tk.LEFT)
-        ttk.Label(
-            footer,
-            text="Deterministic KAT mode — phục vụ trình diễn và kiểm chứng lặp lại",
-        ).pack(side=tk.RIGHT)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
     def refresh_ports(self) -> None:
-        if list_ports is None:
-            self._append_log("Không tìm thấy pyserial; chạy: python -m pip install -e pc_host")
-            return
-        ports = [port.device for port in list_ports.comports()]
+        ports = [] if list_ports is None else [item.device for item in list_ports.comports()]
         self.port_combo["values"] = ports
         if ports and self.port_var.get() not in ports:
             self.port_var.set(ports[0])
-        self._append_log("Cổng khả dụng: " + (", ".join(ports) if ports else "không có"))
+        self._log("Đã làm mới danh sách cổng UART")
 
     def _set_busy(self, busy: bool) -> None:
         state = tk.DISABLED if busy else tk.NORMAL
-        for widget in (
-            self.refresh_button,
-            self.preflight_button,
-            self.run_button,
-            self.zeroize_button,
-            self.plaintext_entry,
-            self.port_combo,
-        ):
-            widget.configure(state=state)
+        self.demo_button.configure(state=state)
+        self.preflight_button.configure(state=state)
+        self.zeroize_button.configure(state=state)
 
-    def _start_worker(self, name: str, target: Callable[[], None]) -> None:
+    def _start_worker(self, name: str, target) -> None:
         if self._worker is not None and self._worker.is_alive():
-            messagebox.showwarning("Trinity", "Một tác vụ khác đang chạy.")
+            messagebox.showwarning("Trinity", "Một thao tác khác đang chạy")
             return
         self._set_busy(True)
-        self.overall_var.set("ĐANG CHẠY")
-        self.overall_label.configure(style="Pending.TLabel")
-        self.progress_var.set(0)
-        self.progress_text_var.set(name)
-        self._worker = threading.Thread(target=target, name=f"trinity-{name}", daemon=True)
+        self.result_var.set("ĐANG CHẠY")
+        self._worker = threading.Thread(
+            target=self._worker_entry,
+            args=(name, target),
+            daemon=True,
+        )
         self._worker.start()
 
-    def _client(self, event_handler: Callable[[EventEnvelope], None] | None = None) -> TrinitySerialClient:
+    def _worker_entry(self, name: str, target) -> None:
+        try:
+            result = target()
+            self._queue.put(("success", (name, result)))
+        except Exception as exc:  # pragma: no cover - hardware-dependent
+            self._queue.put(("failure", (name, exc, traceback.format_exc())))
+
+    def _open_client(self) -> TrinitySerialClient:
         port = self.port_var.get().strip()
         if not port:
             raise ValueError("Chưa chọn cổng UART")
-        return TrinitySerialClient(port, event_handler=event_handler)
-
-    def _event_handler(self, event: EventEnvelope) -> None:
-        text = f"EVENT {event.event_type.name} source={event.source.name} txid=0x{event.related_transaction_id:04X}"
-        if event.progress_percent is not None:
-            text += f" progress={event.progress_percent}%"
-            self._queue.put(("progress", (event.progress_percent, text)))
-        self._queue.put(("log", text))
+        return TrinitySerialClient(port)
 
     def start_preflight(self) -> None:
-        def worker() -> None:
-            try:
-                with self._client(self._event_handler) as client:
-                    uptime = client.ping()
-                    info = client.get_system_info()
-                    status = client.get_system_status()
-                self._queue.put(("identity", (info, status)))
-                self._queue.put(("log", f"PING PASS uptime={uptime} ms"))
-                self._queue.put(("done", "PREFLIGHT PASS"))
-            except Exception as exc:
-                self._queue.put(("error", ("PREFLIGHT FAIL", exc, traceback.format_exc())))
+        def work():
+            with self._open_client() as client:
+                uptime = client.ping()
+                info = client.get_system_info()
+                status = client.get_system_status()
+                return uptime, info, status
 
-        self._start_worker("Kiểm tra nhanh", worker)
+        self._start_worker("preflight", work)
 
     def start_demo(self) -> None:
         try:
             plaintext = parse_plaintext_hex(self.plaintext_var.get())
         except ValueError as exc:
-            messagebox.showerror("Plaintext không hợp lệ", str(exc))
+            messagebox.showerror("Payload không hợp lệ", str(exc))
             return
 
-        def progress(message: str, percent: int | None) -> None:
-            self._queue.put(("log", message))
-            if percent is not None:
-                self._queue.put(("progress", (percent, message)))
+        self.progress_var.set(0)
+        self.progress_text_var.set("Bắt đầu core demo")
 
-        def worker() -> None:
-            try:
-                with self._client(self._event_handler) as client:
-                    result = run_core_demo(
-                        client,
-                        plaintext=plaintext,
-                        timeout=120.0,
-                        on_progress=progress,
-                    )
-                self._queue.put(("demo_result", result))
-                self._queue.put(("done", "CORE DEMO PASS"))
-            except Exception as exc:
-                self._queue.put(("error", ("CORE DEMO FAIL", exc, traceback.format_exc())))
+        def on_progress(message: str, percent: int | None) -> None:
+            self._queue.put(("progress", (message, percent)))
 
-        self._start_worker("Khởi động core demo", worker)
+        def work() -> CoreDemoResult:
+            with self._open_client() as client:
+                return run_core_demo(
+                    client,
+                    plaintext=plaintext,
+                    timeout=120.0,
+                    on_progress=on_progress,
+                )
+
+        self._start_worker("demo", work)
 
     def start_zeroize(self) -> None:
-        def worker() -> None:
-            try:
-                with self._client(self._event_handler) as client:
-                    txid = zeroize(client, scope=ZeroizeScope.ALL, timeout=30.0)
-                    status = client.get_system_status()
-                    uptime = client.ping()
-                self._queue.put(("status_only", status))
-                self._queue.put(("log", f"ZEROIZE PASS host_txid=0x{txid:04X}, uptime={uptime} ms"))
-                self._queue.put(("done", "ZEROIZE PASS"))
-            except Exception as exc:
-                self._queue.put(("error", ("ZEROIZE FAIL", exc, traceback.format_exc())))
+        def work():
+            with self._open_client() as client:
+                result = zeroize(client, scope=ZeroizeScope.ALL, timeout=30.0)
+                status = client.get_system_status()
+                uptime = client.ping()
+                return result, status, uptime
 
-        self._start_worker("Zeroize", worker)
-
-    def _update_identity(self, info: object, status: object) -> None:
-        # Kept duck-typed so GUI rendering remains isolated from unit tests.
-        self.sn32_var.set(
-            f"{info.architecture_major}.{info.architecture_minor}.{info.architecture_patch}\n"
-            f"0x{info.sn32_build_id:08X}"
-        )
-        self.p1_var.set(f"0x{info.primer1_build_id:08X}")
-        self.p2_var.set(f"0x{info.primer2_build_id:08X}")
-        self._update_status(status)
-
-    def _update_status(self, status: object) -> None:
-        self.state_var.set(status.system_state.name)
-        self.session_var.set(f"0x{status.session_id:08X}")
-        self.sequence_var.set(str(status.current_sequence))
-
-    def _show_demo_result(self, result: CoreDemoResult) -> None:
-        self._update_identity(result.info, result.status_final)
-        self._append_log(
-            "ML-KEM public-key hash: " + result.keypair.public_key_hash.hex()
-        )
-        self._append_log(f"Session activated: 0x{result.session.session_id:08X}")
-        self._append_log(
-            f"Authenticated telemetry: sequence={result.telemetry.sequence}, "
-            f"plaintext={result.telemetry.plaintext.hex().upper()}"
-        )
-        self._append_log(
-            f"Final zeroize: {result.status_final.system_state.name}; "
-            f"PING uptime={result.final_uptime_ms} ms"
-        )
+        self._start_worker("zeroize", work)
 
     def _drain_queue(self) -> None:
-        try:
-            while True:
+        while True:
+            try:
                 kind, payload = self._queue.get_nowait()
-                if kind == "log":
-                    self._append_log(str(payload))
-                elif kind == "progress":
-                    percent, text = payload  # type: ignore[misc]
+            except queue.Empty:
+                break
+            if kind == "progress":
+                message, percent = payload
+                self.progress_text_var.set(str(message))
+                if percent is not None:
                     self.progress_var.set(float(percent))
-                    self.progress_text_var.set(str(text))
-                elif kind == "identity":
-                    info, status = payload  # type: ignore[misc]
-                    self._update_identity(info, status)
-                elif kind == "status_only":
-                    self._update_status(payload)
-                elif kind == "demo_result":
-                    self._show_demo_result(payload)  # type: ignore[arg-type]
-                elif kind == "done":
-                    self.overall_var.set(str(payload))
-                    self.overall_label.configure(style="Pass.TLabel")
-                    self.progress_var.set(100)
-                    self.progress_text_var.set(str(payload))
-                    self._set_busy(False)
-                elif kind == "error":
-                    title, exc, detail = payload  # type: ignore[misc]
-                    self.overall_var.set(str(title))
-                    self.overall_label.configure(style="Fail.TLabel")
-                    self.progress_text_var.set(str(exc))
-                    self._append_log(f"{title}: {exc}")
-                    self._append_log(str(detail))
-                    self._set_busy(False)
-                    messagebox.showerror(str(title), str(exc))
-        except queue.Empty:
-            pass
+                self._log(str(message))
+            elif kind == "success":
+                name, result = payload
+                self._handle_success(str(name), result)
+                self._set_busy(False)
+            elif kind == "failure":
+                name, exc, trace = payload
+                self.result_var.set("FAIL")
+                self.progress_text_var.set(str(exc))
+                self._log(f"{name.upper()} FAIL: {exc}")
+                self._log(str(trace))
+                self._set_busy(False)
+                messagebox.showerror("Trinity", str(exc))
         self.root.after(self.POLL_MS, self._drain_queue)
 
-    def _append_log(self, message: str) -> None:
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        line = f"[{timestamp}] {message}"
-        self._log_lines.append(line)
-        self.log_text.configure(state=tk.NORMAL)
-        self.log_text.insert(tk.END, line + "\n")
-        self.log_text.see(tk.END)
-        self.log_text.configure(state=tk.DISABLED)
+    def _handle_success(self, name: str, result: object) -> None:
+        if name == "preflight":
+            uptime, info, status = result
+            self.sn32_var.set(f"0.{info.version_major}.{info.version_minor}.{info.version_patch}\n0x{info.sn32_build_id:08X}")
+            self.p1_var.set(f"0x{info.primer1_build_id:08X}")
+            self.p2_var.set(f"0x{info.primer2_build_id:08X}")
+            self.state_var.set(status.system_state.name)
+            self.session_var.set(f"0x{status.session_id:08X}")
+            self.sequence_var.set(str(status.current_sequence))
+            self.result_var.set("PREFLIGHT PASS")
+            self._log(f"PING PASS, uptime_ms={uptime}")
+        elif name == "demo":
+            demo = result
+            self.sn32_var.set(f"0.7.29\n0x{demo.info.sn32_build_id:08X}")
+            self.p1_var.set(f"0x{demo.info.primer1_build_id:08X}")
+            self.p2_var.set(f"0x{demo.info.primer2_build_id:08X}")
+            self.state_var.set(demo.status_final.system_state.name)
+            self.session_var.set(f"0x{demo.session.session_id:08X}")
+            self.sequence_var.set(str(demo.telemetry.sequence))
+            self.result_var.set("CORE DEMO PASS")
+            self.progress_var.set(100)
+            self.progress_text_var.set("CORE DEMO PASS")
+            self._log(
+                "Authenticated plaintext=" + demo.telemetry.plaintext.hex().upper()
+            )
+            self._log(f"Final PING uptime_ms={demo.final_uptime_ms}")
+        else:
+            _zeroize_result, status, uptime = result
+            self.state_var.set(status.system_state.name)
+            self.session_var.set(f"0x{status.session_id:08X}")
+            self.sequence_var.set(str(status.current_sequence))
+            self.result_var.set("ZEROIZE PASS")
+            self._log(f"ZEROIZE PASS, final uptime_ms={uptime}")
 
-    def clear_log(self) -> None:
-        self._log_lines.clear()
-        self.log_text.configure(state=tk.NORMAL)
-        self.log_text.delete("1.0", tk.END)
-        self.log_text.configure(state=tk.DISABLED)
+    def _log(self, message: str) -> None:
+        line = f"[{datetime.now().strftime('%H:%M:%S')}] {message}"
+        self._log_lines.append(line)
+        if hasattr(self, "log_text"):
+            self.log_text.configure(state=tk.NORMAL)
+            self.log_text.insert(tk.END, line + "\n")
+            self.log_text.see(tk.END)
+            self.log_text.configure(state=tk.DISABLED)
 
     def export_log(self) -> None:
-        default_name = f"trinity_core_demo_{datetime.now():%Y%m%d_%H%M%S}.txt"
-        selected = filedialog.asksaveasfilename(
-            title="Xuất nhật ký Trinity",
-            initialfile=default_name,
+        default_name = "trinity_demo_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".txt"
+        filename = filedialog.asksaveasfilename(
+            title="Xuất log Trinity",
             defaultextension=".txt",
-            filetypes=(("Text files", "*.txt"), ("All files", "*.*")),
+            initialfile=default_name,
+            filetypes=(("Text", "*.txt"), ("All files", "*.*")),
         )
-        if not selected:
+        if not filename:
             return
-        Path(selected).write_text("\n".join(self._log_lines) + "\n", encoding="utf-8")
-        self._append_log(f"Đã xuất log: {selected}")
+        Path(filename).write_text("\n".join(self._log_lines) + "\n", encoding="utf-8")
+        self._log(f"Đã xuất log: {filename}")
 
 
 def main() -> int:
