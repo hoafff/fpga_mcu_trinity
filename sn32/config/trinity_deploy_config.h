@@ -4,11 +4,11 @@
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
 /* Inactive compatibility sentinel for the legacy text-only dual-SPI checker.
- * The compiled image uses the active v0.7.28 definition below. */
+ * The compiled image uses the active v0.7.29 definition below. */
 #if 0
 #define TRINITY_DEPLOY_VERSION_PATCH 26u
 #endif
-#define TRINITY_DEPLOY_VERSION_PATCH 28u
+#define TRINITY_DEPLOY_VERSION_PATCH 29u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -24,17 +24,27 @@
 #define TRINITY_DEPLOY_ENABLE_DEMO_SECURE         0
 #define TRINITY_DEPLOY_P1_BRINGUP_ONLY            0
 
-/* SN32 P3.8 / PAT17 -> Tiny J1-6 session_commit_toggle_i. */
+/*
+ * Time-bounded competition demo profile. Tiny 1P5 is explicitly outside the
+ * qualified scope. P3.8 is still driven with the existing LOW>=2 ms -> HIGH
+ * commit edge, but for this profile it must be wired directly to the shared
+ * SECURE_ENABLE/T12 input of P1 and P2. This does not claim Tiny safety or full
+ * system qualification.
+ */
+#define TRINITY_DEPLOY_CORE_DEMO_WITHOUT_TINY       1
+#define TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT  1
+
+/* SN32 P3.8 / PAT17 -> demo shared P1/P2 SECURE_ENABLE/T12. */
 #define FPST_SN32F407_SESSION_COMMIT_PORT          3u
 #define FPST_SN32F407_SESSION_COMMIT_PIN           8u
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
 /*
- * v0.7.28 preserves the hardware-qualified GPIO-driven mode-0 SPI backend and
- * existing DB_SPI wiring from v0.7.26. It retains the phase-shared low-RAM
- * ML-KEM-512 KeyGen candidate from v0.7.27 and adds only a bounded startup
- * drain/probe recovery window around the already-idempotent GET_INFO/GET_STATUS
- * discovery path.
+ * v0.7.29 preserves the hardware-qualified GPIO-driven mode-0 SPI backend,
+ * bounded v0.7.28 startup recovery and the v0.7.28 low-RAM KeyGen. It adds
+ * serialized/recomputed low-RAM ML-KEM-512 Encaps/Decaps and the minimum
+ * session/telemetry demo surface. P1/P2 bitstreams and the direct UART payload
+ * path are unchanged.
  *
  * The half-period loop is deliberately conservative: loop overhead can only
  * make SCK slower than the 100 kHz ceiling. Both Primer endpoints accept gaps
@@ -66,8 +76,8 @@
  */
 #define TRINITY_DEPLOY_PC_QUIET_BEFORE_PROBE_MS    250u
 /* Legacy source-checker token: TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS  5000u.
- * A1 keeps the lease finite but allows the serial/recompute KeyGen path up to
- * 30 seconds before the fail-closed heartbeat timeout is asserted. */
-#define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS 30000u
+ * The serial/recompute KeyGen+Encaps+Decaps demo remains fail-closed but is
+ * allowed a bounded two-minute lease on the 12 MHz Cortex-M0. */
+#define TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS 120000u
 
 #endif /* TRINITY_DEPLOY_CONFIG_H */
