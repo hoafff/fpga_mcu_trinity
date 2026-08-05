@@ -12,13 +12,19 @@ from .full_flow import (
     TelemetryResult,
     _validate_full_preflight,
     create_session,
+    emergency_zeroize,
     generate_keypair,
     read_last_result,
+    read_session_commit_diagnostic,
     send_telemetry,
-    zeroize,
 )
-from .protocol import ErrorCode, SystemState, SystemStatus, ZeroizeScope
-from .serial_client import HostProtocolError, Sn32QualificationResult, SystemInfo, TrinitySerialClient
+from .protocol import ErrorCode, SystemState, SystemStatus
+from .serial_client import (
+    HostProtocolError,
+    Sn32QualificationResult,
+    SystemInfo,
+    TrinitySerialClient,
+)
 
 ProgressCallback = Callable[[str, int | None], None]
 
@@ -67,12 +73,7 @@ def run_core_demo(
     timeout: float = 120.0,
     on_progress: ProgressCallback | None = None,
 ) -> CoreDemoResult:
-    """Run the minimum real PC→SN32→P1→P2 secure-telemetry demonstration.
-
-    Tiny 1P5 is intentionally outside this workflow. Hardware must connect the
-    SN32 demo secure-enable output directly to both Primer T12 inputs. This
-    function never reports Tiny or full-system qualification.
-    """
+    """Run the minimum real PC→SN32→P1→P2 secure-telemetry demonstration."""
 
     if len(plaintext) != 24:
         raise ValueError(f"plaintext must be exactly 24 bytes, got {len(plaintext)}")
@@ -92,7 +93,6 @@ def run_core_demo(
     telemetry: TelemetryResult | None = None
     last_result: TelemetryResult | None = None
     status_active: SystemStatus | None = None
-    cleanup_attempted = False
 
     try:
         _emit(on_progress, "Sinh cặp khóa ML-KEM-512 low-RAM", 25)
@@ -140,16 +140,35 @@ def run_core_demo(
             raise HostProtocolError("READ_LAST_RESULT differs from authenticated telemetry")
 
         _emit(on_progress, "Zeroize toàn hệ thống demo", 94)
-        zeroize(client, scope=ZeroizeScope.ALL, timeout=min(timeout, 30.0))
-        cleanup_attempted = True
-    finally:
-        if keypair is not None and not cleanup_attempted:
-            try:
-                zeroize(client, scope=ZeroizeScope.ALL, timeout=min(timeout, 30.0))
-            except Exception:
-                # Preserve the original demo failure; status/logging will expose
-                # an unsuccessful cleanup separately on hardware.
-                pass
+        emergency_zeroize(client, timeout=min(timeout, 30.0))
+    except Exception as original_error:
+        if keypair is None:
+            raise
+
+        diagnostic_text = "không có session-commit diagnostic"
+        try:
+            snapshot, diagnostic = read_session_commit_diagnostic(client)
+            if diagnostic is not None:
+                diagnostic_text = diagnostic.describe()
+            else:
+                diagnostic_text = (
+                    f"last_error={snapshot.code.name}, "
+                    f"source={snapshot.source}, detail=0x{snapshot.detail:08X}"
+                )
+        except Exception as diagnostic_error:
+            diagnostic_text = f"đọc diagnostic thất bại: {diagnostic_error}"
+
+        cleanup_text = "PASS"
+        _emit(on_progress, "Dọn trạng thái bằng emergency zeroize", 92)
+        try:
+            emergency_zeroize(client, timeout=min(timeout, 30.0))
+        except Exception as cleanup_error:
+            cleanup_text = f"FAIL: {cleanup_error}"
+
+        raise HostProtocolError(
+            f"{original_error}; SESSION COMMIT DIAGNOSTIC: {diagnostic_text}; "
+            f"emergency_zeroize={cleanup_text}"
+        ) from original_error
 
     status_final = client.get_system_status()
     if status_final.system_state != SystemState.READY_NO_KEYPAIR:
