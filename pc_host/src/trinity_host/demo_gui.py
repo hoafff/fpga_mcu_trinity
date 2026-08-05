@@ -308,7 +308,11 @@ class TrinityDemoApp:
             self._log(f"PING PASS, uptime_ms={uptime}")
         elif name == "demo":
             demo = result
-            self.sn32_var.set(f"0.7.30\n0x{demo.info.sn32_build_id:08X}")
+            self.sn32_var.set(
+                f"{demo.info.architecture_major}.{demo.info.architecture_minor}."
+                f"{demo.info.architecture_patch}\n"
+                f"0x{demo.info.sn32_build_id:08X}"
+            )
             self.p1_var.set(f"0x{demo.info.primer1_build_id:08X}")
             self.p2_var.set(f"0x{demo.info.primer2_build_id:08X}")
             self.state_var.set(demo.status_final.system_state.name)
