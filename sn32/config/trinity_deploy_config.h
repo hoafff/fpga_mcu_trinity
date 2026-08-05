@@ -4,11 +4,11 @@
 #define TRINITY_DEPLOY_VERSION_MAJOR 0u
 #define TRINITY_DEPLOY_VERSION_MINOR 7u
 /* Inactive compatibility sentinel for the legacy text-only dual-SPI checker.
- * The compiled image uses the active v0.7.30 definition below. */
+ * The compiled image uses the active v0.7.31 definition below. */
 #if 0
 #define TRINITY_DEPLOY_VERSION_PATCH 26u
 #endif
-#define TRINITY_DEPLOY_VERSION_PATCH 30u
+#define TRINITY_DEPLOY_VERSION_PATCH 31u
 
 #define TRINITY_DEPLOY_ENABLE_PC_UART            1
 #define TRINITY_DEPLOY_ENABLE_SPI                1
@@ -40,10 +40,12 @@
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
 /*
- * v0.7.30 keeps the v0.7.29 low-RAM ML-KEM and core-demo datapath. It adds
- * retained session-activation diagnostics, explicit P2.9 GPIO readback and a
- * fail-safe emergency zeroize path that can preempt a completed failed host
- * transaction. P1/P2 RTL and bitstreams remain unchanged.
+ * v0.7.31 retains the v0.7.30 recovery diagnostics and emergency zeroize. It
+ * aligns the SN32 staged-session wait with the unchanged Primer GET_STATUS
+ * contract: bytes 4..7 expose active_session_id, which remains zero while the
+ * endpoint is STAGED. STAGED is therefore validated by state plus the staged
+ * secure flag; each Primer still validates the exact session ID when accepting
+ * COMMIT_SESSION. P1/P2 RTL and bitstreams remain unchanged.
  */
 #define TRINITY_DEPLOY_SPI_HZ                 100000u
 #define TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND          1
