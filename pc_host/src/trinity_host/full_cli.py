@@ -11,9 +11,11 @@ from .full_flow import (
     DEFAULT_SESSION_SEED,
     close_session,
     create_session,
+    emergency_zeroize,
     generate_keypair,
     parse_plaintext_hex,
     parse_seed_hex,
+    read_session_commit_diagnostic,
     run_secure_telemetry_qualification,
     send_telemetry,
     zeroize,
@@ -24,6 +26,7 @@ from .serial_client import HostProtocolError, RemoteError, TrinitySerialClient
 _FULL_COMMANDS = {
     "keypair-generate",
     "session-create",
+    "session-diagnostic",
     "telemetry-send",
     "session-close",
     "zeroize",
@@ -87,6 +90,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="32-byte hexadecimal seed for KAT mode",
     )
     session.add_argument("--timeout", type=float, default=30.0)
+
+    sub.add_parser(
+        "session-diagnostic",
+        help="decode the retained session-commit failure snapshot",
+    )
 
     telemetry = sub.add_parser(
         "telemetry-send",
@@ -172,6 +180,26 @@ def _run_full_command(args: argparse.Namespace) -> int:
                 },
                 args.json,
             )
+        elif args.command == "session-diagnostic":
+            snapshot, diagnostic = read_session_commit_diagnostic(client)
+            data: dict[str, object] = {
+                "step": "SESSION_COMMIT_DIAGNOSTIC",
+                "result": "PASS",
+                "last_error": snapshot.code.name,
+                "source": snapshot.source,
+                "detail": f"0x{snapshot.detail:08X}",
+            }
+            if diagnostic is not None:
+                data.update({
+                    "phase": diagnostic.phase,
+                    "p2_9_readback": "HIGH" if diagnostic.gpio_high else "LOW",
+                    "p1_session_state": diagnostic.p1_session_state,
+                    "p2_session_state": diagnostic.p2_session_state,
+                    "p1_secure_flags": f"0x{diagnostic.p1_secure_flags:02X}",
+                    "p2_secure_flags": f"0x{diagnostic.p2_secure_flags:02X}",
+                    "decoded": diagnostic.describe(),
+                })
+            _emit(data, args.json)
         elif args.command == "telemetry-send":
             result = send_telemetry(
                 client,
@@ -201,10 +229,14 @@ def _run_full_command(args: argparse.Namespace) -> int:
                 args.json,
             )
         elif args.command == "zeroize":
-            txid = zeroize(
-                client,
-                scope=_scope(args.scope),
-                timeout=args.timeout,
+            txid = (
+                emergency_zeroize(client, timeout=args.timeout)
+                if args.scope == "all"
+                else zeroize(
+                    client,
+                    scope=_scope(args.scope),
+                    timeout=args.timeout,
+                )
             )
             _emit(
                 {
