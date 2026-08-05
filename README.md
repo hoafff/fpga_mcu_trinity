@@ -28,57 +28,68 @@ The active contract is:
 - shared SCK/MOSI/MISO, separate CS/IRQ and the direct P1-to-P2 UART payload
   wiring remain unchanged.
 
-Qualified identities:
+Hardware-qualified identities:
 
 ```text
 Primer #1 build ID = 0x5031D003
 Primer #2 build ID = 0x50320002
-SN32 version/build = 0.7.26 / 0x0007001A
-PC host version    = 0.3.9
+SN32 version/build = 0.7.28 / 0x0007001C
+PC host version    = 0.4.3
 ```
 
 ## Hardware qualification status
 
 ```text
-Primer #1 corrected exact-device build/programming: PASS
-Primer #2 corrected exact-device build/programming: PASS
-SN32 ArmClang build/flash/verify:                     PASS
-SN32 stack lock:                                      0x800 bytes
-PC <-> SN32 qualification command path:               PASS
-SN32 -> P1/P2 shared dual-SPI control plane:           PASS
-P1/P2 identity and status transactions:               PASS
-P1/P2 retained KAT RUN/QUERY/RETIRE lifecycle:         PASS
-Post-test PC-UART liveness:                            PASS
-Retained first SPI failure:                            NONE
+SN32 v0.7.28 bounded startup recovery:                   PASS
+PC <-> SN32 qualification command path:                  PASS
+SN32 -> P1/P2 shared dual-SPI control-plane regression:  PASS
+P1/P2 identity and status transactions:                  PASS
+P1/P2 retained KAT RUN/QUERY/RETIRE lifecycle:            PASS
+Deterministic ML-KEM-512 low-RAM KeyGen A1 on SN32F407F: PASS
+Post-KeyGen full-scope zeroize:                           PASS
+Post-KeyGen PC-UART liveness:                             PASS
+Retained first SPI failure before/after qualification:   NONE
 ```
 
-Evidence:
-
-```text
-sn32/hardware/dual_spi_control_plane/evidence/
-  v0_7_26_hardware_qualification_2026-08-05.txt
-```
-
-The qualified command ended with:
+The qualified control-plane command ended with:
 
 ```text
 [SN32_P1_P2_HARDWARE_QUALIFICATION]
 result=PASS
 ```
 
-## Boundary of this PASS
-
-This milestone qualifies the SN32/P1/P2 control plane and KAT transaction
-lifecycle. It does **not** yet claim:
+The isolated KeyGen command ended with:
 
 ```text
-ML-KEM keypair/session hardware integration PASS
+[MLKEM_KEYPAIR]
+result=PASS
+public_key_hash=e906a88a8a119a7321543a3cbdf0d6e3fa809951fec835e0e581d37f7eb3e0aa
+```
+
+Evidence:
+
+```text
+sn32/hardware/mlkem_low_ram_a1/evidence/
+  v0_7_28_keygen_hardware_qualification_2026-08-05.txt
+
+sn32/hardware/mlkem_low_ram_a1/
+  qualification_v0_7_28.toml
+```
+
+## Boundary of this PASS
+
+This milestone qualifies startup recovery, the SN32/P1/P2 control plane and
+isolated deterministic low-RAM ML-KEM-512 KeyGen. It does **not** claim:
+
+```text
+ML-KEM Encaps or Decaps hardware PASS
+session KDF/stage/commit hardware PASS
 P1 -> P2 secure telemetry end-to-end PASS
 Tiny supervisor complete integration PASS
 full-system hardware qualification PASS
 ```
 
-The next integration gate is keypair/session establishment followed by direct
-P1-to-P2 secure telemetry and authenticated-result read/ACK through SN32.
+The next gate is A2: low-RAM ML-KEM-512 Encaps/Decaps on SN32, followed by
+session establishment and the direct P1-to-P2 secure telemetry flow.
 
 See `IMPLEMENTATION_STATUS.md` for the exact evidence and non-claim boundary.
