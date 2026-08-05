@@ -247,6 +247,8 @@ static trinity_error_code_t trinity_mlkem512_keygen_deterministic_lowram(
     return TRINITY_OK;
 }
 
+#include "trinity_mlkem_lowram_a2.inc"
+
 trinity_error_code_t trinity_mlkem512_keygen_deterministic(
     uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES],
     uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES],
@@ -264,30 +266,24 @@ trinity_error_code_t trinity_mlkem512_encaps_deterministic(
     uint8_t shared_secret[TRINITY_MLKEM_SHARED_SECRET_BYTES],
     const uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES],
     const uint8_t coins[TRINITY_MLKEM_ENCAPS_COINS_BYTES]) {
-    int result;
-    if (ciphertext == NULL || shared_secret == NULL || public_key == NULL || coins == NULL) {
+    if (ciphertext == NULL || shared_secret == NULL || public_key == NULL ||
+        coins == NULL) {
         return TRINITY_INTERNAL_FAULT;
     }
     trinity_mlkem_backend_clear_error();
-    result = trinity_mlkem512_enc_derand(ciphertext, shared_secret, public_key, coins);
-    return trinity_upstream_result(result,
-                                   ciphertext, TRINITY_MLKEM512_CIPHERTEXT_BYTES,
-                                   shared_secret, TRINITY_MLKEM_SHARED_SECRET_BYTES);
+    return trinity_mlkem512_encaps_deterministic_lowram(
+        ciphertext, shared_secret, public_key, coins);
 }
 
 trinity_error_code_t trinity_mlkem512_decaps(
     uint8_t shared_secret[TRINITY_MLKEM_SHARED_SECRET_BYTES],
     const uint8_t ciphertext[TRINITY_MLKEM512_CIPHERTEXT_BYTES],
     const uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES]) {
-    int result;
     if (shared_secret == NULL || ciphertext == NULL || secret_key == NULL) {
         return TRINITY_INTERNAL_FAULT;
     }
     trinity_mlkem_backend_clear_error();
-    result = trinity_mlkem512_dec(shared_secret, ciphertext, secret_key);
-    return trinity_upstream_result(result,
-                                   shared_secret, TRINITY_MLKEM_SHARED_SECRET_BYTES,
-                                   NULL, 0u);
+    return trinity_mlkem512_decaps_lowram(shared_secret, ciphertext, secret_key);
 }
 
 trinity_error_code_t trinity_mlkem512_keygen(
