@@ -119,6 +119,8 @@ static void gpio_init(void) {
     gpio_set_mode(FPST_SN32F407_P2_IRQ_N_PORT, FPST_SN32F407_P2_IRQ_N_PIN, false);
     gpio_set_cfg(FPST_SN32F407_P2_IRQ_N_PORT, FPST_SN32F407_P2_IRQ_N_PIN,
                  GPIO_PULL_UP);
+    g_heartbeat_ms = 0u;
+    g_heartbeat_level = false;
     gpio_write(FPST_SN32F407_MCU_HEARTBEAT_PORT,
                FPST_SN32F407_MCU_HEARTBEAT_PIN, false);
     gpio_set_mode(FPST_SN32F407_MCU_HEARTBEAT_PORT,
