@@ -5,11 +5,20 @@
 
 #include "trinity_mlkem.h"
 
-/* Exact pinned mlkem-native reference entry point. */
+/* Exact pinned mlkem-native reference entry points. */
 int trinity_mlkem512_keypair_derand(
     uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES],
     uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES],
     const uint8_t coins[TRINITY_MLKEM_KEYGEN_COINS_BYTES]);
+int trinity_mlkem512_enc_derand(
+    uint8_t ciphertext[TRINITY_MLKEM512_CIPHERTEXT_BYTES],
+    uint8_t shared_secret[TRINITY_MLKEM_SHARED_SECRET_BYTES],
+    const uint8_t public_key[TRINITY_MLKEM512_PUBLIC_KEY_BYTES],
+    const uint8_t coins[TRINITY_MLKEM_ENCAPS_COINS_BYTES]);
+int trinity_mlkem512_dec(
+    uint8_t shared_secret[TRINITY_MLKEM_SHARED_SECRET_BYTES],
+    const uint8_t ciphertext[TRINITY_MLKEM512_CIPHERTEXT_BYTES],
+    const uint8_t secret_key[TRINITY_MLKEM512_SECRET_KEY_BYTES]);
 
 static uint8_t public_key_a[TRINITY_MLKEM512_PUBLIC_KEY_BYTES];
 static uint8_t public_key_b[TRINITY_MLKEM512_PUBLIC_KEY_BYTES];
@@ -51,6 +60,7 @@ static void test_deterministic_mlkem(void) {
     uint8_t encaps_coins[TRINITY_MLKEM_ENCAPS_COINS_BYTES];
     uint8_t corrupted[TRINITY_MLKEM512_CIPHERTEXT_BYTES];
     uint8_t rejected_secret[TRINITY_MLKEM_SHARED_SECRET_BYTES];
+    uint8_t reference_rejected_secret[TRINITY_MLKEM_SHARED_SECRET_BYTES];
     size_t index;
 
     for (index = 0u; index < sizeof(keygen_coins); ++index) {
@@ -77,9 +87,8 @@ static void test_deterministic_mlkem(void) {
     assert(trinity_mlkem512_encaps_deterministic(ciphertext_a, shared_secret_a,
                                                   public_key_a,
                                                   encaps_coins) == TRINITY_OK);
-    assert(trinity_mlkem512_encaps_deterministic(ciphertext_b, shared_secret_b,
-                                                  public_key_a,
-                                                  encaps_coins) == TRINITY_OK);
+    assert(trinity_mlkem512_enc_derand(ciphertext_b, shared_secret_b,
+                                       public_key_a, encaps_coins) == 0);
     assert(memcmp(ciphertext_a, ciphertext_b, sizeof(ciphertext_a)) == 0);
     assert(memcmp(shared_secret_a, shared_secret_b, sizeof(shared_secret_a)) == 0);
 
@@ -93,13 +102,20 @@ static void test_deterministic_mlkem(void) {
     corrupted[17] ^= 0x01u;
     assert(trinity_mlkem512_decaps(rejected_secret, corrupted,
                                    secret_key_a) == TRINITY_OK);
+    assert(trinity_mlkem512_dec(reference_rejected_secret, corrupted,
+                                secret_key_a) == 0);
     assert(!trinity_constant_time_equal(shared_secret_a, rejected_secret,
                                         sizeof(shared_secret_a)));
+    assert(trinity_constant_time_equal(rejected_secret,
+                                       reference_rejected_secret,
+                                       sizeof(rejected_secret)));
 
     trinity_secure_zero(keygen_coins, sizeof(keygen_coins));
     trinity_secure_zero(encaps_coins, sizeof(encaps_coins));
     trinity_secure_zero(corrupted, sizeof(corrupted));
     trinity_secure_zero(rejected_secret, sizeof(rejected_secret));
+    trinity_secure_zero(reference_rejected_secret,
+                        sizeof(reference_rejected_secret));
 }
 
 static void test_kdf_vector(void) {
@@ -171,6 +187,6 @@ int main(void) {
     trinity_secure_zero(shared_secret_a, sizeof(shared_secret_a));
     trinity_secure_zero(shared_secret_b, sizeof(shared_secret_b));
 
-    puts("PASS: Gate 3 ML-KEM-512 low-RAM keygen, wrapper, KDF and zeroization");
+    puts("PASS: ML-KEM-512 low-RAM KeyGen, Encaps, Decaps, implicit rejection and KDF");
     return 0;
 }
