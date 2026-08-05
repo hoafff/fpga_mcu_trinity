@@ -33,20 +33,20 @@
 #endif
 #if TRINITY_DEPLOY_CORE_DEMO_WITHOUT_TINY != 1 || \
     TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT != 1
-#error "v0.7.30 requires the explicit no-Tiny core-demo profile"
+#error "v0.7.31 requires the explicit no-Tiny core-demo profile"
 #endif
 #if TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT != 0
 #error "P2.9 cannot drive heartbeat and shared secure-enable simultaneously"
 #endif
 #if FPST_SN32F407_SESSION_COMMIT_PORT != 2u || \
     FPST_SN32F407_SESSION_COMMIT_PIN != 9u
-#error "v0.7.30 no-Tiny demo requires SN32 P2.9 as shared secure-enable"
+#error "v0.7.31 no-Tiny demo requires SN32 P2.9 as shared secure-enable"
 #endif
 #if TRINITY_DEPLOY_ENABLE_DEMO_SECURE != 0
 #error "DEMO_SECURE remains disabled until an approved entropy qualification"
 #endif
 #if TRINITY_DEPLOY_SPI_SOFTWARE_BACKEND != 1
-#error "v0.7.30 deploy requires the deterministic GPIO SPI backend"
+#error "v0.7.31 deploy requires the deterministic GPIO SPI backend"
 #endif
 #if TRINITY_DEPLOY_SPI_HALF_PERIOD_CYCLES < \
     (FPST_SN32F407_HCLK_HZ / (2u * TRINITY_DEPLOY_SPI_HZ))
@@ -56,7 +56,7 @@
 #if 0
 #define DEPLOY_BUILD_ID UINT32_C(0x0007001A)
 #endif
-#define DEPLOY_BUILD_ID UINT32_C(0x0007001E)
+#define DEPLOY_BUILD_ID UINT32_C(0x0007001F)
 #define DEPLOY_MARKER_BOOT UINT32_C(0x44504254)
 #define DEPLOY_MARKER_OK UINT32_C(0x44504F4B)
 #define DEPLOY_MARKER_ERR UINT32_C(0x44504552)
