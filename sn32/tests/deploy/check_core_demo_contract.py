@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "sn32/config/trinity_deploy_config.h"
 IDENTITY = ROOT / "sn32/src/app/trinity_deploy_main_part_00.inc"
+MAIN04 = ROOT / "sn32/src/app/trinity_deploy_main_part_04.inc"
 MLKEM = ROOT / "sn32/src/trinity_mlkem.c"
 A2 = ROOT / "sn32/src/trinity_mlkem_lowram_a2.inc"
 CRYPTO = ROOT / "sn32/src/app/trinity_deploy_crypto_part_01.inc"
@@ -38,6 +39,7 @@ def tokens(text: str, required: tuple[str, ...], label: str) -> None:
 def main() -> int:
     config = read(CONFIG)
     identity = read(IDENTITY)
+    main04 = read(MAIN04)
     mlkem = read(MLKEM)
     a2 = read(A2)
     crypto = read(CRYPTO)
@@ -54,8 +56,19 @@ def main() -> int:
     tokens(config, (
         "TRINITY_DEPLOY_CORE_DEMO_WITHOUT_TINY       1",
         "TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT  1",
+        "TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT  0",
+        "FPST_SN32F407_SESSION_COMMIT_PORT          2u",
+        "FPST_SN32F407_SESSION_COMMIT_PIN           9u",
         "TRINITY_DEPLOY_CRYPTO_PROGRESS_LEASE_MS 120000u",
     ), "demo config")
+    tokens(identity, (
+        "P2.9 cannot drive heartbeat and shared secure-enable simultaneously",
+        "v0.7.29 no-Tiny demo requires SN32 P2.9 as shared secure-enable",
+    ), "compile-time pin ownership")
+    tokens(main04, (
+        "#if TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT",
+        "gpio_write(FPST_SN32F407_MCU_HEARTBEAT_PORT",
+    ), "heartbeat ownership")
 
     tokens(mlkem, (
         '#include "trinity_mlkem_lowram_a2.inc"',
@@ -97,7 +110,7 @@ def main() -> int:
         "class TrinityDemoApp",
         "CHẠY CORE DEMO",
         "Tiny 1P5 tạm thời không sử dụng",
-        "SN32 P3.8 phải nối trực tiếp",
+        "SN32 P2.9 phải nối trực tiếp",
         "threading.Thread",
         "Xuất log",
     ), "demo GUI")
@@ -107,9 +120,9 @@ def main() -> int:
             "trinity-demo entry point is missing")
 
     print("PASS: v0.7.29 low-RAM A2 routes Encaps/Decaps without full vectors")
+    print("PASS: P2.9 is the sole direct secure-enable owner in no-Tiny demo mode")
     print("PASS: session self-check, KDF, telemetry, readback and zeroize are wired")
     print("PASS: PC host v0.5.0 exposes a threaded Tkinter demo dashboard")
-    print("PASS: Tiny omission and direct secure-enable wiring are explicit")
     print("NOTE: source PASS is not ArmClang fit or hardware core-demo PASS")
     return 0
 
