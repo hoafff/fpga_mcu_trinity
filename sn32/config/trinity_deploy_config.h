@@ -26,17 +26,21 @@
 
 /*
  * Time-bounded competition demo profile. Tiny 1P5 is explicitly outside the
- * qualified scope. P3.8 is still driven with the existing LOW>=2 ms -> HIGH
- * commit edge, but for this profile it must be wired directly to the shared
- * SECURE_ENABLE/T12 input of P1 and P2. This does not claim Tiny safety or full
- * system qualification.
+ * qualified scope. The board-visible P2.9 header pin is repurposed from the
+ * Tiny heartbeat output and driven with the existing LOW>=2 ms -> HIGH commit
+ * edge directly into the shared SECURE_ENABLE/T12 input of P1 and P2.
+ *
+ * Because P2.9 has a single owner in this profile, the periodic MCU heartbeat
+ * GPIO output is disabled. SysTick, progress leases, UART liveness and the
+ * fail-closed heartbeat timeout logic remain active internally.
  */
 #define TRINITY_DEPLOY_CORE_DEMO_WITHOUT_TINY       1
 #define TRINITY_DEPLOY_DIRECT_SECURE_ENABLE_OUTPUT  1
+#define TRINITY_DEPLOY_ENABLE_MCU_HEARTBEAT_OUTPUT  0
 
-/* SN32 P3.8 / PAT17 -> demo shared P1/P2 SECURE_ENABLE/T12. */
-#define FPST_SN32F407_SESSION_COMMIT_PORT          3u
-#define FPST_SN32F407_SESSION_COMMIT_PIN           8u
+/* SN32 P2.9/J7 -> demo shared P1/P2 SECURE_ENABLE/T12. */
+#define FPST_SN32F407_SESSION_COMMIT_PORT          2u
+#define FPST_SN32F407_SESSION_COMMIT_PIN           9u
 
 #define TRINITY_DEPLOY_UART_BAUD              115200u
 /*
