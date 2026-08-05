@@ -39,6 +39,7 @@ def main() -> int:
     host = read(HOST)
     package = read(PACKAGE)
     evidence = read(EVIDENCE)
+    evidence_words = " ".join(evidence.split())
 
     require(re.search(r"^#define\s+TRINITY_DEPLOY_VERSION_PATCH\s+28u$",
                       config, re.MULTILINE) is not None,
@@ -92,9 +93,10 @@ def main() -> int:
         "P1 and P2 `SPI_DIAGNOSTIC GET_INFO/GET_STATUS` exchanges pass",
         "`STARTUP_PROBE`, P1 `GET_INFO`",
         "`FRAME_TIMEOUT`",
+        "ML-KEM KeyGen is correctly rejected with `BAD_STATE`",
         "do not execute or qualify the low-RAM KeyGen path",
     ):
-        require_token(evidence, token, "hardware evidence")
+        require_token(evidence_words, token, "hardware evidence")
 
     print("PASS: v0.7.28 startup recovery identity is locked")
     print("PASS: complete drain/probe retries are bounded to 10 seconds")
