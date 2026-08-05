@@ -1,0 +1,46 @@
+schema_version = 1
+qualification = "SN32_P1_P2_CORE_SECURE_TELEMETRY_DEMO"
+result = "PENDING_EXACT_BUILD_AND_HARDWARE"
+date = "2026-08-05"
+
+source_candidate_commit = "0aff23231150b0d88222769b01e49810a8681d69"
+source_status_commit = "88acbbb378a46fcf422a5d19bdbde79cd72a0642"
+readme_candidate_commit = "2300e507d37deef318abd2332327d1fd534b5a6e"
+
+sn32_version = "0.7.29"
+sn32_build_id = "0x0007001D"
+pc_host_version = "0.5.0"
+primer1_build_id = "0x5031D003"
+primer2_build_id = "0x50320002"
+
+pinned_mlkem_reference = "pq-code-package/mlkem-native@048fc2a7a7b4ba0ad4c989c1ac82491aa94d5bfa"
+low_ram_workspace_bytes = 1792
+stack_contract_bytes = 2048
+
+portable_keygen_byte_exact = true
+portable_encaps_ciphertext_byte_exact = true
+portable_encaps_shared_secret_byte_exact = true
+portable_valid_decaps_equal = true
+portable_implicit_rejection_byte_exact = true
+portable_kdf_vector = true
+portable_host_core_demo_workflow = true
+primer2_rtl_regression = true
+
+exact_target_build = "PENDING"
+exact_target_map_gate = "PENDING"
+flash_programming = "PENDING"
+flash_verify = "PENDING"
+startup_control_plane_regression = "PENDING"
+mlkem_encaps_decaps_hardware = "PENDING"
+session_activation_hardware = "PENDING"
+one_packet_secure_telemetry_hardware = "PENDING"
+post_demo_zeroize_and_liveness = "PENDING"
+
+core_demo_without_tiny = true
+direct_secure_enable_source = "SN32_P3_8_PAT17"
+direct_secure_enable_targets = "P1_T12_AND_P2_T12"
+tiny_integration_qualified = false
+full_system_hardware_qualified = false
+
+hardware_gate = "sn32/docs/CORE_DEMO_V0_7_29_HARDWARE_GATE.md"
+gui_command = "trinity-demo"
