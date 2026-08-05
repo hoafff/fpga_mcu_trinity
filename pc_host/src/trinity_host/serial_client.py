@@ -1,4 +1,4 @@
-"""SN32 v0.7.30 serial-client identity and recovery facade.
+"""SN32 v0.7.31 serial-client identity and recovery facade.
 
 The delegated implementation in ``serial_client_impl.py`` remains the owner of
 ``EventEnvelope``, ``_handle_event``, ``event_handler`` and the validation text
@@ -19,8 +19,8 @@ import struct as _struct
 # Legacy text-checker sentinels only:
 # EXPECTED_SN32_BUILD_ID = 0x0007001A
 # EXPECTED_SN32_VERSION = (0, 7, 26)
-EXPECTED_SN32_BUILD_ID = 0x0007001E
-EXPECTED_SN32_VERSION = (0, 7, 30)
+EXPECTED_SN32_BUILD_ID = 0x0007001F
+EXPECTED_SN32_VERSION = (0, 7, 31)
 
 _SESSION_FAILURE_PHASE_NAMES = {
     0: "NONE",
