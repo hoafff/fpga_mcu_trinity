@@ -171,9 +171,13 @@ def run_core_demo(
         ) from original_error
 
     status_final = client.get_system_status()
-    if status_final.system_state != SystemState.READY_NO_KEYPAIR:
+    allowed_final_states = {
+        SystemState.READY_NO_KEYPAIR,
+        SystemState.SELF_TEST_REQUIRED,
+    }
+    if status_final.system_state not in allowed_final_states:
         raise HostProtocolError(
-            "zeroize did not restore READY_NO_KEYPAIR: "
+            "zeroize did not enter a valid clean state: "
             f"{status_final.system_state.name}"
         )
     if (
@@ -186,7 +190,15 @@ def run_core_demo(
         raise HostProtocolError("zeroize did not leave a clean final status")
 
     final_uptime_ms = client.ping()
-    _emit(on_progress, "CORE DEMO PASS — Tiny 1P5 không thuộc phạm vi", 100)
+    if status_final.system_state == SystemState.SELF_TEST_REQUIRED:
+        _emit(
+            on_progress,
+            "CORE DEMO PASS — zeroize hoàn tất; cần self-test trước phiên tiếp theo; "
+            "Tiny 1P5 không thuộc phạm vi",
+            100,
+        )
+    else:
+        _emit(on_progress, "CORE DEMO PASS — Tiny 1P5 không thuộc phạm vi", 100)
 
     assert keypair is not None
     assert session is not None

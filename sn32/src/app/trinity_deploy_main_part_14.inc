@@ -167,12 +167,19 @@ static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
                              request_bytes,
                              response_bytes,
                              2u, &payload_length) ||
-        (uint32_t)payload_length + 32u > TRINITY_PC_MAX_PAYLOAD) {
+        (uint32_t)payload_length + 12u > TRINITY_PC_MAX_PAYLOAD) {
         response_error(req, TRINITY_BAD_LENGTH,
                        TRINITY_SOURCE_SN32, trace->target_txid);
         return;
     }
 
+    /*
+     * The 12-byte transfer extension is the mandatory compact form understood
+     * by the PC host.  Register snapshots and FIFO samples are optional.  A
+     * large retained request/response trace must therefore degrade to this
+     * compact extension instead of turning the diagnostic query itself into
+     * BAD_LENGTH.
+     */
     g_pc_rsp.payload[payload_length + 0u] = trace->transfer_stage;
     g_pc_rsp.payload[payload_length + 1u] = trace->transfer_direction;
     trinity_write_be16(&g_pc_rsp.payload[payload_length + 2u],
@@ -183,6 +190,13 @@ static void handle_get_first_spi_failure(const trinity_pc_frame_t *req) {
                        trace->transfer_completed);
     trinity_write_be32(&g_pc_rsp.payload[payload_length + 8u],
                        trace->spi_status);
+
+    if ((uint32_t)payload_length + 32u > TRINITY_PC_MAX_PAYLOAD) {
+        g_pc_rsp.payload_length = (uint16_t)(payload_length + 12u);
+        (void)response_send();
+        return;
+    }
+
     trinity_write_be32(&g_pc_rsp.payload[payload_length + 12u],
                        trace->spi_ctrl0);
     trinity_write_be32(&g_pc_rsp.payload[payload_length + 16u],

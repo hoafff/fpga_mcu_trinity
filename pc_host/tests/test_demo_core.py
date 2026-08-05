@@ -26,12 +26,20 @@ from trinity_host.serial_client import (
 
 
 class CoreDemoFakeClient:
-    def __init__(self, *, fail_session: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        fail_session: bool = False,
+        zeroize_state: SystemState = SystemState.READY_NO_KEYPAIR,
+        dirty_zeroize: bool = False,
+    ) -> None:
         self.next_txid = 1
         self.retained: dict[int, TransactionResult] = {}
         self.commands: list[HostCommand] = []
         self.phase = "ready"
         self.fail_session = fail_session
+        self.zeroize_state = zeroize_state
+        self.dirty_zeroize = dirty_zeroize
         self.active_host_txid = 0
         self.session_id = 0xA1B2C3D4
         self.sequence = 0
@@ -111,8 +119,12 @@ class CoreDemoFakeClient:
         if command == HostCommand.READ_LAST_RESULT:
             return self._response(command, self.last_payload, False)
         if command == HostCommand.ZEROIZE_SYSTEM:
-            self.phase = "ready"
-            self.sequence = 0
+            self.phase = (
+                "self_test_required"
+                if self.zeroize_state == SystemState.SELF_TEST_REQUIRED
+                else "ready"
+            )
+            self.sequence = 1 if self.dirty_zeroize else 0
             self.active_host_txid = 0
             return self._response(command, b"", True)
         raise AssertionError(command)
@@ -128,6 +140,7 @@ class CoreDemoFakeClient:
     def get_system_status(self) -> SystemStatus:
         state = {
             "ready": SystemState.READY_NO_KEYPAIR,
+            "self_test_required": SystemState.SELF_TEST_REQUIRED,
             "keypair": SystemState.READY_NO_SESSION,
             "active": SystemState.ACTIVE,
             "fault": SystemState.FAULT_LOCKED,
@@ -142,7 +155,7 @@ class CoreDemoFakeClient:
             ),
             0x11 if self.phase == "fault" else 0,
             self.session_id if self.phase == "active" else 0,
-            self.sequence if self.phase == "active" else 0,
+            self.sequence,
             (
                 ErrorCode.SESSION_COMMIT_FAILED
                 if self.phase == "fault"
@@ -198,6 +211,36 @@ class CoreDemoTests(unittest.TestCase):
             ],
         )
         self.assertEqual(progress[-1][1], 100)
+
+    def test_clean_self_test_required_after_zeroize_is_pass(self) -> None:
+        client = CoreDemoFakeClient(
+            zeroize_state=SystemState.SELF_TEST_REQUIRED,
+        )
+        progress: list[tuple[str, int | None]] = []
+        result = run_core_demo(
+            client,
+            timeout=0.1,
+            on_progress=lambda text, percent: progress.append((text, percent)),
+        )
+
+        self.assertEqual(
+            result.status_final.system_state,
+            SystemState.SELF_TEST_REQUIRED,
+        )
+        self.assertIn("cần self-test trước phiên tiếp theo", progress[-1][0])
+        self.assertEqual(progress[-1][1], 100)
+        self.assertEqual(client.retained, {})
+
+    def test_self_test_required_must_still_be_clean(self) -> None:
+        client = CoreDemoFakeClient(
+            zeroize_state=SystemState.SELF_TEST_REQUIRED,
+            dirty_zeroize=True,
+        )
+        with self.assertRaisesRegex(
+            HostProtocolError,
+            "zeroize did not leave a clean final status",
+        ):
+            run_core_demo(client, timeout=0.1)
 
     def test_commit_failure_is_diagnosed_retired_and_zeroized(self) -> None:
         client = CoreDemoFakeClient(fail_session=True)
